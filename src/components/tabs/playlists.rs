@@ -3,6 +3,7 @@ use gdk_pixbuf::InterpType;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::IconViewExt;
+use itertools::Itertools;
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
@@ -12,11 +13,14 @@ use std::sync::Arc;
 use tokio::sync::oneshot::{channel, error::TryRecvError, Receiver};
 
 const THUMB_SIZE: i32 = 256;
+const PAGE_LIMIT: u32 = 10;
 
 #[derive(Msg)]
 pub enum PlaylistsMsg {
-    Load,
-    TryRecv(Receiver<Option<Page<SimplifiedPlaylist>>>),
+    ShowTab,
+    LoadPage(u32),
+    TryRecvPage(Receiver<Option<Page<SimplifiedPlaylist>>>),
+    NewPage(Vec<SimplifiedPlaylist>),
 }
 
 pub struct PlaylistsModel {
@@ -40,42 +44,53 @@ impl Widget for PlaylistsTab {
     fn update(&mut self, event: PlaylistsMsg) {
         use PlaylistsMsg::*;
         match event {
-            Load => {
+            ShowTab => {
+                self.model.store.clear();
+                self.model.relm.stream().emit(LoadPage(0))
+            }
+            LoadPage(offset) => {
                 let (tx, rx) = channel::<Option<Page<SimplifiedPlaylist>>>();
                 self.model
                     .spotify_tx
                     .send(SpotifyCmd::GetPlaylists {
                         tx,
-                        limit: 50,
-                        offset: 0,
+                        limit: PAGE_LIMIT,
+                        offset,
                     })
                     .unwrap();
-                self.model.relm.stream().emit(TryRecv(rx));
+                self.model.relm.stream().emit(TryRecvPage(rx));
             }
-            TryRecv(mut rx) => match rx.try_recv() {
-                Err(TryRecvError::Empty) => self.model.relm.stream().emit(TryRecv(rx)),
+            TryRecvPage(mut rx) => match rx.try_recv() {
+                Err(TryRecvError::Empty) => self.model.relm.stream().emit(TryRecvPage(rx)),
                 Err(TryRecvError::Closed) => (),
-                Ok(Some(playlists)) => {
-                    let store = &self.model.store;
-
-                    store.clear();
-                    for playlist in &playlists.items {
-                        let image = playlist
-                            .images
-                            .iter()
-                            .max_by_key(|img| img.width.unwrap_or(0))
-                            .and_then(|img| crate::utils::pixbuf_from_url(&img.url).ok())
-                            .and_then(|pb| {
-                                pb.scale_simple(THUMB_SIZE, THUMB_SIZE, InterpType::Nearest)
-                            });
-
-                        store.insert_with_values(None, &[0, 1], &[&image, &playlist.name]);
+                Ok(Some(page)) => {
+                    let stream = self.model.relm.stream();
+                    for chunk in &page.items.into_iter().chunks(5) {
+                        stream.emit(NewPage(chunk.collect::<Vec<_>>()))
+                    }
+                    if page.next.is_some() {
+                        stream.emit(LoadPage(page.offset + PAGE_LIMIT));
                     }
                 }
                 Ok(None) => {
                     self.model.store.clear();
                 }
             },
+            NewPage(playlists) => {
+                let store = &self.model.store;
+                for playlist in &playlists {
+                    let image = playlist
+                        .images
+                        .iter()
+                        .max_by_key(|img| img.width.unwrap_or(0))
+                        .and_then(|img| crate::utils::pixbuf_from_url(&img.url).ok())
+                        .and_then(|pb| {
+                            pb.scale_simple(THUMB_SIZE, THUMB_SIZE, InterpType::Nearest)
+                        });
+
+                    store.insert_with_values(None, &[0, 1], &[&image, &playlist.name]);
+                }
+            }
         }
     }
 

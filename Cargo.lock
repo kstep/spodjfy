@@ -1525,6 +1525,7 @@ dependencies = [
  "gio",
  "glib",
  "gtk",
+ "itertools",
  "relm",
  "relm-derive",
  "rspotify",

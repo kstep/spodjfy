@@ -90,13 +90,13 @@ impl Widget for Win {
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
                 Some("settings_tab") => {
-                    self.settings_tab.emit(SettingsMsg::Load);
+                    self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
                 Some("albums_tab") => {
-                    self.albums_tab.emit(AlbumsMsg::Load);
+                    self.albums_tab.emit(AlbumsMsg::ShowTab);
                 }
                 Some("playlists_tab") => {
-                    self.playlists_tab.emit(PlaylistsMsg::Load);
+                    self.playlists_tab.emit(PlaylistsMsg::ShowTab);
                 }
                 _ => (),
             },

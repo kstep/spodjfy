@@ -3,6 +3,7 @@ use gdk_pixbuf::InterpType;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::IconViewExt;
+use itertools::Itertools;
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SavedAlbum;
@@ -13,11 +14,14 @@ use tokio::sync::oneshot::{channel, error::TryRecvError, Receiver};
 
 #[derive(Msg)]
 pub enum AlbumsMsg {
-    Load,
-    TryRecv(Receiver<Option<Page<SavedAlbum>>>),
+    ShowTab,
+    LoadPage(u32),
+    TryRecvPage(Receiver<Option<Page<SavedAlbum>>>),
+    NewPage(Vec<SavedAlbum>),
 }
 
 const THUMB_SIZE: i32 = 256;
+const PAGE_LIMIT: u32 = 10;
 
 pub struct AlbumsModel {
     relm: Relm<AlbumsTab>,
@@ -43,46 +47,58 @@ impl Widget for AlbumsTab {
     fn update(&mut self, event: AlbumsMsg) {
         use AlbumsMsg::*;
         match event {
-            Load => {
+            ShowTab => {
+                self.model.store.clear();
+                self.model.relm.stream().emit(LoadPage(0))
+            }
+            LoadPage(offset) => {
                 let (tx, rx) = channel::<Option<Page<SavedAlbum>>>();
                 self.model
                     .spotify_tx
                     .send(SpotifyCmd::GetAlbums {
                         tx,
-                        limit: 50,
-                        offset: 0,
+                        limit: PAGE_LIMIT,
+                        offset,
                     })
                     .unwrap();
-                self.model.relm.stream().emit(TryRecv(rx));
+                self.model.relm.stream().emit(TryRecvPage(rx));
             }
-            TryRecv(mut rx) => match rx.try_recv() {
-                Err(TryRecvError::Empty) => self.model.relm.stream().emit(TryRecv(rx)),
+            TryRecvPage(mut rx) => match rx.try_recv() {
+                Err(TryRecvError::Empty) => self.model.relm.stream().emit(TryRecvPage(rx)),
                 Err(TryRecvError::Closed) => (),
-                Ok(Some(albums)) => {
-                    let store = &self.model.store;
-                    store.clear();
-                    for album in &albums.items {
-                        let image = album
-                            .album
-                            .images
-                            .iter()
-                            .max_by_key(|img| img.width.unwrap_or(0))
-                            .and_then(|img| crate::utils::pixbuf_from_url(&img.url).ok())
-                            .and_then(|pb| {
-                                pb.scale_simple(THUMB_SIZE, THUMB_SIZE, InterpType::Nearest)
-                            });
-
-                        store.insert_with_values(
-                            None,
-                            &[0, 1, 2],
-                            &[&image, &album.album.name, &album.album.release_date],
-                        );
+                Ok(Some(page)) => {
+                    let stream = self.model.relm.stream();
+                    for chunk in &page.items.into_iter().chunks(5) {
+                        stream.emit(NewPage(chunk.collect::<Vec<_>>()))
+                    }
+                    if page.next.is_some() {
+                        stream.emit(LoadPage(page.offset + PAGE_LIMIT));
                     }
                 }
                 Ok(None) => {
                     self.model.store.clear();
                 }
             },
+            NewPage(albums) => {
+                let store = &self.model.store;
+                for album in &albums {
+                    let image = album
+                        .album
+                        .images
+                        .iter()
+                        .max_by_key(|img| img.width.unwrap_or(0))
+                        .and_then(|img| crate::utils::pixbuf_from_url(&img.url).ok())
+                        .and_then(|pb| {
+                            pb.scale_simple(THUMB_SIZE, THUMB_SIZE, InterpType::Nearest)
+                        });
+
+                    store.insert_with_values(
+                        None,
+                        &[0, 1, 2],
+                        &[&image, &album.album.name, &album.album.release_date],
+                    );
+                }
+            }
         }
     }
 
