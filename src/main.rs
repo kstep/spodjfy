@@ -1,9 +1,13 @@
 use relm::Widget;
-use spodjfy::components::win::{Settings, Win};
+use spodjfy::components::spotify::{Spotify, SpotifyCmd};
+use spodjfy::components::win::{Params, Settings, Win};
 use std::io::Read;
 use std::sync::{Arc, RwLock};
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    let (tx, rx) = std::sync::mpsc::channel::<SpotifyCmd>();
+
     let settings: Settings = directories::ProjectDirs::from("me", "kstep", "spodjfy")
         .and_then(|dirs| std::fs::File::open(dirs.config_dir().join("settings.toml")).ok())
         .and_then(|mut file| {
@@ -13,29 +17,25 @@ fn main() {
         .and_then(|data| toml::from_slice(&data).ok())
         .unwrap_or_default();
 
-    /*
-    let mut oauth = rspotify::blocking::oauth2::SpotifyOAuth::default()
-        .client_id(&settings.client_id)
-        .client_secret(&settings.client_secret)
-        .redirect_uri("http://localhost:8888/callback")
-        .build();
+    std::thread::spawn(move || {
+        let mut rt = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(Spotify::new().run(rx));
+    });
 
-    rspotify::blocking::util::request_token(&mut oauth);
-    let creds = rspotify::blocking::oauth2::SpotifyClientCredentials {
-        client_id: settings.client_id.clone(),
-        client_secret: settings.client_secret.clone(),
-        token_info: {
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).unwrap();
-            input = input.trim_end().to_owned();
-            rspotify::blocking::util::process_token(&mut oauth, &mut input)
-        }
-    };
-    let client = rspotify::blocking::client::Spotify::default()
-        .client_credentials_manager(creds)
-        .build();
-    println!("{:?}", client.current_user_saved_albums(100, 0));
-    */
+    tx.send(SpotifyCmd::SetupClient {
+        id: settings.client_id.clone(),
+        secret: settings.client_secret.clone(),
+        force: true,
+    })
+    .unwrap();
 
-    Win::run(Arc::new(RwLock::new(settings))).unwrap();
+    Win::run(Params {
+        settings: Arc::new(RwLock::new(settings)),
+        spotify_tx: tx,
+    })
+    .unwrap();
 }

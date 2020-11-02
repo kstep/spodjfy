@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Msg)]
 pub enum SettingsMsg {
-    Show,
+    Load,
     Save,
 }
 
@@ -20,7 +20,7 @@ impl Widget for SettingsTab {
     fn update(&mut self, event: SettingsMsg) {
         use SettingsMsg::*;
         match event {
-            Show => {
+            Load => {
                 let settings = self.model.read().unwrap();
                 self.client_id_entry.set_text(&*settings.client_id);
                 self.client_secret_entry.set_text(&*settings.client_secret);

@@ -6,7 +6,11 @@ use relm_derive::{widget, Msg};
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
+use crate::components::spotify::SpotifyCmd;
+use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
+use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
+use std::sync::mpsc::Sender;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Settings {
@@ -25,6 +29,7 @@ impl Default for Settings {
 
 pub struct State {
     pub settings: Arc<RwLock<Settings>>,
+    pub spotify_tx: Arc<Sender<SpotifyCmd>>,
 
     pub screen: gdk::Screen,
     pub style: gtk::CssProvider,
@@ -37,9 +42,14 @@ pub enum Msg {
     Quit,
 }
 
+pub struct Params {
+    pub settings: Arc<RwLock<Settings>>,
+    pub spotify_tx: Sender<SpotifyCmd>,
+}
+
 #[widget]
 impl Widget for Win {
-    fn model(settings: Arc<RwLock<Settings>>) -> State {
+    fn model(params: Params) -> State {
         let style = gtk::CssProvider::new();
         let screen = gdk::Screen::get_default().unwrap();
 
@@ -64,7 +74,8 @@ impl Widget for Win {
         );
 
         State {
-            settings,
+            settings: params.settings,
+            spotify_tx: Arc::new(params.spotify_tx),
             screen,
             style,
         }
@@ -77,36 +88,18 @@ impl Widget for Win {
             SearchStart(ref event) => {
                 self.searchbar.handle_event(event);
             }
-            ChangeTab(widget_name) => {
-                match widget_name.as_deref() {
-                    Some("settings_tab") => {
-                        self.settings_tab.emit(SettingsMsg::Show);
-                    }
-                    Some("albums_tab") => {
-                        let settings = self.model.settings.read().unwrap();
-                        let oauth = rspotify::blocking::oauth2::SpotifyOAuth::default();
-                        let creds = rspotify::blocking::oauth2::SpotifyClientCredentials {
-                            client_id: settings.client_id.clone(),
-                            client_secret: settings.client_secret.clone(),
-                            token_info: None,
-                        };
-                        let token = creds.get_access_token();
-                        println!("{:?}", creds);
-                        println!("{:?}", token);
-                        let spotify = rspotify::blocking::client::Spotify::default()
-                            .client_credentials_manager(creds)
-                            .build();
-
-                        let albums = spotify.current_user_saved_albums(100, 0);
-                        println!("{:?}", albums);
-
-                        //if let Ok(page) = rt.block_on(albums) {
-                        //    println!("{:?}", page);
-                        //}
-                    }
-                    _ => (),
+            ChangeTab(widget_name) => match widget_name.as_deref() {
+                Some("settings_tab") => {
+                    self.settings_tab.emit(SettingsMsg::Load);
                 }
-            }
+                Some("albums_tab") => {
+                    self.albums_tab.emit(AlbumsMsg::Load);
+                }
+                Some("playlists_tab") => {
+                    self.playlists_tab.emit(PlaylistsMsg::Load);
+                }
+                _ => (),
+            },
         }
     }
 
@@ -148,8 +141,11 @@ impl Widget for Win {
                         },
 
                         #[name="playlists_tab"]
-                        gtk::Label(Some("Playlists")) {
-                           child: { title: Some("\u{1F4C1} Playlists") },
+                        PlaylistsTab(__relm_model.spotify_tx.clone()) {
+                            child: {
+                                name: Some("playlists_tab"),
+                                title: Some("\u{1F4C1} Playlists"),
+                            }
                         },
 
                         #[name="artists_tab"]
@@ -158,11 +154,11 @@ impl Widget for Win {
                         },
 
                         #[name="albums_tab"]
-                        gtk::Label(Some("Albums")) {
+                        AlbumsTab(__relm_model.spotify_tx.clone()) {
                             child: {
                                 name: Some("albums_tab"),
                                 title: Some("\u{1F4BF} Albums"),
-                            },
+                            }
                         },
 
                         #[name="genres_tab"]
