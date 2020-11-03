@@ -4,13 +4,14 @@ use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{
-    CellRendererPixbuf, GtkMenuExt, GtkMenuItemExt, Inhibit, TreeView, TreeViewColumn,
-    TreeViewColumnBuilder,
+    CellRendererExt, CellRendererPixbuf, GtkMenuExt, GtkMenuItemExt, Inhibit, TreeModelExt,
+    TreeView, TreeViewColumn, TreeViewColumnBuilder, TreeViewExt,
 };
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
+use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
 use rspotify::model::track::SavedTrack;
 use std::sync::mpsc::Sender;
@@ -24,6 +25,9 @@ pub enum FavoritesMsg {
     Click(gdk::EventButton),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
+    PlayChosenTracks,
+    LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
+    NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
 }
 
 const PAGE_LIMIT: u32 = 10;
@@ -38,6 +42,8 @@ const COL_TRACK_ALBUM: u32 = 5;
 const COL_TRACK_CAN_PLAY: u32 = 6;
 const COL_TRACK_DURATION: u32 = 7;
 const COL_TRACK_DURATION_MS: u32 = 8;
+const COL_TRACK_URI: u32 = 9;
+const COL_TRACK_BPM: u32 = 10;
 
 pub struct FavoritesModel {
     relm: Relm<FavoritesTab>,
@@ -59,6 +65,8 @@ impl Widget for FavoritesTab {
             bool::static_type(),
             String::static_type(),
             u32::static_type(),
+            String::static_type(),
+            f32::static_type(),
         ]);
         FavoritesModel {
             relm: relm.clone(),
@@ -66,6 +74,23 @@ impl Widget for FavoritesTab {
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
         }
+    }
+
+    fn make_spotify_call(&self, cmd: SpotifyCmd) {
+        self.model.spotify_tx.send(cmd).unwrap();
+    }
+    fn make_spotify_call_with_reply<Out, CmdFn, OutFn>(&self, cmd_fn: CmdFn, out_fn: OutFn)
+    where
+        CmdFn: FnOnce(relm::Sender<Option<Out>>) -> SpotifyCmd + 'static,
+        OutFn: Fn(Out) -> FavoritesMsg + 'static,
+    {
+        let stream: relm::EventStream<_> = self.model.relm.stream().clone();
+        let (_, tx) = relm::Channel::<Option<Out>>::new(move |reply| {
+            if let Some(out) = reply {
+                stream.emit(out_fn(out));
+            }
+        });
+        self.model.spotify_tx.send(cmd_fn(tx)).unwrap();
     }
 
     fn update(&mut self, event: FavoritesMsg) {
@@ -76,25 +101,23 @@ impl Widget for FavoritesTab {
                 self.model.relm.stream().emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                let stream: relm::EventStream<_> = self.model.relm.stream().clone();
-                let (_, tx) = relm::Channel::<Option<Page<SavedTrack>>>::new(move |reply| {
-                    if let Some(page) = reply {
-                        stream.emit(NewPage(page));
-                    }
-                });
-                self.model
-                    .spotify_tx
-                    .send(SpotifyCmd::GetFavoriteTracks {
+                self.make_spotify_call_with_reply(
+                    move |tx| SpotifyCmd::GetFavoriteTracks {
                         tx,
                         limit: PAGE_LIMIT,
                         offset,
-                    })
-                    .unwrap();
+                    },
+                    NewPage,
+                );
             }
             NewPage(page) => {
                 let stream = self.model.relm.stream();
-                let store = &self.model.store;
+                let store: &gtk::ListStore = &self.model.store;
                 let tracks = page.items;
+
+                let mut uris = Vec::with_capacity(tracks.len());
+                let mut iters = Vec::with_capacity(tracks.len());
+
                 for track in tracks {
                     let track = track.track;
                     let pos = store.insert_with_values(
@@ -108,6 +131,7 @@ impl Widget for FavoritesTab {
                             COL_TRACK_CAN_PLAY,
                             COL_TRACK_DURATION,
                             COL_TRACK_DURATION_MS,
+                            COL_TRACK_URI,
                         ],
                         &[
                             &track.id,
@@ -118,18 +142,36 @@ impl Widget for FavoritesTab {
                             &track.is_playable.unwrap_or(false),
                             &crate::utils::humanize_time(track.duration_ms),
                             &track.duration_ms,
+                            &track.uri,
                         ],
                     );
 
                     let image = crate::utils::find_best_thumb(track.album.images, THUMB_SIZE);
 
                     if let Some(url) = image {
-                        stream.emit(LoadThumb(url, pos));
+                        stream.emit(LoadThumb(url, pos.clone()));
                     }
+
+                    uris.push(track.uri);
+                    iters.push(pos);
                 }
 
                 if page.next.is_some() {
                     stream.emit(LoadPage(page.offset + PAGE_LIMIT));
+                }
+
+                stream.emit(LoadTracksInfo(uris, iters));
+            }
+            LoadTracksInfo(uris, iters) => {
+                self.make_spotify_call_with_reply(
+                    |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
+                    move |feats| NewTracksInfo(feats, iters.clone()),
+                );
+            }
+            NewTracksInfo(info, iters) => {
+                let store: &gtk::ListStore = &self.model.store;
+                for (idx, pos) in iters.iter().enumerate() {
+                    store.set(pos, &[COL_TRACK_BPM], &[&info[idx].tempo]);
                 }
             }
             LoadThumb(url, pos) => {
@@ -149,7 +191,28 @@ impl Widget for FavoritesTab {
             Click(event) if event.get_button() == 3 => {
                 self.context_menu.popup_at_pointer(Some(&event));
             }
-            Click(_) => (),
+            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
+                self.model.relm.stream().emit(PlayChosenTracks);
+            }
+            Click(_) => {}
+            PlayChosenTracks => {
+                let tree: &TreeView = &self.tracks_view;
+                let select = tree.get_selection();
+                let (rows, model) = select.get_selected_rows();
+                let uris = rows
+                    .into_iter()
+                    .filter_map(|path| model.get_iter(&path))
+                    .filter_map(|pos| {
+                        model
+                            .get_value(&pos, COL_TRACK_URI as i32)
+                            .get::<String>()
+                            .ok()
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+
+                self.make_spotify_call(SpotifyCmd::PlayTracks { uris });
+            }
         }
     }
 
@@ -164,7 +227,10 @@ impl Widget for FavoritesTab {
 
             #[name="context_menu"]
             gtk::Menu {
-                gtk::MenuItem { label: "Play now" },
+                gtk::MenuItem {
+                    label: "Play now",
+                    activate(_) => FavoritesMsg::PlayChosenTracks,
+                },
                 gtk::MenuItem { label: "Remove from library" },
             },
         }
@@ -172,8 +238,8 @@ impl Widget for FavoritesTab {
 
     fn init_view(&mut self) {
         let tree: &TreeView = &self.tracks_view;
+        tree.get_selection().set_mode(gtk::SelectionMode::Multiple);
 
-        let text_cell = gtk::CellRendererText::new();
         let base_column = TreeViewColumnBuilder::new()
             .resizable(true)
             .reorderable(true)
@@ -190,6 +256,7 @@ impl Widget for FavoritesTab {
         });
 
         tree.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
             let column = base_column
                 .clone()
                 .title("Title")
@@ -214,6 +281,33 @@ impl Widget for FavoritesTab {
         });
 
         tree.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
+            text_cell.set_alignment(1.0, 0.5);
+            let column = base_column
+                .clone()
+                .title("BPM")
+                .sort_column_id(COL_TRACK_BPM as i32)
+                .build();
+            <TreeViewColumn as TreeViewColumnExt>::set_cell_data_func(
+                &column,
+                &text_cell,
+                Some(Box::new(|_layout, cell, model, iter| {
+                    let bpm: f32 = model
+                        .get_value(iter, COL_TRACK_BPM as i32)
+                        .get()
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0.0);
+                    let _ = cell.set_property("text", &format!("{:.0}", bpm));
+                })),
+            );
+            column.pack_start(&text_cell, true);
+            column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
+            column
+        });
+
+        tree.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
             let column = base_column
                 .clone()
                 .title("Artists")
@@ -225,6 +319,7 @@ impl Widget for FavoritesTab {
         });
 
         tree.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
             let column = base_column
                 .clone()
                 .title("Album")

@@ -2,6 +2,7 @@ use crate::scopes::Scope::{self, *};
 use relm::Sender;
 use rspotify::client::Spotify as Client;
 use rspotify::model::album::SavedAlbum;
+use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
 use rspotify::model::track::SavedTrack;
@@ -27,6 +28,13 @@ pub enum SpotifyCmd {
         tx: Sender<Option<Page<SavedTrack>>>,
         offset: u32,
         limit: u32,
+    },
+    PlayTracks {
+        uris: Vec<String>,
+    },
+    GetTracksFeatures {
+        tx: Sender<Option<Vec<AudioFeatures>>>,
+        uris: Vec<String>,
     },
 }
 
@@ -56,7 +64,34 @@ impl Spotify {
                     let tracks = self.get_favorite_tracks(offset, limit).await;
                     tx.send(tracks).unwrap();
                 }
+                PlayTracks { uris } => {
+                    self.play_tracks(uris).await;
+                }
+                GetTracksFeatures { tx, uris } => {
+                    let features = self.get_tracks_features(uris).await;
+                    tx.send(features).unwrap();
+                }
             }
+        }
+    }
+
+    async fn play_tracks(&self, uris: Vec<String>) {
+        if let Some(ref client) = self.client {
+            let _ = client
+                .start_playback(None, None, Some(uris), None, None)
+                .await;
+        }
+    }
+
+    async fn get_tracks_features(&self, uris: Vec<String>) -> Option<Vec<AudioFeatures>> {
+        if let Some(ref client) = self.client {
+            client
+                .audios_features(&uris)
+                .await
+                .ok()
+                .and_then(|payload| payload.map(|features| features.audio_features))
+        } else {
+            None
         }
     }
 
