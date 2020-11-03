@@ -1,9 +1,11 @@
+use crate::scopes::Scope::{self, *};
+use relm::Sender;
 use rspotify::client::Spotify as Client;
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
+use rspotify::model::track::SavedTrack;
 use std::sync::mpsc::Receiver;
-use tokio::sync::oneshot::Sender;
 
 pub enum SpotifyCmd {
     SetupClient {
@@ -18,6 +20,11 @@ pub enum SpotifyCmd {
     },
     GetPlaylists {
         tx: Sender<Option<Page<SimplifiedPlaylist>>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetFavoriteTracks {
+        tx: Sender<Option<Page<SavedTrack>>>,
         offset: u32,
         limit: u32,
     },
@@ -45,7 +52,19 @@ impl Spotify {
                     let playlists = self.get_playlists(offset, limit).await;
                     tx.send(playlists).unwrap();
                 }
+                GetFavoriteTracks { tx, offset, limit } => {
+                    let tracks = self.get_favorite_tracks(offset, limit).await;
+                    tx.send(tracks).unwrap();
+                }
             }
+        }
+    }
+
+    async fn get_favorite_tracks(&self, offset: u32, limit: u32) -> Option<Page<SavedTrack>> {
+        if let Some(ref client) = self.client {
+            client.current_user_saved_tracks(limit, offset).await.ok()
+        } else {
+            None
         }
     }
 
@@ -71,12 +90,18 @@ impl Spotify {
         }
 
         let oauth: rspotify::oauth2::OAuth = rspotify::oauth2::OAuthBuilder::default()
-            .scope(
-                r#"user-follow-read user-read-recently-played user-read-playback-state
-               user-read-playback-position user-top-read user-library-read
-               user-modify-playback-state user-read-currently-playing
-               playlist-read-private playlist-read-collaborative"#,
-            )
+            .scope(Scope::to_string(&[
+                UserFollowRead,
+                UserReadRecentlyPlayed,
+                UserReadPlaybackState,
+                UserReadPlaybackPosition,
+                UserTopRead,
+                UserLibraryRead,
+                UserModifyPlaybackState,
+                UserReadCurrentlyPlaying,
+                PlaylistReadPrivate,
+                PlaylistReadCollaborative,
+            ]))
             .redirect_uri("http://localhost:8888/callback")
             .build()
             .unwrap();

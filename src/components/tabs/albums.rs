@@ -1,23 +1,23 @@
 use crate::components::spotify::SpotifyCmd;
-use gdk_pixbuf::InterpType;
+use crate::utils::ImageLoader;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::IconViewExt;
-use itertools::Itertools;
+use relm::vendor::fragile::Fragile;
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::page::Page;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use tokio::sync::oneshot::{channel, error::TryRecvError, Receiver};
 
 #[derive(Msg)]
 pub enum AlbumsMsg {
     ShowTab,
     LoadPage(u32),
-    TryRecvPage(Receiver<Option<Page<SavedAlbum>>>),
-    NewPage(Vec<SavedAlbum>),
+    NewPage(Page<SavedAlbum>),
+    LoadThumb(String, gtk::TreeIter),
+    NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
 }
 
 const THUMB_SIZE: i32 = 256;
@@ -27,6 +27,7 @@ pub struct AlbumsModel {
     relm: Relm<AlbumsTab>,
     spotify_tx: Arc<Sender<SpotifyCmd>>,
     store: gtk::ListStore,
+    image_loader: ImageLoader,
 }
 
 #[widget]
@@ -41,6 +42,7 @@ impl Widget for AlbumsTab {
             relm: relm.clone(),
             spotify_tx,
             store,
+            image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
         }
     }
 
@@ -52,7 +54,12 @@ impl Widget for AlbumsTab {
                 self.model.relm.stream().emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                let (tx, rx) = channel::<Option<Page<SavedAlbum>>>();
+                let stream = self.model.relm.stream().clone();
+                let (_, tx) = relm::Channel::<Option<Page<SavedAlbum>>>::new(move |reply| {
+                    if let Some(page) = reply {
+                        stream.emit(NewPage(page));
+                    }
+                });
                 self.model
                     .spotify_tx
                     .send(SpotifyCmd::GetAlbums {
@@ -61,43 +68,40 @@ impl Widget for AlbumsTab {
                         offset,
                     })
                     .unwrap();
-                self.model.relm.stream().emit(TryRecvPage(rx));
             }
-            TryRecvPage(mut rx) => match rx.try_recv() {
-                Err(TryRecvError::Empty) => self.model.relm.stream().emit(TryRecvPage(rx)),
-                Err(TryRecvError::Closed) => (),
-                Ok(Some(page)) => {
-                    let stream = self.model.relm.stream();
-                    for chunk in &page.items.into_iter().chunks(5) {
-                        stream.emit(NewPage(chunk.collect::<Vec<_>>()))
-                    }
-                    if page.next.is_some() {
-                        stream.emit(LoadPage(page.offset + PAGE_LIMIT));
-                    }
-                }
-                Ok(None) => {
-                    self.model.store.clear();
-                }
-            },
-            NewPage(albums) => {
+            NewPage(page) => {
+                let stream = self.model.relm.stream();
                 let store = &self.model.store;
-                for album in &albums {
-                    let image = album
-                        .album
-                        .images
-                        .iter()
-                        .max_by_key(|img| img.width.unwrap_or(0))
-                        .and_then(|img| crate::utils::pixbuf_from_url(&img.url).ok())
-                        .and_then(|pb| {
-                            pb.scale_simple(THUMB_SIZE, THUMB_SIZE, InterpType::Nearest)
-                        });
-
-                    store.insert_with_values(
+                let albums = page.items;
+                for album in albums {
+                    let pos = store.insert_with_values(
                         None,
-                        &[0, 1, 2],
-                        &[&image, &album.album.name, &album.album.release_date],
+                        &[1, 2],
+                        &[&album.album.name, &album.album.release_date],
                     );
+
+                    let image =
+                        crate::utils::find_best_thumb(album.album.images.into_iter(), THUMB_SIZE);
+                    if let Some(url) = image {
+                        stream.emit(LoadThumb(url, pos));
+                    }
                 }
+
+                if page.next.is_some() {
+                    stream.emit(LoadPage(page.offset + PAGE_LIMIT));
+                }
+            }
+            LoadThumb(url, pos) => {
+                let stream = Fragile::new(self.model.relm.stream().clone());
+                let pos = Fragile::new(pos);
+                self.model.image_loader.load_from_url(url, move |loaded| {
+                    if let Ok(pb) = loaded {
+                        stream.into_inner().emit(NewThumb(pb, pos.into_inner()));
+                    }
+                });
+            }
+            NewThumb(thumb, pos) => {
+                self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
         }
     }
