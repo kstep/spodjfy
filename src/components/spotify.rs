@@ -95,6 +95,9 @@ pub enum SpotifyCmd {
     GetDevices {
         tx: relm::Sender<Option<Vec<Device>>>,
     },
+    UseDevice {
+        id: String,
+    },
 }
 
 pub struct Spotify {
@@ -126,6 +129,9 @@ impl Spotify {
                 OpenAuthorizeUrl => {
                     self.open_authorize_url();
                 }
+                UseDevice { id } => {
+                    self.use_device(id).await;
+                }
                 AuthorizeUser { code } => {
                     self.authorize_user(code).await;
                 }
@@ -153,6 +159,12 @@ impl Spotify {
                     tx.send(devices).unwrap();
                 }
             }
+        }
+    }
+
+    async fn use_device(&self, id: String) {
+        if let Some(ref client) = self.client {
+            let _ = client.transfer_playback(&id, true).await;
         }
     }
 

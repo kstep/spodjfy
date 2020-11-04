@@ -1,8 +1,7 @@
 use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
-use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
-use gtk::{IconThemeExt, IconViewExt};
+use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::device::Device;
@@ -14,6 +13,8 @@ pub enum DevicesMsg {
     ShowTab,
     LoadList,
     NewList(Vec<Device>),
+    UseChosenDevice,
+    Click(gdk::EventButton),
 }
 
 pub struct DevicesModel {
@@ -94,6 +95,32 @@ impl Widget for DevicesTab {
                     );
                 }
             }
+            UseChosenDevice => {
+                let devices_view: &IconView = &self.devices_view;
+                let selected = devices_view.get_selected_items();
+                let store: &gtk::ListStore = &self.model.store;
+
+                if let Some(id) = selected
+                    .first()
+                    .and_then(|path| store.get_iter(path))
+                    .and_then(|pos| {
+                        store
+                            .get_value(&pos, COL_DEVICE_ID as i32)
+                            .get::<String>()
+                            .ok()
+                            .flatten()
+                    })
+                {
+                    self.model.spotify.tell(SpotifyCmd::UseDevice { id });
+                }
+            }
+            Click(event) if event.get_button() == 3 => {
+                self.context_menu.popup_at_pointer(Some(&event));
+            }
+            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
+                self.model.relm.stream().emit(UseChosenDevice);
+            }
+            Click(_) => {}
         }
     }
 
@@ -109,6 +136,17 @@ impl Widget for DevicesTab {
                 pixbuf_column: COL_DEVICE_THUMB as i32,
                 text_column: COL_DEVICE_NAME as i32,
                 model: Some(&__relm_model.store),
+                selection_mode: gtk::SelectionMode::Single,
+
+                button_press_event(_, event) => (DevicesMsg::Click(event.clone()), Inhibit(false))
+            },
+
+            #[name="context_menu"]
+            gtk::Menu {
+                gtk::MenuItem {
+                    label: "Play on this device",
+                    activate(_) => DevicesMsg::UseChosenDevice,
+                },
             }
         }
     }
