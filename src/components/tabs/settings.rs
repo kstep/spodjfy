@@ -108,27 +108,25 @@ impl Widget for SettingsTab {
                     }
                 },
 
-                gtk::Button {
-                    hexpand: false,
+                gtk::Box(gtk::Orientation::Horizontal, 5) {
                     halign: gtk::Align::End,
-                    label: "Save",
                     cell: {
                         left_attach: 1,
                         top_attach: 2,
                     },
 
-                    clicked(_) => SettingsMsg::Save,
-                },
-                gtk::Button {
-                    hexpand: false,
-                    halign: gtk::Align::End,
-                    label: "Authorize",
-                    cell: {
-                        left_attach: 1,
-                        top_attach: 2,
-                    },
+                    gtk::Button {
+                        hexpand: false,
+                        label: "Save",
 
-                    clicked(_) => SettingsMsg::Authorize,
+                        clicked(_) => SettingsMsg::Save,
+                    },
+                    gtk::Button {
+                        hexpand: false,
+                        label: "Authorize",
+
+                        clicked(_) => SettingsMsg::Authorize,
+                    },
                 },
             },
         }

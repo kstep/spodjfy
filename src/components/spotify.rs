@@ -1,5 +1,5 @@
 use crate::scopes::Scope::{self, *};
-use gtk::{BoxExt, DialogExt, EntryExt, WidgetExt};
+use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::Spotify as Client;
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
@@ -38,6 +38,8 @@ impl SpotifyProxy {
             .text("Please enter the URL you were redirected to:")
             .message_type(gtk::MessageType::Question)
             .accept_focus(true)
+            .modal(true)
+            .sensitive(true)
             .buttons(gtk::ButtonsType::OkCancel)
             .build();
 
@@ -45,11 +47,14 @@ impl SpotifyProxy {
         let url_entry = gtk::Entry::new();
         message_box.pack_end(&url_entry, true, false, 0);
         dialog.show_all();
-        match dialog.run() {
+        let url = match dialog.run() {
             gtk::ResponseType::Ok => Some(url_entry.get_text().into()),
             gtk::ResponseType::Cancel => None,
             _ => unreachable!(),
-        }
+        };
+        dialog.close();
+
+        return url;
     }
 }
 
