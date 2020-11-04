@@ -178,7 +178,7 @@ impl Widget for Win {
                         },
 
                         #[name="settings_tab"]
-                        SettingsTab(__relm_model.settings.clone()) {
+                        SettingsTab((__relm_model.settings.clone(), __relm_model.spotify.clone())) {
                            child: {
                                name: Some("settings_tab"),
                                title: Some("\u{2699} Settings"),

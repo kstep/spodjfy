@@ -59,6 +59,10 @@ pub enum SpotifyCmd {
         secret: String,
         force: bool,
     },
+    OpenAuthorizeUrl,
+    AuthorizeUser {
+        code: String,
+    },
     GetAlbums {
         tx: relm::Sender<Option<Page<SavedAlbum>>>,
         offset: u32,
@@ -96,8 +100,12 @@ impl Spotify {
         use SpotifyCmd::*;
         while let Ok(msg) = channel.recv() {
             match msg {
-                SetupClient { id, secret, force } => {
-                    self.setup_client(id, secret, None, force).await
+                SetupClient { id, secret, force } => self.setup_client(id, secret, force).await,
+                OpenAuthorizeUrl => {
+                    self.open_authorize_url();
+                }
+                AuthorizeUser { code } => {
+                    self.authorize_user(code).await;
                 }
                 GetAlbums { tx, offset, limit } => {
                     let albums = self.get_albums(offset, limit).await;
@@ -166,13 +174,7 @@ impl Spotify {
         }
     }
 
-    async fn setup_client(
-        &mut self,
-        id: String,
-        secret: String,
-        code: Option<String>,
-        force: bool,
-    ) {
+    pub async fn setup_client(&mut self, id: String, secret: String, force: bool) {
         if !force && self.client.is_some() {
             return;
         }
@@ -206,10 +208,32 @@ impl Spotify {
             .build()
             .unwrap();
 
-        if let Some(code) = code {
-            client.request_user_token(&code).await.unwrap();
-        }
+        client.token = client.read_token_cache().await;
 
         self.client.replace(client);
+    }
+
+    pub async fn authorize_user(&mut self, code: String) -> bool {
+        if let Some(ref mut client) = self.client {
+            if code.starts_with("http") {
+                if let Some(code) = client.parse_response_code(&code) {
+                    client.request_user_token(&code).await.is_ok()
+                } else {
+                    false
+                }
+            } else {
+                client.request_user_token(&code).await.is_ok()
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn open_authorize_url(&self) {
+        if let Some(ref client) = self.client {
+            if let Ok(url) = client.get_authorize_url(false) {
+                webbrowser::open(&url).unwrap();
+            }
+        }
     }
 }

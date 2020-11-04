@@ -1,3 +1,4 @@
+use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::win::Settings;
 use gtk::{self, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, WidgetExt};
 use relm::Widget;
@@ -8,28 +9,39 @@ use std::sync::{Arc, RwLock};
 #[derive(Msg)]
 pub enum SettingsMsg {
     ShowTab,
-    GetCode,
+    Authorize,
     Save,
+}
+
+pub struct SettingsModel {
+    settings: Arc<RwLock<Settings>>,
+    spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for SettingsTab {
-    fn model(settings: Arc<RwLock<Settings>>) -> Arc<RwLock<Settings>> {
-        settings
+    fn model((settings, spotify): (Arc<RwLock<Settings>>, Arc<SpotifyProxy>)) -> SettingsModel {
+        SettingsModel { settings, spotify }
     }
 
     fn update(&mut self, event: SettingsMsg) {
         use SettingsMsg::*;
         match event {
             ShowTab => {
-                let settings = self.model.read().unwrap();
+                let settings = self.model.settings.read().unwrap();
                 self.client_id_entry.set_text(&*settings.client_id);
                 self.client_secret_entry.set_text(&*settings.client_secret);
             }
-            GetCode => {}
+            Authorize => {
+                let spotify: &SpotifyProxy = &self.model.spotify;
+                spotify.tell(SpotifyCmd::OpenAuthorizeUrl);
+                if let Some(code) = SpotifyProxy::get_code_url_from_user() {
+                    spotify.tell(SpotifyCmd::AuthorizeUser { code });
+                }
+            }
             Save => {
                 {
-                    let mut settings = self.model.write().unwrap();
+                    let mut settings = self.model.settings.write().unwrap();
                     settings.client_id = self.client_id_entry.get_text().into();
                     settings.client_secret = self.client_secret_entry.get_text().into();
                 }
@@ -39,7 +51,7 @@ impl Widget for SettingsTab {
                         std::fs::File::create(dirs.config_dir().join("settings.toml")).ok()
                     })
                     .and_then(|mut conf_file| {
-                        toml::to_vec(&*self.model.read().unwrap())
+                        toml::to_vec(&*self.model.settings.read().unwrap())
                             .ok()
                             .and_then(|data| conf_file.write_all(&data).ok())
                     })
@@ -71,7 +83,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_id_entry"]
                 gtk::Entry {
-                    text: &*__relm_model.read().unwrap().client_id,
+                    text: &*__relm_model.settings.read().unwrap().client_id,
                     cell: {
                         left_attach: 1,
                         top_attach: 0,
@@ -89,7 +101,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_secret_entry"]
                 gtk::Entry {
-                    text: &*__relm_model.read().unwrap().client_secret,
+                    text: &*__relm_model.settings.read().unwrap().client_secret,
                     cell: {
                         left_attach: 1,
                         top_attach: 1,
@@ -106,7 +118,18 @@ impl Widget for SettingsTab {
                     },
 
                     clicked(_) => SettingsMsg::Save,
-                }
+                },
+                gtk::Button {
+                    hexpand: false,
+                    halign: gtk::Align::End,
+                    label: "Authorize",
+                    cell: {
+                        left_attach: 1,
+                        top_attach: 2,
+                    },
+
+                    clicked(_) => SettingsMsg::Authorize,
+                },
             },
         }
     }
