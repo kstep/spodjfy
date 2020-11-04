@@ -2,13 +2,17 @@ use relm::Widget;
 use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
 use std::io::Read;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 #[tokio::main]
 async fn main() {
     let (tx, rx) = std::sync::mpsc::channel::<SpotifyCmd>();
 
-    let settings: Settings = directories::ProjectDirs::from("me", "kstep", "spodjfy")
+    let dirs = directories::ProjectDirs::from("me", "kstep", "spodjfy");
+
+    let settings: Settings = dirs
+        .as_ref()
         .and_then(|dirs| std::fs::File::open(dirs.config_dir().join("settings.toml")).ok())
         .and_then(|mut file| {
             let mut buf = Vec::new();
@@ -17,13 +21,17 @@ async fn main() {
         .and_then(|data| toml::from_slice(&data).ok())
         .unwrap_or_default();
 
+    let spotify_cache_path = dirs
+        .as_ref()
+        .map(|dirs| dirs.cache_dir().join("token.json"))
+        .unwrap_or_else(|| PathBuf::from(rspotify::client::DEFAULT_CACHE_PATH));
     std::thread::spawn(move || {
         let mut rt = tokio::runtime::Builder::new()
             .threaded_scheduler()
             .enable_all()
             .build()
             .unwrap();
-        rt.block_on(Spotify::new().run(rx));
+        rt.block_on(Spotify::new(spotify_cache_path).run(rx));
     });
 
     tx.send(SpotifyCmd::SetupClient {

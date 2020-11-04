@@ -6,6 +6,7 @@ use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
 use rspotify::model::track::SavedTrack;
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
 pub struct SpotifyProxy(Sender<SpotifyCmd>);
@@ -93,12 +94,16 @@ pub enum SpotifyCmd {
 }
 
 pub struct Spotify {
+    cache_path: PathBuf,
     client: Option<Client>,
 }
 
 impl Spotify {
-    pub fn new() -> Self {
-        Spotify { client: None }
+    pub fn new(cache_path: PathBuf) -> Self {
+        Spotify {
+            client: None,
+            cache_path,
+        }
     }
 
     pub async fn run(&mut self, channel: Receiver<SpotifyCmd>) {
@@ -210,6 +215,7 @@ impl Spotify {
         let mut client: rspotify::client::Spotify = rspotify::client::SpotifyBuilder::default()
             .oauth(oauth)
             .credentials(creds)
+            .cache_path(self.cache_path.clone())
             .build()
             .unwrap();
 
