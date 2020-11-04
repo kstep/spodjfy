@@ -1,4 +1,4 @@
-use crate::components::spotify::SpotifyCmd;
+use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::utils::ImageLoader;
 use glib::StaticType;
 use gtk::prelude::*;
@@ -8,7 +8,6 @@ use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 const THUMB_SIZE: i32 = 256;
@@ -25,19 +24,19 @@ pub enum PlaylistsMsg {
 
 pub struct PlaylistsModel {
     relm: Relm<PlaylistsTab>,
-    spotify_tx: Arc<Sender<SpotifyCmd>>,
+    spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
 }
 
 #[widget]
 impl Widget for PlaylistsTab {
-    fn model(relm: &Relm<Self>, spotify_tx: Arc<Sender<SpotifyCmd>>) -> PlaylistsModel {
+    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> PlaylistsModel {
         let store =
             gtk::ListStore::new(&[gdk_pixbuf::Pixbuf::static_type(), String::static_type()]);
         PlaylistsModel {
             relm: relm.clone(),
-            spotify_tx,
+            spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
         }
@@ -51,21 +50,15 @@ impl Widget for PlaylistsTab {
                 self.model.relm.stream().emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                let stream = self.model.relm.stream().clone();
-                let (_, tx) =
-                    relm::Channel::<Option<Page<SimplifiedPlaylist>>>::new(move |reply| {
-                        if let Some(page) = reply {
-                            stream.emit(NewPage(page));
-                        }
-                    });
-                self.model
-                    .spotify_tx
-                    .send(SpotifyCmd::GetPlaylists {
+                self.model.spotify.ask(
+                    self.model.relm.stream().clone(),
+                    move |tx| SpotifyCmd::GetPlaylists {
                         tx,
                         limit: PAGE_LIMIT,
                         offset,
-                    })
-                    .unwrap();
+                    },
+                    NewPage,
+                );
             }
             NewPage(page) => {
                 let stream = self.model.relm.stream();

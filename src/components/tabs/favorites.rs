@@ -1,4 +1,4 @@
-use crate::components::spotify::SpotifyCmd;
+use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::utils::ImageLoader;
 use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
@@ -14,7 +14,6 @@ use relm_derive::{widget, Msg};
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
 use rspotify::model::track::SavedTrack;
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -47,14 +46,14 @@ const COL_TRACK_BPM: u32 = 10;
 
 pub struct FavoritesModel {
     relm: Relm<FavoritesTab>,
-    spotify_tx: Arc<Sender<SpotifyCmd>>,
+    spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
 }
 
 #[widget]
 impl Widget for FavoritesTab {
-    fn model(relm: &Relm<Self>, spotify_tx: Arc<Sender<SpotifyCmd>>) -> FavoritesModel {
+    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> FavoritesModel {
         let store = gtk::ListStore::new(&[
             String::static_type(),
             Pixbuf::static_type(),
@@ -70,27 +69,10 @@ impl Widget for FavoritesTab {
         ]);
         FavoritesModel {
             relm: relm.clone(),
-            spotify_tx,
+            spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
         }
-    }
-
-    fn make_spotify_call(&self, cmd: SpotifyCmd) {
-        self.model.spotify_tx.send(cmd).unwrap();
-    }
-    fn make_spotify_call_with_reply<Out, CmdFn, OutFn>(&self, cmd_fn: CmdFn, out_fn: OutFn)
-    where
-        CmdFn: FnOnce(relm::Sender<Option<Out>>) -> SpotifyCmd + 'static,
-        OutFn: Fn(Out) -> FavoritesMsg + 'static,
-    {
-        let stream: relm::EventStream<_> = self.model.relm.stream().clone();
-        let (_, tx) = relm::Channel::<Option<Out>>::new(move |reply| {
-            if let Some(out) = reply {
-                stream.emit(out_fn(out));
-            }
-        });
-        self.model.spotify_tx.send(cmd_fn(tx)).unwrap();
     }
 
     fn update(&mut self, event: FavoritesMsg) {
@@ -101,7 +83,8 @@ impl Widget for FavoritesTab {
                 self.model.relm.stream().emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                self.make_spotify_call_with_reply(
+                self.model.spotify.ask(
+                    self.model.relm.stream().clone(),
                     move |tx| SpotifyCmd::GetFavoriteTracks {
                         tx,
                         limit: PAGE_LIMIT,
@@ -163,7 +146,8 @@ impl Widget for FavoritesTab {
                 stream.emit(LoadTracksInfo(uris, iters));
             }
             LoadTracksInfo(uris, iters) => {
-                self.make_spotify_call_with_reply(
+                self.model.spotify.ask(
+                    self.model.relm.stream().clone(),
                     |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
                     move |feats| NewTracksInfo(feats, iters.clone()),
                 );
@@ -211,7 +195,7 @@ impl Widget for FavoritesTab {
                     })
                     .collect::<Vec<_>>();
 
-                self.make_spotify_call(SpotifyCmd::PlayTracks { uris });
+                self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
             }
         }
     }

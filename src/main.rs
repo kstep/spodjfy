@@ -1,5 +1,5 @@
 use relm::Widget;
-use spodjfy::components::spotify::{Spotify, SpotifyCmd};
+use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
 use std::io::Read;
 use std::sync::{Arc, RwLock};
@@ -35,7 +35,7 @@ async fn main() {
 
     Win::run(Params {
         settings: Arc::new(RwLock::new(settings)),
-        spotify_tx: tx,
+        spotify: SpotifyProxy::new(tx),
     })
     .unwrap();
 }

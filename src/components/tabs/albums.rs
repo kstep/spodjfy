@@ -1,4 +1,4 @@
-use crate::components::spotify::SpotifyCmd;
+use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::utils::ImageLoader;
 use glib::StaticType;
 use gtk::prelude::*;
@@ -8,7 +8,6 @@ use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::page::Page;
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -25,14 +24,14 @@ const PAGE_LIMIT: u32 = 10;
 
 pub struct AlbumsModel {
     relm: Relm<AlbumsTab>,
-    spotify_tx: Arc<Sender<SpotifyCmd>>,
+    spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
 }
 
 #[widget]
 impl Widget for AlbumsTab {
-    fn model(relm: &Relm<Self>, spotify_tx: Arc<Sender<SpotifyCmd>>) -> AlbumsModel {
+    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> AlbumsModel {
         let store = gtk::ListStore::new(&[
             gdk_pixbuf::Pixbuf::static_type(),
             String::static_type(),
@@ -40,7 +39,7 @@ impl Widget for AlbumsTab {
         ]);
         AlbumsModel {
             relm: relm.clone(),
-            spotify_tx,
+            spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
         }
@@ -54,20 +53,15 @@ impl Widget for AlbumsTab {
                 self.model.relm.stream().emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                let stream = self.model.relm.stream().clone();
-                let (_, tx) = relm::Channel::<Option<Page<SavedAlbum>>>::new(move |reply| {
-                    if let Some(page) = reply {
-                        stream.emit(NewPage(page));
-                    }
-                });
-                self.model
-                    .spotify_tx
-                    .send(SpotifyCmd::GetAlbums {
+                self.model.spotify.ask(
+                    self.model.relm.stream().clone(),
+                    move |tx| SpotifyCmd::GetAlbums {
                         tx,
                         limit: PAGE_LIMIT,
                         offset,
-                    })
-                    .unwrap();
+                    },
+                    NewPage,
+                );
             }
             NewPage(page) => {
                 let stream = self.model.relm.stream();

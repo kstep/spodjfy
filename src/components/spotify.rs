@@ -1,12 +1,57 @@
 use crate::scopes::Scope::{self, *};
-use relm::Sender;
+use gtk::{BoxExt, DialogExt, EntryExt, WidgetExt};
 use rspotify::client::Spotify as Client;
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
 use rspotify::model::track::SavedTrack;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
+
+pub struct SpotifyProxy(Sender<SpotifyCmd>);
+
+impl SpotifyProxy {
+    pub fn new(tx: Sender<SpotifyCmd>) -> SpotifyProxy {
+        SpotifyProxy(tx)
+    }
+
+    pub fn tell(&self, cmd: SpotifyCmd) {
+        self.0.send(cmd).unwrap();
+    }
+    pub fn ask<T, F, R, M>(&self, stream: relm::EventStream<M>, make_command: F, convert_output: R)
+    where
+        F: FnOnce(relm::Sender<Option<T>>) -> SpotifyCmd + 'static,
+        R: Fn(T) -> M + 'static,
+        M: 'static,
+    {
+        let (_, tx) = relm::Channel::<Option<T>>::new(move |reply| {
+            if let Some(out) = reply {
+                stream.emit(convert_output(out));
+            }
+        });
+        self.0.send(make_command(tx)).unwrap();
+    }
+
+    pub fn get_code_url_from_user() -> Option<String> {
+        let dialog = gtk::MessageDialogBuilder::new()
+            .title("Authentication")
+            .text("Please enter the URL you were redirected to:")
+            .message_type(gtk::MessageType::Question)
+            .accept_focus(true)
+            .buttons(gtk::ButtonsType::OkCancel)
+            .build();
+
+        let message_box = dialog.get_content_area();
+        let url_entry = gtk::Entry::new();
+        message_box.pack_end(&url_entry, true, false, 0);
+        dialog.show_all();
+        match dialog.run() {
+            gtk::ResponseType::Ok => Some(url_entry.get_text().into()),
+            gtk::ResponseType::Cancel => None,
+            _ => unreachable!(),
+        }
+    }
+}
 
 pub enum SpotifyCmd {
     SetupClient {
@@ -15,17 +60,17 @@ pub enum SpotifyCmd {
         force: bool,
     },
     GetAlbums {
-        tx: Sender<Option<Page<SavedAlbum>>>,
+        tx: relm::Sender<Option<Page<SavedAlbum>>>,
         offset: u32,
         limit: u32,
     },
     GetPlaylists {
-        tx: Sender<Option<Page<SimplifiedPlaylist>>>,
+        tx: relm::Sender<Option<Page<SimplifiedPlaylist>>>,
         offset: u32,
         limit: u32,
     },
     GetFavoriteTracks {
-        tx: Sender<Option<Page<SavedTrack>>>,
+        tx: relm::Sender<Option<Page<SavedTrack>>>,
         offset: u32,
         limit: u32,
     },
@@ -33,7 +78,7 @@ pub enum SpotifyCmd {
         uris: Vec<String>,
     },
     GetTracksFeatures {
-        tx: Sender<Option<Vec<AudioFeatures>>>,
+        tx: relm::Sender<Option<Vec<AudioFeatures>>>,
         uris: Vec<String>,
     },
 }
@@ -51,7 +96,9 @@ impl Spotify {
         use SpotifyCmd::*;
         while let Ok(msg) = channel.recv() {
             match msg {
-                SetupClient { id, secret, force } => self.setup_client(id, secret, force).await,
+                SetupClient { id, secret, force } => {
+                    self.setup_client(id, secret, None, force).await
+                }
                 GetAlbums { tx, offset, limit } => {
                     let albums = self.get_albums(offset, limit).await;
                     tx.send(albums).unwrap();
@@ -119,7 +166,13 @@ impl Spotify {
         }
     }
 
-    async fn setup_client(&mut self, id: String, secret: String, force: bool) {
+    async fn setup_client(
+        &mut self,
+        id: String,
+        secret: String,
+        code: Option<String>,
+        force: bool,
+    ) {
         if !force && self.client.is_some() {
             return;
         }
@@ -153,9 +206,9 @@ impl Spotify {
             .build()
             .unwrap();
 
-        println!("{:?}", client);
-        client.prompt_for_user_token().await.unwrap();
-        println!("{:?}", client.current_user().await);
+        if let Some(code) = code {
+            client.request_user_token(&code).await.unwrap();
+        }
 
         self.client.replace(client);
     }
