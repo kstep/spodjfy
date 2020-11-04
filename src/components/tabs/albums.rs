@@ -4,7 +4,7 @@ use glib::StaticType;
 use gtk::prelude::*;
 use gtk::IconViewExt;
 use relm::vendor::fragile::Fragile;
-use relm::{Relm, Widget};
+use relm::{Relm, Widget, EventStream};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::page::Page;
@@ -23,7 +23,7 @@ const THUMB_SIZE: i32 = 256;
 const PAGE_LIMIT: u32 = 10;
 
 pub struct AlbumsModel {
-    relm: Relm<AlbumsTab>,
+    stream: EventStream<AlbumsMsg>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
@@ -37,8 +37,9 @@ impl Widget for AlbumsTab {
             String::static_type(),
             String::static_type(),
         ]);
+        let stream = relm.stream().clone();
         AlbumsModel {
-            relm: relm.clone(),
+            stream,
             spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
@@ -50,11 +51,11 @@ impl Widget for AlbumsTab {
         match event {
             ShowTab => {
                 self.model.store.clear();
-                self.model.relm.stream().emit(LoadPage(0))
+                self.model.stream.emit(LoadPage(0))
             }
             LoadPage(offset) => {
                 self.model.spotify.ask(
-                    self.model.relm.stream().clone(),
+                    self.model.stream.clone(),
                     move |tx| SpotifyCmd::GetAlbums {
                         tx,
                         limit: PAGE_LIMIT,
@@ -64,7 +65,7 @@ impl Widget for AlbumsTab {
                 );
             }
             NewPage(page) => {
-                let stream = self.model.relm.stream();
+                let stream = &self.model.stream;
                 let store = &self.model.store;
                 let albums = page.items;
                 for album in albums {
@@ -86,7 +87,7 @@ impl Widget for AlbumsTab {
                 }
             }
             LoadThumb(url, pos) => {
-                let stream = Fragile::new(self.model.relm.stream().clone());
+                let stream = Fragile::new(self.model.stream.clone());
                 let pos = Fragile::new(pos);
                 self.model.image_loader.load_from_url(url, move |loaded| {
                     if let Ok(pb) = loaded {

@@ -2,7 +2,7 @@ use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
-use relm::{Relm, Widget};
+use relm::{Relm, Widget, EventStream};
 use relm_derive::{widget, Msg};
 use rspotify::model::device::Device;
 use rspotify::senum::DeviceType::*;
@@ -18,7 +18,7 @@ pub enum DevicesMsg {
 }
 
 pub struct DevicesModel {
-    relm: Relm<DevicesTab>,
+    stream: EventStream<DevicesMsg>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     icon_theme: gtk::IconTheme,
@@ -39,8 +39,9 @@ impl Widget for DevicesTab {
             bool::static_type(),               // active
         ]);
         let icon_theme = gtk::IconTheme::get_default().unwrap_or_else(gtk::IconTheme::new);
+        let stream = relm.stream().clone();
         DevicesModel {
-            relm: relm.clone(),
+            stream,
             spotify,
             store,
             icon_theme,
@@ -52,11 +53,11 @@ impl Widget for DevicesTab {
         match event {
             ShowTab => {
                 self.model.store.clear();
-                self.model.relm.stream().emit(LoadList)
+                self.model.stream.emit(LoadList);
             }
             LoadList => {
                 self.model.spotify.ask(
-                    self.model.relm.stream().clone(),
+                    self.model.stream.clone(),
                     move |tx| SpotifyCmd::GetDevices { tx },
                     NewList,
                 );
@@ -118,7 +119,7 @@ impl Widget for DevicesTab {
                 self.context_menu.popup_at_pointer(Some(&event));
             }
             Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.relm.stream().emit(UseChosenDevice);
+                self.model.stream.emit(UseChosenDevice);
             }
             Click(_) => {}
         }

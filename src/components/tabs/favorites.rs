@@ -9,7 +9,7 @@ use gtk::{
 };
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
-use relm::{Relm, Widget};
+use relm::{Relm, Widget, EventStream};
 use relm_derive::{widget, Msg};
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;
@@ -45,7 +45,7 @@ const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 
 pub struct FavoritesModel {
-    relm: Relm<FavoritesTab>,
+    stream: EventStream<FavoritesMsg>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
@@ -67,8 +67,9 @@ impl Widget for FavoritesTab {
             String::static_type(),
             f32::static_type(),
         ]);
+        let stream = relm.stream().clone();
         FavoritesModel {
-            relm: relm.clone(),
+            stream,
             spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
@@ -80,11 +81,11 @@ impl Widget for FavoritesTab {
         match event {
             ShowTab => {
                 self.model.store.clear();
-                self.model.relm.stream().emit(LoadPage(0))
+                self.model.stream.emit(LoadPage(0))
             }
             LoadPage(offset) => {
                 self.model.spotify.ask(
-                    self.model.relm.stream().clone(),
+                    self.model.stream.clone(),
                     move |tx| SpotifyCmd::GetFavoriteTracks {
                         tx,
                         limit: PAGE_LIMIT,
@@ -94,7 +95,7 @@ impl Widget for FavoritesTab {
                 );
             }
             NewPage(page) => {
-                let stream = self.model.relm.stream();
+                let stream = &self.model.stream;
                 let store: &gtk::ListStore = &self.model.store;
                 let tracks = page.items;
 
@@ -147,7 +148,7 @@ impl Widget for FavoritesTab {
             }
             LoadTracksInfo(uris, iters) => {
                 self.model.spotify.ask(
-                    self.model.relm.stream().clone(),
+                    self.model.stream.clone(),
                     |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
                     move |feats| NewTracksInfo(feats, iters.clone()),
                 );
@@ -159,7 +160,7 @@ impl Widget for FavoritesTab {
                 }
             }
             LoadThumb(url, pos) => {
-                let stream = Fragile::new(self.model.relm.stream().clone());
+                let stream = Fragile::new(self.model.stream.clone());
                 let pos = Fragile::new(pos);
                 self.model.image_loader.load_from_url(url, move |loaded| {
                     if let Ok(pb) = loaded {
@@ -176,7 +177,7 @@ impl Widget for FavoritesTab {
                 self.context_menu.popup_at_pointer(Some(&event));
             }
             Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.relm.stream().emit(PlayChosenTracks);
+                self.model.stream.emit(PlayChosenTracks);
             }
             Click(_) => {}
             PlayChosenTracks => {
