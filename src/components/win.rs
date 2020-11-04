@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::components::spotify::SpotifyProxy;
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
+use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
@@ -98,6 +99,9 @@ impl Widget for Win {
                 Some("playlists_tab") => {
                     self.playlists_tab.emit(PlaylistsMsg::ShowTab);
                 }
+                Some("devices_tab") => {
+                    self.devices_tab.emit(DevicesMsg::ShowTab);
+                }
                 Some("favorites_tab") => {
                     self.favorites_tab.emit(FavoritesMsg::ShowTab);
                 }
@@ -175,6 +179,14 @@ impl Widget for Win {
                         #[name="tracks_tab"]
                         gtk::Label(Some("Tracks")) {
                            child: { title: Some("\u{1F3B5} Tracks") },
+                        },
+
+                        #[name="devices_tab"]
+                        DevicesTab(__relm_model.spotify.clone()) {
+                           child: {
+                               name: Some("devices_tab"),
+                               title: Some("\u{1F39B} Devices"),
+                           },
                         },
 
                         #[name="settings_tab"]

@@ -3,6 +3,7 @@ use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::Spotify as Client;
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
+use rspotify::model::device::Device;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
 use rspotify::model::track::SavedTrack;
@@ -91,6 +92,9 @@ pub enum SpotifyCmd {
         tx: relm::Sender<Option<Vec<AudioFeatures>>>,
         uris: Vec<String>,
     },
+    GetDevices {
+        tx: relm::Sender<Option<Vec<Device>>>,
+    },
 }
 
 pub struct Spotify {
@@ -103,6 +107,14 @@ impl Spotify {
         Spotify {
             client: None,
             cache_path,
+        }
+    }
+
+    async fn get_devices(&self) -> Option<Vec<Device>> {
+        if let Some(ref client) = self.client {
+            client.device().await.ok().map(|reply| reply.devices)
+        } else {
+            None
         }
     }
 
@@ -135,6 +147,10 @@ impl Spotify {
                 GetTracksFeatures { tx, uris } => {
                     let features = self.get_tracks_features(uris).await;
                     tx.send(features).unwrap();
+                }
+                GetDevices { tx } => {
+                    let devices = self.get_devices().await;
+                    tx.send(devices).unwrap();
                 }
             }
         }
@@ -184,7 +200,7 @@ impl Spotify {
         }
     }
 
-    pub async fn setup_client(&mut self, id: String, secret: String, force: bool) {
+    async fn setup_client(&mut self, id: String, secret: String, force: bool) {
         if !force && self.client.is_some() {
             return;
         }
@@ -224,7 +240,7 @@ impl Spotify {
         self.client.replace(client);
     }
 
-    pub async fn authorize_user(&mut self, code: String) -> bool {
+    async fn authorize_user(&mut self, code: String) -> bool {
         if let Some(ref mut client) = self.client {
             if code.starts_with("http") {
                 if let Some(code) = client.parse_response_code(&code) {
