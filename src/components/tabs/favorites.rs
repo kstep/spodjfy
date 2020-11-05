@@ -27,6 +27,7 @@ pub enum FavoritesMsg {
     PlayChosenTracks,
     LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
+    NewBpm(gtk::TreePath, f32),
 }
 
 const PAGE_LIMIT: u32 = 10;
@@ -198,6 +199,12 @@ impl Widget for FavoritesTab {
 
                 self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
             }
+            NewBpm(path, bpm) => {
+                let store = &self.model.store;
+                if let Some(iter) = store.get_iter(&path) {
+                    store.set_value(&iter, COL_TRACK_BPM, &bpm.to_value());
+                }
+            }
         }
     }
 
@@ -266,8 +273,18 @@ impl Widget for FavoritesTab {
         });
 
         tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
+            let text_cell = gtk::CellRendererTextBuilder::new()
+                .xalign(1.0)
+                .editable(true)
+                .mode(gtk::CellRendererMode::Editable)
+                .build();
+
+            let stream = self.model.stream.clone();
+            text_cell.connect_edited(move |_, path, new_text| {
+                if let Ok(bpm) = new_text.parse::<f32>() {
+                    stream.emit(FavoritesMsg::NewBpm(path, bpm));
+                }
+            });
             let column = base_column
                 .clone()
                 .title("BPM")
