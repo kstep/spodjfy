@@ -44,6 +44,11 @@ impl Widget for SettingsTab {
                     let mut settings = self.model.settings.write().unwrap();
                     settings.client_id = self.client_id_entry.get_text().into();
                     settings.client_secret = self.client_secret_entry.get_text().into();
+
+                    self.model.spotify.tell(SpotifyCmd::SetupClient {
+                        id: settings.client_id.clone(),
+                        secret: settings.client_secret.clone(),
+                    });
                 }
 
                 directories::ProjectDirs::from("me", "kstep", "spodjfy")

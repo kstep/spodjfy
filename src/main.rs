@@ -25,21 +25,18 @@ async fn main() {
         .as_ref()
         .map(|dirs| dirs.cache_dir().join("token.json"))
         .unwrap_or_else(|| PathBuf::from(rspotify::client::DEFAULT_CACHE_PATH));
+    let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
     std::thread::spawn(move || {
         let mut rt = tokio::runtime::Builder::new()
             .threaded_scheduler()
             .enable_all()
             .build()
             .unwrap();
-        rt.block_on(Spotify::new(spotify_cache_path).run(rx));
+        rt.block_on(async {
+            let mut client = Spotify::new(client_id, client_secret, spotify_cache_path).await;
+            client.run(rx).await;
+        });
     });
-
-    tx.send(SpotifyCmd::SetupClient {
-        id: settings.client_id.clone(),
-        secret: settings.client_secret.clone(),
-        force: true,
-    })
-    .unwrap();
 
     Win::run(Params {
         settings: Arc::new(RwLock::new(settings)),

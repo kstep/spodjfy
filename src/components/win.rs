@@ -1,5 +1,6 @@
 use gtk::{
-    self, CssProviderExt, Inhibit, PanedExt, SearchBarExt, StackExt, StackSidebarExt, WidgetExt,
+    self, CssProviderExt, Inhibit, PanedExt, SearchBarExt, StackExt, StackSidebarExt, StatusbarExt,
+    WidgetExt,
 };
 use relm::Widget;
 use relm_derive::{widget, Msg};
@@ -105,7 +106,13 @@ impl Widget for Win {
                 Some("favorites_tab") => {
                     self.favorites_tab.emit(FavoritesMsg::ShowTab);
                 }
-                _ => (),
+                _ => {
+                    let ctx_id = self.status_bar.get_context_id("main");
+                    self.status_bar.push(
+                        ctx_id,
+                        "Go to <Settings> tab and click <Authorize> button to login!",
+                    );
+                }
             },
         }
     }
@@ -200,6 +207,9 @@ impl Widget for Win {
                         property_visible_child_name_notify(stack) => Msg::ChangeTab(stack.get_visible_child_name()),
                     }
                 },
+
+                #[name="status_bar"]
+                gtk::Statusbar {},
             },
             delete_event(_, _) => (Msg::Quit, Inhibit(false)),
             //key_press_event(_, event) => (Msg::SearchStart(event.clone()), Inhibit(false)),

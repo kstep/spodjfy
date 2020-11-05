@@ -64,7 +64,6 @@ pub enum SpotifyCmd {
     SetupClient {
         id: String,
         secret: String,
-        force: bool,
     },
     OpenAuthorizeUrl,
     AuthorizeUser {
@@ -102,30 +101,26 @@ pub enum SpotifyCmd {
 
 pub struct Spotify {
     cache_path: PathBuf,
-    client: Option<Client>,
+    client: Client,
 }
 
 impl Spotify {
-    pub fn new(cache_path: PathBuf) -> Self {
+    pub async fn new(id: String, secret: String, cache_path: PathBuf) -> Self {
         Spotify {
-            client: None,
+            client: Self::create_client(id, secret, cache_path.clone()).await,
             cache_path,
         }
     }
 
     async fn get_devices(&self) -> Option<Vec<Device>> {
-        if let Some(ref client) = self.client {
-            client.device().await.ok().map(|reply| reply.devices)
-        } else {
-            None
-        }
+        self.client.device().await.ok().map(|reply| reply.devices)
     }
 
     pub async fn run(&mut self, channel: Receiver<SpotifyCmd>) {
         use SpotifyCmd::*;
         while let Ok(msg) = channel.recv() {
             match msg {
-                SetupClient { id, secret, force } => self.setup_client(id, secret, force).await,
+                SetupClient { id, secret } => self.setup_client(id, secret).await,
                 OpenAuthorizeUrl => {
                     self.open_authorize_url();
                 }
@@ -163,60 +158,51 @@ impl Spotify {
     }
 
     async fn use_device(&self, id: String) {
-        if let Some(ref client) = self.client {
-            let _ = client.transfer_playback(&id, true).await;
-        }
+        let _ = self.client.transfer_playback(&id, true).await;
     }
 
     async fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref client) = self.client {
-            let _ = client
-                .start_playback(None, None, Some(uris), None, None)
-                .await;
-        }
+        let _ = self
+            .client
+            .start_playback(None, None, Some(uris), None, None)
+            .await;
     }
 
     async fn get_tracks_features(&self, uris: Vec<String>) -> Option<Vec<AudioFeatures>> {
-        if let Some(ref client) = self.client {
-            client
-                .audios_features(&uris)
-                .await
-                .ok()
-                .and_then(|payload| payload.map(|features| features.audio_features))
-        } else {
-            None
-        }
+        self.client
+            .audios_features(&uris)
+            .await
+            .ok()
+            .and_then(|payload| payload.map(|features| features.audio_features))
     }
 
     async fn get_favorite_tracks(&self, offset: u32, limit: u32) -> Option<Page<SavedTrack>> {
-        if let Some(ref client) = self.client {
-            client.current_user_saved_tracks(limit, offset).await.ok()
-        } else {
-            None
-        }
+        self.client
+            .current_user_saved_tracks(limit, offset)
+            .await
+            .ok()
     }
 
     async fn get_playlists(&self, offset: u32, limit: u32) -> Option<Page<SimplifiedPlaylist>> {
-        if let Some(ref client) = self.client {
-            client.current_user_playlists(limit, offset).await.ok()
-        } else {
-            None
-        }
+        self.client.current_user_playlists(limit, offset).await.ok()
     }
 
     async fn get_albums(&self, offset: u32, limit: u32) -> Option<Page<SavedAlbum>> {
-        if let Some(ref client) = self.client {
-            client.current_user_saved_albums(limit, offset).await.ok()
-        } else {
-            None
-        }
+        self.client
+            .current_user_saved_albums(limit, offset)
+            .await
+            .ok()
     }
 
-    async fn setup_client(&mut self, id: String, secret: String, force: bool) {
-        if !force && self.client.is_some() {
-            return;
-        }
+    async fn setup_client(&mut self, id: String, secret: String) {
+        self.client = Self::create_client(id, secret, self.cache_path.clone()).await;
+    }
 
+    async fn create_client(
+        id: String,
+        secret: String,
+        cache_path: PathBuf,
+    ) -> rspotify::client::Spotify {
         let oauth: rspotify::oauth2::OAuth = rspotify::oauth2::OAuthBuilder::default()
             .scope(Scope::to_string(&[
                 UserFollowRead,
@@ -235,44 +221,37 @@ impl Spotify {
             .unwrap();
 
         let creds: rspotify::oauth2::Credentials = rspotify::oauth2::CredentialsBuilder::default()
-            .id(&id)
-            .secret(&secret)
+            .id(id)
+            .secret(secret)
             .build()
             .unwrap();
 
         let mut client: rspotify::client::Spotify = rspotify::client::SpotifyBuilder::default()
             .oauth(oauth)
             .credentials(creds)
-            .cache_path(self.cache_path.clone())
+            .cache_path(cache_path)
             .build()
             .unwrap();
 
         client.token = client.read_token_cache().await;
-
-        self.client.replace(client);
+        client
     }
 
     async fn authorize_user(&mut self, code: String) -> bool {
-        if let Some(ref mut client) = self.client {
-            if code.starts_with("http") {
-                if let Some(code) = client.parse_response_code(&code) {
-                    client.request_user_token(&code).await.is_ok()
-                } else {
-                    false
-                }
+        if code.starts_with("http") {
+            if let Some(code) = self.client.parse_response_code(&code) {
+                self.client.request_user_token(&code).await.is_ok()
             } else {
-                client.request_user_token(&code).await.is_ok()
+                false
             }
         } else {
-            false
+            self.client.request_user_token(&code).await.is_ok()
         }
     }
 
     pub fn open_authorize_url(&self) {
-        if let Some(ref client) = self.client {
-            if let Ok(url) = client.get_authorize_url(false) {
-                webbrowser::open(&url).unwrap();
-            }
+        if let Ok(url) = self.client.get_authorize_url(false) {
+            webbrowser::open(&url).unwrap();
         }
     }
 }
