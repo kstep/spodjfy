@@ -9,7 +9,7 @@ use gtk::{
 };
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
-use relm::{Relm, Widget, EventStream};
+use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::page::Page;

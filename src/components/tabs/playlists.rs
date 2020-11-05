@@ -4,7 +4,7 @@ use glib::StaticType;
 use gtk::prelude::*;
 use gtk::IconViewExt;
 use relm::vendor::fragile::Fragile;
-use relm::{Relm, Widget, EventStream};
+use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
