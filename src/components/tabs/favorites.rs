@@ -205,7 +205,7 @@ impl Widget for FavoritesTab {
         gtk::ScrolledWindow {
             #[name="tracks_view"]
             gtk::TreeView {
-                model: Some(&__relm_model.store),
+                model: Some(&self.model.store),
 
                 button_press_event(_, event) => (FavoritesMsg::Click(event.clone()), Inhibit(false))
             },

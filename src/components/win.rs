@@ -5,7 +5,7 @@ use gtk::{
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use serde_derive::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::components::spotify::SpotifyProxy;
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
@@ -30,7 +30,7 @@ impl Default for Settings {
 }
 
 pub struct State {
-    pub settings: Arc<RwLock<Settings>>,
+    pub settings: Settings,
     pub spotify: Arc<SpotifyProxy>,
     pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
 
@@ -49,7 +49,7 @@ pub enum Msg {
 }
 
 pub struct Params {
-    pub settings: Arc<RwLock<Settings>>,
+    pub settings: Settings,
     pub spotify: SpotifyProxy,
     pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
 }
@@ -160,7 +160,7 @@ impl Widget for Win {
                         },
 
                         #[name="favorites_tab"]
-                        FavoritesTab(__relm_model.spotify.clone()) {
+                        FavoritesTab(self.model.spotify.clone()) {
                             child: {
                                 name: Some("favorites_tab"),
                                 title: Some("\u{1F31F} Favorites"),
@@ -168,7 +168,7 @@ impl Widget for Win {
                         },
 
                         #[name="playlists_tab"]
-                        PlaylistsTab(__relm_model.spotify.clone()) {
+                        PlaylistsTab(self.model.spotify.clone()) {
                             child: {
                                 name: Some("playlists_tab"),
                                 title: Some("\u{1F4C1} Playlists"),
@@ -181,7 +181,7 @@ impl Widget for Win {
                         },
 
                         #[name="albums_tab"]
-                        AlbumsTab(__relm_model.spotify.clone()) {
+                        AlbumsTab(self.model.spotify.clone()) {
                             child: {
                                 name: Some("albums_tab"),
                                 title: Some("\u{1F4BF} Albums"),
@@ -199,7 +199,7 @@ impl Widget for Win {
                         },
 
                         #[name="devices_tab"]
-                        DevicesTab(__relm_model.spotify.clone()) {
+                        DevicesTab(self.model.spotify.clone()) {
                            child: {
                                name: Some("devices_tab"),
                                title: Some("\u{1F39B} Devices"),
@@ -207,7 +207,7 @@ impl Widget for Win {
                         },
 
                         #[name="settings_tab"]
-                        SettingsTab((__relm_model.settings.clone(), __relm_model.spotify.clone())) {
+                        SettingsTab((self.model.settings.clone(), self.model.spotify.clone())) {
                            child: {
                                name: Some("settings_tab"),
                                title: Some("\u{2699} Settings"),

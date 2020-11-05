@@ -97,13 +97,13 @@ impl Widget for PlaylistsTab {
             #[name="playlists_view"]
             /*
             gtk::TreeView {
-                model: Some(&__relm_model.store)),
+                model: Some(&self.model.store)),
             }
              */
             gtk::IconView {
                 pixbuf_column: 0,
                 text_column: 1,
-                model: Some(&__relm_model.store),
+                model: Some(&self.model.store),
             }
         }
     }

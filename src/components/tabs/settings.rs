@@ -3,8 +3,9 @@ use crate::components::win::Settings;
 use gtk::{self, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, WidgetExt};
 use relm::Widget;
 use relm_derive::{widget, Msg};
+use serde_derive::Serialize;
 use std::io::Write;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 #[derive(Msg)]
 pub enum SettingsMsg {
@@ -13,25 +14,28 @@ pub enum SettingsMsg {
     Save,
 }
 
+#[derive(Serialize)]
 pub struct SettingsModel {
-    settings: Arc<RwLock<Settings>>,
+    client_id: String,
+    client_secret: String,
+    #[serde(skip)]
     spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for SettingsTab {
-    fn model((settings, spotify): (Arc<RwLock<Settings>>, Arc<SpotifyProxy>)) -> SettingsModel {
-        SettingsModel { settings, spotify }
+    fn model((settings, spotify): (Settings, Arc<SpotifyProxy>)) -> SettingsModel {
+        SettingsModel {
+            client_id: settings.client_id,
+            client_secret: settings.client_secret,
+            spotify,
+        }
     }
 
     fn update(&mut self, event: SettingsMsg) {
         use SettingsMsg::*;
         match event {
-            ShowTab => {
-                let settings = self.model.settings.read().unwrap();
-                self.client_id_entry.set_text(&*settings.client_id);
-                self.client_secret_entry.set_text(&*settings.client_secret);
-            }
+            ShowTab => {}
             Authorize => {
                 let spotify: &SpotifyProxy = &self.model.spotify;
                 spotify.tell(SpotifyCmd::OpenAuthorizeUrl);
@@ -40,23 +44,17 @@ impl Widget for SettingsTab {
                 }
             }
             Save => {
-                {
-                    let mut settings = self.model.settings.write().unwrap();
-                    settings.client_id = self.client_id_entry.get_text().into();
-                    settings.client_secret = self.client_secret_entry.get_text().into();
-
-                    self.model.spotify.tell(SpotifyCmd::SetupClient {
-                        id: settings.client_id.clone(),
-                        secret: settings.client_secret.clone(),
-                    });
-                }
+                self.model.spotify.tell(SpotifyCmd::SetupClient {
+                    id: self.model.client_id.clone(),
+                    secret: self.model.client_secret.clone(),
+                });
 
                 directories::ProjectDirs::from("me", "kstep", "spodjfy")
                     .and_then(|dirs| {
                         std::fs::File::create(dirs.config_dir().join("settings.toml")).ok()
                     })
                     .and_then(|mut conf_file| {
-                        toml::to_vec(&*self.model.settings.read().unwrap())
+                        toml::to_vec(&self.model)
                             .ok()
                             .and_then(|data| conf_file.write_all(&data).ok())
                     })
@@ -88,7 +86,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_id_entry"]
                 gtk::Entry {
-                    text: &*__relm_model.settings.read().unwrap().client_id,
+                    text: &self.model.client_id,
                     cell: {
                         left_attach: 1,
                         top_attach: 0,
@@ -106,7 +104,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_secret_entry"]
                 gtk::Entry {
-                    text: &*__relm_model.settings.read().unwrap().client_secret,
+                    text: &self.model.client_secret,
                     cell: {
                         left_attach: 1,
                         top_attach: 1,

@@ -225,13 +225,13 @@ impl Widget for DevicesTab {
             #[name="devices_view"]
             /*
             gtk::TreeView {
-                model: Some(&__relm_model.store)),
+                model: Some(&self.model.store)),
             }
              */
             gtk::IconView {
                 pixbuf_column: COL_DEVICE_ICON as i32,
                 text_column: COL_DEVICE_NAME as i32,
-                model: Some(&__relm_model.store),
+                model: Some(&self.model.store),
                 selection_mode: gtk::SelectionMode::Single,
 
                 button_press_event(_, event) => (DevicesMsg::Click(event.clone()), Inhibit(false))

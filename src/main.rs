@@ -3,7 +3,6 @@ use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
 
 #[tokio::main]
 async fn main() {
@@ -40,7 +39,7 @@ async fn main() {
 
     let (spotify, spotify_errors) = SpotifyProxy::new(tx);
     Win::run(Params {
-        settings: Arc::new(RwLock::new(settings)),
+        settings,
         spotify,
         spotify_errors,
     })
