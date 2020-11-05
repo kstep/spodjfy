@@ -134,12 +134,12 @@ pub fn humanize_time(time_ms: u32) -> String {
     }
 }
 
-pub fn find_best_thumb<I: IntoIterator<Item = rspotify::model::image::Image>>(
+pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a rspotify::model::image::Image>>(
     images: I,
     size: i32,
-) -> Option<String> {
+) -> Option<&'b str> {
     images
         .into_iter()
         .min_by_key(|img| (size - img.width.unwrap_or(0) as i32).abs())
-        .map(|img| img.url)
+        .map(|img| &*img.url)
 }

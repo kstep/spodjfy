@@ -68,9 +68,9 @@ impl Widget for PlaylistsTab {
                 for playlist in playlists {
                     let pos = store.insert_with_values(None, &[1], &[&playlist.name]);
 
-                    let image = crate::utils::find_best_thumb(playlist.images, THUMB_SIZE);
+                    let image = crate::utils::find_best_thumb(&playlist.images, THUMB_SIZE);
                     if let Some(url) = image {
-                        stream.emit(LoadThumb(url, pos));
+                        stream.emit(LoadThumb(url.to_owned(), pos));
                     }
                 }
                 if page.next.is_some() {

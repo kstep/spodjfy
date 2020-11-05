@@ -75,10 +75,9 @@ impl Widget for AlbumsTab {
                         &[&album.album.name, &album.album.release_date],
                     );
 
-                    let image =
-                        crate::utils::find_best_thumb(album.album.images.into_iter(), THUMB_SIZE);
+                    let image = crate::utils::find_best_thumb(&album.album.images, THUMB_SIZE);
                     if let Some(url) = image {
-                        stream.emit(LoadThumb(url, pos));
+                        stream.emit(LoadThumb(url.to_owned(), pos));
                     }
                 }
 

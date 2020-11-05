@@ -130,10 +130,10 @@ impl Widget for FavoritesTab {
                         ],
                     );
 
-                    let image = crate::utils::find_best_thumb(track.album.images, THUMB_SIZE);
+                    let image = crate::utils::find_best_thumb(&track.album.images, THUMB_SIZE);
 
                     if let Some(url) = image {
-                        stream.emit(LoadThumb(url, pos.clone()));
+                        stream.emit(LoadThumb(url.to_owned(), pos.clone()));
                     }
 
                     uris.push(track.uri);

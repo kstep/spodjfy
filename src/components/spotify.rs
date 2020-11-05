@@ -3,10 +3,11 @@ use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
+use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::SimplifiedPlaylist;
-use rspotify::model::track::SavedTrack;
+use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -81,6 +82,10 @@ pub enum SpotifyCmd {
     AuthorizeUser {
         code: String,
     },
+    PausePlayback,
+    StartPlayback,
+    PlayPrevTrack,
+    PlayNextTrack,
     GetAlbums {
         tx: ResultSender<Page<SavedAlbum>>,
         offset: u32,
@@ -109,6 +114,24 @@ pub enum SpotifyCmd {
     UseDevice {
         id: String,
     },
+    GetPlaybackState {
+        tx: ResultSender<Option<CurrentlyPlaybackContext>>,
+    },
+    GetPlaylistTracks {
+        tx: ResultSender<Page<FullTrack>>,
+        limit: u32,
+        offset: u32,
+        uri: String,
+    },
+    GetAlbumTracks {
+        tx: ResultSender<Page<SimplifiedTrack>>,
+        limit: u32,
+        offset: u32,
+        uri: String,
+    },
+    SeekTrack {
+        pos: u32,
+    },
 }
 
 pub struct Spotify {
@@ -133,6 +156,43 @@ impl Spotify {
         while let Ok(msg) = channel.recv() {
             match msg {
                 SetupClient { id, secret } => self.setup_client(id, secret).await,
+                StartPlayback => {
+                    let _ = self.start_playback().await;
+                }
+                SeekTrack { pos } => {
+                    let _ = self.seek_track(pos).await;
+                }
+                PausePlayback => {
+                    let _ = self.pause_playback().await;
+                }
+                PlayNextTrack => {
+                    let _ = self.play_next_track().await;
+                }
+                PlayPrevTrack => {
+                    let _ = self.play_prev_track().await;
+                }
+                GetPlaybackState { tx } => {
+                    let state = self.get_playback_state().await;
+                    tx.send(state).unwrap();
+                }
+                GetAlbumTracks {
+                    tx,
+                    limit,
+                    offset,
+                    uri,
+                } => {
+                    let tracks = self.get_album_tracks(&uri, offset, limit).await;
+                    tx.send(tracks).unwrap();
+                }
+                GetPlaylistTracks {
+                    tx,
+                    limit,
+                    offset,
+                    uri,
+                } => {
+                    let tracks = self.get_playlist_tracks(&uri, offset, limit).await;
+                    tx.send(tracks).unwrap();
+                }
                 OpenAuthorizeUrl => {
                     self.open_authorize_url();
                 }
@@ -263,5 +323,64 @@ impl Spotify {
         if let Ok(url) = self.client.get_authorize_url(false) {
             webbrowser::open(&url).unwrap();
         }
+    }
+
+    async fn get_playback_state(&self) -> ClientResult<Option<CurrentlyPlaybackContext>> {
+        self.client.current_playback(None, None).await
+    }
+
+    async fn start_playback(&self) -> ClientResult<()> {
+        self.client
+            .start_playback(None, None, None, None, None)
+            .await
+    }
+
+    async fn pause_playback(&self) -> ClientResult<()> {
+        self.client.pause_playback(None).await
+    }
+
+    async fn play_next_track(&self) -> ClientResult<()> {
+        self.client.previous_track(None).await
+    }
+
+    async fn play_prev_track(&self) -> ClientResult<()> {
+        self.client.next_track(None).await
+    }
+
+    async fn get_playlist_tracks(
+        &self,
+        uri: &str,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<FullTrack>> {
+        self.client
+            .playlist_tracks(uri, None, limit, offset, None)
+            .await
+            .map(|page| Page {
+                items: page
+                    .items
+                    .into_iter()
+                    .filter_map(|track| track.track)
+                    .collect::<Vec<_>>(),
+                href: page.href,
+                limit: page.limit,
+                next: page.next,
+                offset: page.offset,
+                previous: page.previous,
+                total: page.total,
+            })
+    }
+
+    async fn get_album_tracks(
+        &self,
+        uri: &str,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedTrack>> {
+        self.client.album_track(uri, limit, offset).await
+    }
+
+    async fn seek_track(&self, pos: u32) -> ClientResult<()> {
+        self.client.seek_track(pos, None).await
     }
 }

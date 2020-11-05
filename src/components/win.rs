@@ -11,6 +11,7 @@ use crate::components::spotify::SpotifyProxy;
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
+use crate::components::tabs::now_playing::{NowPlayingMsg, NowPlayingTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 
@@ -70,6 +71,17 @@ impl Widget for Win {
                 stacksidebar {
                     font-family: "Noto Color Emoji";
                 }
+
+                #now_playing_tab label#track_name_label {
+                    font-size: 32px;
+                    font-weight: bold;
+                }
+                #now_playing_tab label#track_album_label {
+                    font-style: italic;
+                }
+                #now_playing_tab label#current_device_label {
+                    font-size: 10px;
+                }
                 "#,
             )
             .expect("Invalid CSS styles");
@@ -102,6 +114,9 @@ impl Widget for Win {
                 self.stack.set_visible_child(self.settings_tab.widget());
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
+                Some("now_playing_tab") => {
+                    self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
+                }
                 Some("settings_tab") => {
                     self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
@@ -155,12 +170,17 @@ impl Widget for Win {
                         transition_type: gtk::StackTransitionType::SlideUpDown,
 
                         #[name="now_playing_tab"]
-                        gtk::Label(Some("Now playing")) {
-                           child: { title: Some("\u{25B6} Now playing") },
+                        NowPlayingTab(self.model.spotify.clone()) {
+                           widget_name: "now_playing_tab",
+                           child: {
+                               name: Some("now_playing_tab"),
+                               title: Some("\u{25B6} Now playing")
+                           },
                         },
 
                         #[name="favorites_tab"]
                         FavoritesTab(self.model.spotify.clone()) {
+                            widget_name: "favorites_tab",
                             child: {
                                 name: Some("favorites_tab"),
                                 title: Some("\u{1F31F} Favorites"),
@@ -169,6 +189,7 @@ impl Widget for Win {
 
                         #[name="playlists_tab"]
                         PlaylistsTab(self.model.spotify.clone()) {
+                            widget_name: "playlists_tab",
                             child: {
                                 name: Some("playlists_tab"),
                                 title: Some("\u{1F4C1} Playlists"),
@@ -177,11 +198,13 @@ impl Widget for Win {
 
                         #[name="artists_tab"]
                         gtk::Label(Some("Artists")) {
-                           child: { title: Some("\u{1F935} Artists") },
+                            widget_name: "artists_tab",
+                            child: { title: Some("\u{1F935} Artists") },
                         },
 
                         #[name="albums_tab"]
                         AlbumsTab(self.model.spotify.clone()) {
+                            widget_name: "albums_tab",
                             child: {
                                 name: Some("albums_tab"),
                                 title: Some("\u{1F4BF} Albums"),
@@ -190,28 +213,32 @@ impl Widget for Win {
 
                         #[name="genres_tab"]
                         gtk::Label(Some("Genres")) {
-                           child: { title: Some("\u{1F3B7} Genres") },
+                            widget_name: "genres_tab",
+                            child: { title: Some("\u{1F3B7} Genres") },
                         },
 
                         #[name="tracks_tab"]
                         gtk::Label(Some("Tracks")) {
-                           child: { title: Some("\u{1F3B5} Tracks") },
+                            widget_name: "tracks_tab",
+                            child: { title: Some("\u{1F3B5} Tracks") },
                         },
 
                         #[name="devices_tab"]
                         DevicesTab(self.model.spotify.clone()) {
-                           child: {
-                               name: Some("devices_tab"),
-                               title: Some("\u{1F39B} Devices"),
-                           },
+                            widget_name: "devices_tab",
+                            child: {
+                                name: Some("devices_tab"),
+                                title: Some("\u{1F39B} Devices"),
+                            },
                         },
 
                         #[name="settings_tab"]
                         SettingsTab((self.model.settings.clone(), self.model.spotify.clone())) {
-                           child: {
-                               name: Some("settings_tab"),
-                               title: Some("\u{2699} Settings"),
-                           },
+                            widget_name: "settings_tab",
+                            child: {
+                                name: Some("settings_tab"),
+                                title: Some("\u{2699} Settings"),
+                            },
                         },
 
                         property_visible_child_name_notify(stack) => Msg::ChangeTab(stack.get_visible_child_name()),
@@ -245,6 +272,8 @@ impl Widget for Win {
                 err => stream.emit(Msg::StatusMessage(err.to_string())),
             }
         });
+
+        self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
     }
 
     fn push_status(&self, msg: &str) {
