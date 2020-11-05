@@ -1,6 +1,6 @@
 use gtk::{
-    self, CssProviderExt, Inhibit, PanedExt, SearchBarExt, StackExt, StackSidebarExt, StatusbarExt,
-    WidgetExt,
+    self, CssProviderExt, GtkWindowExt, Inhibit, PanedExt, SearchBarExt, StackExt, StackSidebarExt,
+    StatusbarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -128,6 +128,8 @@ impl Widget for Win {
     view! {
         #[name="window"]
         gtk::Window {
+            icon_name: Some("multimedia-player"),
+
             gtk::Box(gtk::Orientation::Vertical, 1) {
                 #[name="searchbar"]
                 gtk::SearchBar {
