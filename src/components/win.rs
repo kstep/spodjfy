@@ -2,7 +2,7 @@ use gtk::{
     self, CssProviderExt, Inhibit, PanedExt, SearchBarExt, StackExt, StackSidebarExt, StatusbarExt,
     WidgetExt,
 };
-use relm::Widget;
+use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -32,26 +32,31 @@ impl Default for Settings {
 pub struct State {
     pub settings: Arc<RwLock<Settings>>,
     pub spotify: Arc<SpotifyProxy>,
+    pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
 
     pub screen: gdk::Screen,
     pub style: gtk::CssProvider,
+    pub stream: relm::EventStream<Msg>,
 }
 
 #[derive(Msg)]
 pub enum Msg {
     SearchStart(gdk::EventKey),
     ChangeTab(Option<glib::GString>),
+    StatusMessage(String),
+    GoToSettings,
     Quit,
 }
 
 pub struct Params {
     pub settings: Arc<RwLock<Settings>>,
     pub spotify: SpotifyProxy,
+    pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
 }
 
 #[widget]
 impl Widget for Win {
-    fn model(params: Params) -> State {
+    fn model(relm: &Relm<Self>, params: Params) -> State {
         let style = gtk::CssProvider::new();
         let screen = gdk::Screen::get_default().unwrap();
 
@@ -75,11 +80,14 @@ impl Widget for Win {
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
 
+        let stream = relm.stream().clone();
         State {
             settings: params.settings,
             spotify: Arc::new(params.spotify),
+            spotify_errors: params.spotify_errors,
             screen,
             style,
+            stream,
         }
     }
 
@@ -89,6 +97,9 @@ impl Widget for Win {
             Quit => gtk::main_quit(),
             SearchStart(ref event) => {
                 self.searchbar.handle_event(event);
+            }
+            GoToSettings => {
+                self.stack.set_visible_child(self.settings_tab.widget());
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
                 Some("settings_tab") => {
@@ -106,14 +117,11 @@ impl Widget for Win {
                 Some("favorites_tab") => {
                     self.favorites_tab.emit(FavoritesMsg::ShowTab);
                 }
-                _ => {
-                    let ctx_id = self.status_bar.get_context_id("main");
-                    self.status_bar.push(
-                        ctx_id,
-                        "Go to <Settings> tab and click <Authorize> button to login!",
-                    );
-                }
+                _ => {}
             },
+            StatusMessage(msg) => {
+                self.push_status(&msg);
+            }
         }
     }
 
@@ -219,5 +227,26 @@ impl Widget for Win {
     fn init_view(&mut self) {
         self.sidebar.set_stack(&self.stack);
         self.searchbar.connect_entry(&self.searchentry);
+
+        let stream = self.model.stream.clone();
+        self.model.spotify_errors.observe(move |err| {
+            use rspotify::client::ClientError::*;
+            match err {
+                InvalidAuth(msg) => {
+                    stream.emit(Msg::StatusMessage(format!("Authentication error: {}. Check credentials in <Settings> and click <Authorize> to fix", msg)));
+                    stream.emit(Msg::GoToSettings);
+                },
+                Unauthorized => {
+                    stream.emit(Msg::StatusMessage("Authorization error. Check credentials in <Settings> and click <Authorize> to fix".to_string()));
+                    stream.emit(Msg::GoToSettings);
+                },
+                err => stream.emit(Msg::StatusMessage(err.to_string())),
+            }
+        });
+    }
+
+    fn push_status(&self, msg: &str) {
+        self.status_bar
+            .push(self.status_bar.get_context_id("main"), msg);
     }
 }

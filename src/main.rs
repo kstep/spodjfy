@@ -38,9 +38,11 @@ async fn main() {
         });
     });
 
+    let (spotify, spotify_errors) = SpotifyProxy::new(tx);
     Win::run(Params {
         settings: Arc::new(RwLock::new(settings)),
-        spotify: SpotifyProxy::new(tx),
+        spotify,
+        spotify_errors,
     })
     .unwrap();
 }

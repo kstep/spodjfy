@@ -1,6 +1,6 @@
 use crate::scopes::Scope::{self, *};
 use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
-use rspotify::client::Spotify as Client;
+use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::device::Device;
@@ -10,28 +10,38 @@ use rspotify::model::track::SavedTrack;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
-pub struct SpotifyProxy(Sender<SpotifyCmd>);
+pub struct SpotifyProxy {
+    spotify_tx: Sender<SpotifyCmd>,
+    errors_stream: relm::EventStream<ClientError>,
+}
 
 impl SpotifyProxy {
-    pub fn new(tx: Sender<SpotifyCmd>) -> SpotifyProxy {
-        SpotifyProxy(tx)
+    pub fn new(spotify_tx: Sender<SpotifyCmd>) -> (SpotifyProxy, relm::EventStream<ClientError>) {
+        let errors_stream = relm::EventStream::new();
+        (
+            SpotifyProxy {
+                spotify_tx,
+                errors_stream: errors_stream.clone(),
+            },
+            errors_stream,
+        )
     }
 
     pub fn tell(&self, cmd: SpotifyCmd) {
-        self.0.send(cmd).unwrap();
+        self.spotify_tx.send(cmd).unwrap();
     }
     pub fn ask<T, F, R, M>(&self, stream: relm::EventStream<M>, make_command: F, convert_output: R)
     where
-        F: FnOnce(relm::Sender<Option<T>>) -> SpotifyCmd + 'static,
+        F: FnOnce(ResultSender<T>) -> SpotifyCmd + 'static,
         R: Fn(T) -> M + 'static,
         M: 'static,
     {
-        let (_, tx) = relm::Channel::<Option<T>>::new(move |reply| {
-            if let Some(out) = reply {
-                stream.emit(convert_output(out));
-            }
+        let errors_stream = self.errors_stream.clone();
+        let (_, tx) = relm::Channel::<ClientResult<T>>::new(move |reply| match reply {
+            Ok(out) => stream.emit(convert_output(out)),
+            Err(err) => errors_stream.emit(err),
         });
-        self.0.send(make_command(tx)).unwrap();
+        self.spotify_tx.send(make_command(tx)).unwrap();
     }
 
     pub fn get_code_url_from_user() -> Option<String> {
@@ -60,6 +70,8 @@ impl SpotifyProxy {
     }
 }
 
+pub type ResultSender<T> = relm::Sender<ClientResult<T>>;
+
 pub enum SpotifyCmd {
     SetupClient {
         id: String,
@@ -70,17 +82,17 @@ pub enum SpotifyCmd {
         code: String,
     },
     GetAlbums {
-        tx: relm::Sender<Option<Page<SavedAlbum>>>,
+        tx: ResultSender<Page<SavedAlbum>>,
         offset: u32,
         limit: u32,
     },
     GetPlaylists {
-        tx: relm::Sender<Option<Page<SimplifiedPlaylist>>>,
+        tx: ResultSender<Page<SimplifiedPlaylist>>,
         offset: u32,
         limit: u32,
     },
     GetFavoriteTracks {
-        tx: relm::Sender<Option<Page<SavedTrack>>>,
+        tx: ResultSender<Page<SavedTrack>>,
         offset: u32,
         limit: u32,
     },
@@ -88,11 +100,11 @@ pub enum SpotifyCmd {
         uris: Vec<String>,
     },
     GetTracksFeatures {
-        tx: relm::Sender<Option<Vec<AudioFeatures>>>,
+        tx: ResultSender<Vec<AudioFeatures>>,
         uris: Vec<String>,
     },
     GetDevices {
-        tx: relm::Sender<Option<Vec<Device>>>,
+        tx: ResultSender<Vec<Device>>,
     },
     UseDevice {
         id: String,
@@ -112,8 +124,8 @@ impl Spotify {
         }
     }
 
-    async fn get_devices(&self) -> Option<Vec<Device>> {
-        self.client.device().await.ok().map(|reply| reply.devices)
+    async fn get_devices(&self) -> ClientResult<Vec<Device>> {
+        self.client.device().await.map(|reply| reply.devices)
     }
 
     pub async fn run(&mut self, channel: Receiver<SpotifyCmd>) {
@@ -168,30 +180,28 @@ impl Spotify {
             .await;
     }
 
-    async fn get_tracks_features(&self, uris: Vec<String>) -> Option<Vec<AudioFeatures>> {
-        self.client
-            .audios_features(&uris)
-            .await
-            .ok()
-            .and_then(|payload| payload.map(|features| features.audio_features))
+    async fn get_tracks_features(&self, uris: Vec<String>) -> ClientResult<Vec<AudioFeatures>> {
+        self.client.audios_features(&uris).await.map(|payload| {
+            payload
+                .map(|features| features.audio_features)
+                .unwrap_or_else(Vec::new)
+        })
     }
 
-    async fn get_favorite_tracks(&self, offset: u32, limit: u32) -> Option<Page<SavedTrack>> {
-        self.client
-            .current_user_saved_tracks(limit, offset)
-            .await
-            .ok()
+    async fn get_favorite_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedTrack>> {
+        self.client.current_user_saved_tracks(limit, offset).await
     }
 
-    async fn get_playlists(&self, offset: u32, limit: u32) -> Option<Page<SimplifiedPlaylist>> {
-        self.client.current_user_playlists(limit, offset).await.ok()
+    async fn get_playlists(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        self.client.current_user_playlists(limit, offset).await
     }
 
-    async fn get_albums(&self, offset: u32, limit: u32) -> Option<Page<SavedAlbum>> {
-        self.client
-            .current_user_saved_albums(limit, offset)
-            .await
-            .ok()
+    async fn get_albums(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedAlbum>> {
+        self.client.current_user_saved_albums(limit, offset).await
     }
 
     async fn setup_client(&mut self, id: String, secret: String) {
@@ -237,15 +247,15 @@ impl Spotify {
         client
     }
 
-    async fn authorize_user(&mut self, code: String) -> bool {
+    async fn authorize_user(&mut self, code: String) -> ClientResult<()> {
         if code.starts_with("http") {
             if let Some(code) = self.client.parse_response_code(&code) {
-                self.client.request_user_token(&code).await.is_ok()
+                self.client.request_user_token(&code).await
             } else {
-                false
+                Err(ClientError::CLI("Invalid code URL".into()))
             }
         } else {
-            self.client.request_user_token(&code).await.is_ok()
+            self.client.request_user_token(&code).await
         }
     }
 
