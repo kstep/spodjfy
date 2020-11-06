@@ -294,8 +294,13 @@ impl Widget for NowPlayingTab {
     }
 
     fn init_view(&mut self) {
+        let stream = self.model.stream.clone();
+
         self.track_seek_bar
             .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
-        self.tracks_view.observe()
+        self.tracks_view.stream().observe(move |msg| match msg {
+            TrackListMsg::PlayChosenTracks => stream.emit(NowPlayingMsg::LoadState),
+            _ => (),
+        });
     }
 }
