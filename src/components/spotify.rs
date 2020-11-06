@@ -2,11 +2,12 @@ use crate::scopes::Scope::{self, *};
 use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::SavedAlbum;
+use rspotify::model::artist::FullArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::offset;
-use rspotify::model::page::Page;
+use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use std::path::PathBuf;
@@ -87,17 +88,22 @@ pub enum SpotifyCmd {
     StartPlayback,
     PlayPrevTrack,
     PlayNextTrack,
-    GetAlbums {
+    GetMyArtists {
+        tx: ResultSender<CursorBasedPage<FullArtist>>,
+        cursor: Option<String>,
+        limit: u32,
+    },
+    GetMyAlbums {
         tx: ResultSender<Page<SavedAlbum>>,
         offset: u32,
         limit: u32,
     },
-    GetPlaylists {
+    GetMyPlaylists {
         tx: ResultSender<Page<SimplifiedPlaylist>>,
         offset: u32,
         limit: u32,
     },
-    GetFavoriteTracks {
+    GetMyTracks {
         tx: ResultSender<Page<SavedTrack>>,
         offset: u32,
         limit: u32,
@@ -113,7 +119,7 @@ pub enum SpotifyCmd {
         tx: ResultSender<Vec<AudioFeatures>>,
         uris: Vec<String>,
     },
-    GetDevices {
+    GetMyDevices {
         tx: ResultSender<Vec<Device>>,
     },
     UseDevice {
@@ -152,7 +158,7 @@ impl Spotify {
         }
     }
 
-    async fn get_devices(&self) -> ClientResult<Vec<Device>> {
+    async fn get_my_devices(&self) -> ClientResult<Vec<Device>> {
         self.client.device().await.map(|reply| reply.devices)
     }
 
@@ -207,16 +213,20 @@ impl Spotify {
                 AuthorizeUser { code } => {
                     self.authorize_user(code).await;
                 }
-                GetAlbums { tx, offset, limit } => {
-                    let albums = self.get_albums(offset, limit).await;
+                GetMyArtists { tx, cursor, limit } => {
+                    let artists = self.get_my_artists(cursor, limit).await;
+                    tx.send(artists).unwrap();
+                }
+                GetMyAlbums { tx, offset, limit } => {
+                    let albums = self.get_my_albums(offset, limit).await;
                     tx.send(albums).unwrap();
                 }
-                GetPlaylists { tx, offset, limit } => {
-                    let playlists = self.get_playlists(offset, limit).await;
+                GetMyPlaylists { tx, offset, limit } => {
+                    let playlists = self.get_my_playlists(offset, limit).await;
                     tx.send(playlists).unwrap();
                 }
-                GetFavoriteTracks { tx, offset, limit } => {
-                    let tracks = self.get_favorite_tracks(offset, limit).await;
+                GetMyTracks { tx, offset, limit } => {
+                    let tracks = self.get_my_tracks(offset, limit).await;
                     tx.send(tracks).unwrap();
                 }
                 PlayTracks { uris } => {
@@ -229,8 +239,8 @@ impl Spotify {
                     let features = self.get_tracks_features(uris).await;
                     tx.send(features).unwrap();
                 }
-                GetDevices { tx } => {
-                    let devices = self.get_devices().await;
+                GetMyDevices { tx } => {
+                    let devices = self.get_my_devices().await;
                     tx.send(devices).unwrap();
                 }
             }
@@ -269,11 +279,11 @@ impl Spotify {
         })
     }
 
-    async fn get_favorite_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedTrack>> {
+    async fn get_my_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedTrack>> {
         self.client.current_user_saved_tracks(limit, offset).await
     }
 
-    async fn get_playlists(
+    async fn get_my_playlists(
         &self,
         offset: u32,
         limit: u32,
@@ -281,7 +291,7 @@ impl Spotify {
         self.client.current_user_playlists(limit, offset).await
     }
 
-    async fn get_albums(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedAlbum>> {
+    async fn get_my_albums(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedAlbum>> {
         self.client.current_user_saved_albums(limit, offset).await
     }
 
@@ -386,6 +396,17 @@ impl Spotify {
         limit: u32,
     ) -> ClientResult<Page<SimplifiedTrack>> {
         self.client.album_track(uri, limit, offset).await
+    }
+
+    async fn get_my_artists(
+        &self,
+        cursor: Option<String>,
+        limit: u32,
+    ) -> ClientResult<CursorBasedPage<FullArtist>> {
+        self.client
+            .current_user_followed_artists(limit, cursor)
+            .await
+            .map(|artists| artists.artists)
     }
 
     async fn seek_track(&self, pos: u32) -> ClientResult<()> {

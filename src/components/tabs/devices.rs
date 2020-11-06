@@ -65,7 +65,7 @@ impl Widget for DevicesTab {
             LoadList => {
                 self.model.spotify.ask(
                     self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetDevices { tx },
+                    move |tx| SpotifyCmd::GetMyDevices { tx },
                     NewList,
                 );
             }

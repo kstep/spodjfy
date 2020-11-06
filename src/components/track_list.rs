@@ -309,7 +309,7 @@ impl ControlSpotifyContext for TrackList<SavedTrack> {
     fn load_tracks_page(&self, offset: u32) {
         self.model.spotify.ask(
             self.model.stream.clone(),
-            move |tx| SpotifyCmd::GetFavoriteTracks {
+            move |tx| SpotifyCmd::GetMyTracks {
                 tx,
                 limit: Self::PAGE_LIMIT,
                 offset,

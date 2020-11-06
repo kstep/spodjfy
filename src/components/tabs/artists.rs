@@ -3,49 +3,49 @@ use crate::components::track_list::{TrackList, TrackListMsg};
 use crate::utils::ImageLoader;
 use glib::StaticType;
 use gtk::prelude::*;
-use gtk::{IconViewExt, TreeModelExt};
+use gtk::IconViewExt;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use rspotify::model::page::Page;
-use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
+use rspotify::model::artist::FullArtist;
+use rspotify::model::page::CursorBasedPage;
 use std::sync::Arc;
+
+#[derive(Msg)]
+pub enum ArtistsMsg {
+    ShowTab,
+    LoadPage(Option<String>),
+    NewPage(CursorBasedPage<FullArtist>),
+    LoadThumb(String, gtk::TreeIter),
+    NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
+    OpenChosenArtist,
+    Click(gdk::EventButton),
+}
 
 const THUMB_SIZE: i32 = 256;
 const PAGE_LIMIT: u32 = 10;
 
-const COL_PLAYLIST_THUMB: u32 = 0;
-const COL_PLAYLIST_NAME: u32 = 1;
-const COL_PLAYLIST_URI: u32 = 2;
+const COL_ARTIST_THUMB: u32 = 0;
+const COL_ARTIST_NAME: u32 = 1;
+const COL_ARTIST_URI: u32 = 2;
 
-#[derive(Msg)]
-pub enum PlaylistsMsg {
-    ShowTab,
-    LoadPage(u32),
-    NewPage(Page<SimplifiedPlaylist>),
-    LoadThumb(String, gtk::TreeIter),
-    NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
-    Click(gdk::EventButton),
-    OpenChosenPlaylist,
-}
-
-pub struct PlaylistsModel {
-    stream: EventStream<PlaylistsMsg>,
+pub struct ArtistsModel {
+    stream: EventStream<ArtistsMsg>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
 }
 
 #[widget]
-impl Widget for PlaylistsTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> PlaylistsModel {
+impl Widget for ArtistsTab {
+    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> ArtistsModel {
         let store = gtk::ListStore::new(&[
             gdk_pixbuf::Pixbuf::static_type(),
             String::static_type(),
             String::static_type(),
         ]);
         let stream = relm.stream().clone();
-        PlaylistsModel {
+        ArtistsModel {
             stream,
             spotify,
             store,
@@ -53,20 +53,20 @@ impl Widget for PlaylistsTab {
         }
     }
 
-    fn update(&mut self, event: PlaylistsMsg) {
-        use PlaylistsMsg::*;
+    fn update(&mut self, event: ArtistsMsg) {
+        use ArtistsMsg::*;
         match event {
             ShowTab => {
                 self.model.store.clear();
-                self.model.stream.emit(LoadPage(0))
+                self.model.stream.emit(LoadPage(None))
             }
-            LoadPage(offset) => {
+            LoadPage(cursor) => {
                 self.model.spotify.ask(
                     self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetMyPlaylists {
+                    move |tx| SpotifyCmd::GetMyArtists {
                         tx,
                         limit: PAGE_LIMIT,
-                        offset,
+                        cursor,
                     },
                     NewPage,
                 );
@@ -74,21 +74,22 @@ impl Widget for PlaylistsTab {
             NewPage(page) => {
                 let stream = &self.model.stream;
                 let store = &self.model.store;
-                let playlists = page.items;
-                for playlist in playlists {
+                let artists = page.items;
+                for artist in artists {
                     let pos = store.insert_with_values(
                         None,
-                        &[COL_PLAYLIST_NAME, COL_PLAYLIST_URI],
-                        &[&playlist.name, &playlist.uri],
+                        &[COL_ARTIST_NAME, COL_ARTIST_URI],
+                        &[&artist.name, &artist.uri],
                     );
 
-                    let image = crate::utils::find_best_thumb(&playlist.images, THUMB_SIZE);
+                    let image = crate::utils::find_best_thumb(&artist.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
                 }
+
                 if page.next.is_some() {
-                    stream.emit(LoadPage(page.offset + PAGE_LIMIT));
+                    stream.emit(LoadPage(page.next));
                 }
             }
             LoadThumb(url, pos) => {
@@ -103,10 +104,10 @@ impl Widget for PlaylistsTab {
             NewThumb(thumb, pos) => {
                 self.model
                     .store
-                    .set_value(&pos, COL_PLAYLIST_THUMB, &thumb.to_value());
+                    .set_value(&pos, COL_ARTIST_THUMB, &thumb.to_value());
             }
-            OpenChosenPlaylist => {
-                let icon_view: &gtk::IconView = &self.playlists_view;
+            OpenChosenArtist => {
+                let icon_view: &gtk::IconView = &self.artists_view;
                 let store: &gtk::ListStore = &self.model.store;
                 if let Some((Some(uri), Some(name))) = icon_view
                     .get_selected_items()
@@ -115,27 +116,29 @@ impl Widget for PlaylistsTab {
                     .map(|iter| {
                         (
                             store
-                                .get_value(&iter, COL_PLAYLIST_URI as i32)
+                                .get_value(&iter, COL_ARTIST_URI as i32)
                                 .get::<String>()
                                 .ok()
                                 .flatten(),
                             store
-                                .get_value(&iter, COL_PLAYLIST_NAME as i32)
+                                .get_value(&iter, COL_ARTIST_NAME as i32)
                                 .get::<String>()
                                 .ok()
                                 .flatten(),
                         )
                     })
                 {
-                    self.playlist_view.emit(TrackListMsg::Reset(uri));
+                    /*
+                    self.artist_view.emit(TrackListMsg::Reset(uri));
 
-                    let playlist_widget = self.playlist_view.widget();
-                    self.stack.set_child_title(playlist_widget, Some(&name));
-                    self.stack.set_visible_child(playlist_widget);
+                    let artist_widget = self.artist_view.widget();
+                    self.stack.set_child_title(artist_widget, Some(&name));
+                    self.stack.set_visible_child(artist_widget);
+                    */
                 }
             }
             Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.stream.emit(OpenChosenPlaylist);
+                self.model.stream.emit(OpenChosenArtist);
             }
             Click(_) => {}
         }
@@ -145,35 +148,73 @@ impl Widget for PlaylistsTab {
         gtk::Box(gtk::Orientation::Vertical, 0) {
             #[name="breadcrumb"]
             gtk::StackSwitcher {},
+
             #[name="stack"]
             gtk::Stack {
                 vexpand: true,
                 gtk::ScrolledWindow {
                     child: {
-                        title: Some("Playlists"),
+                        title: Some("Artists"),
                     },
 
-                    #[name="playlists_view"]
+                    #[name="artists_view"]
                     /*
                     gtk::TreeView {
                         model: Some(&self.model.store)),
                     }
                      */
                     gtk::IconView {
-                        pixbuf_column: COL_PLAYLIST_THUMB as i32,
-                        text_column: COL_PLAYLIST_NAME as i32,
+                        pixbuf_column: COL_ARTIST_THUMB as i32,
+                        text_column: COL_ARTIST_NAME as i32,
                         model: Some(&self.model.store),
 
-                        button_press_event(_, event) => (PlaylistsMsg::Click(event.clone()), Inhibit(false)),
+                        button_press_event(_, event) => (ArtistsMsg::Click(event.clone()), Inhibit(false)),
                     }
                 },
-                #[name="playlist_view"]
-                TrackList::<PlaylistTrack>(self.model.spotify.clone()),
-            },
+                //#[name="artist_view"]
+                //TrackList::<FullTrack>(self.model.spotify.clone()),
+            }
         }
     }
 
     fn init_view(&mut self) {
         self.breadcrumb.set_stack(Some(&self.stack));
+        /*
+        let tree: &TreeView = &self.artists_view;
+
+        let text_cell = gtk::CellRendererText::new();
+        let image_cell = gtk::CellRendererPixbuf::new();
+
+        tree.append_column(&{
+            let column = TreeViewColumnBuilder::new()
+                .expand(true)
+                .build();
+            column.pack_start(&image_cell, true);
+            column.add_attribute(&image_cell, "pixbuf", 0);
+            column
+        });
+
+        tree.append_column(&{
+            let column = TreeViewColumnBuilder::new()
+                .title("Title")
+                .expand(true)
+                .sort_column_id(1)
+                .build();
+            column.pack_start(&text_cell, true);
+            column.add_attribute(&text_cell, "text", 1);
+            column
+        });
+
+        tree.append_column(&{
+            let column = TreeViewColumnBuilder::new()
+                .title("Release date")
+                .expand(true)
+                .sort_column_id(2)
+                .build();
+            column.pack_start(&text_cell, true);
+            column.add_attribute(&text_cell, "text", 2);
+            column
+        });
+         */
     }
 }

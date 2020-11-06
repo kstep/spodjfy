@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::components::notifier::{Notifier, NotifierMsg};
 use crate::components::spotify::SpotifyProxy;
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
+use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::now_playing::{NowPlayingMsg, NowPlayingTab};
@@ -127,6 +128,9 @@ impl Widget for Win {
                 Some("albums_tab") => {
                     self.albums_tab.emit(AlbumsMsg::ShowTab);
                 }
+                Some("artists_tab") => {
+                    self.artists_tab.emit(ArtistsMsg::ShowTab);
+                }
                 Some("playlists_tab") => {
                     self.playlists_tab.emit(PlaylistsMsg::ShowTab);
                 }
@@ -203,9 +207,12 @@ impl Widget for Win {
                             },
 
                             #[name="artists_tab"]
-                            gtk::Label(Some("Artists")) {
+                            ArtistsTab(self.model.spotify.clone()) {
                                 widget_name: "artists_tab",
-                                child: { title: Some("\u{1F935} Artists") },
+                                child: {
+                                    name: Some("artists_tab"),
+                                    title: Some("\u{1F935} Artists"),
+                                }
                             },
 
                             #[name="albums_tab"]
@@ -215,18 +222,6 @@ impl Widget for Win {
                                     name: Some("albums_tab"),
                                     title: Some("\u{1F4BF} Albums"),
                                 }
-                            },
-
-                            #[name="genres_tab"]
-                            gtk::Label(Some("Genres")) {
-                                widget_name: "genres_tab",
-                                child: { title: Some("\u{1F3B7} Genres") },
-                            },
-
-                            #[name="tracks_tab"]
-                            gtk::Label(Some("Tracks")) {
-                                widget_name: "tracks_tab",
-                                child: { title: Some("\u{1F3B5} Tracks") },
                             },
 
                             #[name="devices_tab"]
@@ -287,11 +282,14 @@ impl Widget for Win {
                     });
                     stream.emit(Msg::GoToSettings);
                 },
+                _ => (),
+                /*
                 err => notifier.emit(NotifierMsg::Notify {
                     title: "Error!".to_owned(),
                     body: err.to_string(),
                     timeout_ms: 5000
                 }),
+                 */
             }
         });
 

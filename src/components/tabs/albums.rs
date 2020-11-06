@@ -66,7 +66,7 @@ impl Widget for AlbumsTab {
             LoadPage(offset) => {
                 self.model.spotify.ask(
                     self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetAlbums {
+                    move |tx| SpotifyCmd::GetMyAlbums {
                         tx,
                         limit: PAGE_LIMIT,
                         offset,
@@ -167,8 +167,8 @@ impl Widget for AlbumsTab {
                     }
                      */
                     gtk::IconView {
-                        pixbuf_column: 0,
-                        text_column: 1,
+                        pixbuf_column: COL_ALBUM_THUMB as i32,
+                        text_column: COL_ALBUM_NAME as i32,
                         model: Some(&self.model.store),
 
                         button_press_event(_, event) => (AlbumsMsg::Click(event.clone()), Inhibit(false)),
