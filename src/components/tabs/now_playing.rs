@@ -7,7 +7,7 @@ use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::context::{Context, CurrentlyPlaybackContext};
-use rspotify::model::playlist::FullPlaylist;
+use rspotify::model::playlist::PlaylistTrack;
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::PlayingItem;
@@ -288,7 +288,7 @@ impl Widget for NowPlayingTab {
             },
             // TODO: make an universal component out of this window
             #[name="tracks_view"]
-            TrackList::<FullPlaylist>(self.model.spotify.clone()),
+            TrackList::<PlaylistTrack>(self.model.spotify.clone()),
         }
     }
 

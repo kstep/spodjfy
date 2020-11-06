@@ -2,6 +2,7 @@ use crate::components::spotify::SpotifyProxy;
 use crate::components::track_list::{TrackList, TrackListMsg};
 use relm::Widget;
 use relm_derive::{widget, Msg};
+use rspotify::model::track::SavedTrack;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -29,6 +30,6 @@ impl Widget for FavoritesTab {
 
     view! {
         #[name="tracks"]
-        TrackList::<()>(self.model.spotify.clone())
+        TrackList::<SavedTrack>(self.model.spotify.clone())
     }
 }

@@ -10,7 +10,7 @@ use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
-use rspotify::model::album::SimplifiedAlbum;
+use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
@@ -22,8 +22,7 @@ use rspotify::model::PlayingItem;
 use std::sync::Arc;
 
 pub trait TrackContainer: 'static {
-    type Id;
-    type Track: TrackLike + 'static;
+    type Track: TrackLike;
 }
 
 pub trait ControlSpotifyContext {
@@ -33,6 +32,8 @@ pub trait ControlSpotifyContext {
 }
 
 pub trait TrackLike {
+    type ParentId;
+
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
@@ -48,6 +49,8 @@ pub trait TrackLike {
 }
 
 impl TrackLike for PlaylistTrack {
+    type ParentId = String;
+
     fn id(&self) -> &str {
         self.track.as_ref().map(FullTrack::id).unwrap_or("")
     }
@@ -85,6 +88,8 @@ impl TrackLike for PlaylistTrack {
 }
 
 impl TrackLike for FullTrack {
+    type ParentId = ();
+
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -119,6 +124,8 @@ impl TrackLike for FullTrack {
 }
 
 impl TrackLike for SimplifiedTrack {
+    type ParentId = String;
+
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -153,6 +160,8 @@ impl TrackLike for SimplifiedTrack {
 }
 
 impl TrackLike for SavedTrack {
+    type ParentId = String;
+
     fn id(&self) -> &str {
         self.track.id()
     }
@@ -187,6 +196,8 @@ impl TrackLike for SavedTrack {
 }
 
 impl TrackLike for FullEpisode {
+    type ParentId = ();
+
     fn id(&self) -> &str {
         &self.id
     }
@@ -223,6 +234,7 @@ impl TrackLike for FullEpisode {
 macro_rules! impl_track_like_for_playing_item {
     ($($method:ident -> $tpe:ty),+) => {
         impl TrackLike for PlayingItem {
+            type ParentId = ();
             $(fn $method(&self) -> $tpe {
                 match self {
                     PlayingItem::Track(track) => track.$method(),
@@ -240,12 +252,12 @@ impl_track_like_for_playing_item! {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<T: TrackContainer> {
+pub enum TrackListMsg<T: TrackLike> {
     Clear,
-    Reset(T::Id),
+    Reset(T::ParentId),
     Reload,
     LoadPage(u32),
-    NewPage(Page<T::Track>),
+    NewPage(Page<T>),
 
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -272,15 +284,15 @@ const COL_TRACK_DURATION_MS: u32 = 8;
 const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 
-pub struct TrackListModel<T: TrackContainer> {
+pub struct TrackListModel<T: TrackLike> {
     stream: EventStream<TrackListMsg<T>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
-    parent_id: Option<T::Id>,
+    parent_id: Option<T::ParentId>,
 }
 
-pub struct TrackList<T: TrackContainer> {
+pub struct TrackList<T: TrackLike> {
     model: TrackListModel<T>,
     root: gtk::ScrolledWindow,
     tracks_view: gtk::TreeView,
@@ -288,11 +300,10 @@ pub struct TrackList<T: TrackContainer> {
 }
 
 impl TrackContainer for () {
-    type Id = ();
     type Track = SavedTrack;
 }
 
-impl ControlSpotifyContext for TrackList<()> {
+impl ControlSpotifyContext for TrackList<SavedTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -313,11 +324,10 @@ impl ControlSpotifyContext for TrackList<()> {
 }
 
 impl TrackContainer for SimplifiedPlaylist {
-    type Id = String;
     type Track = PlaylistTrack;
 }
 
-impl ControlSpotifyContext for TrackList<SimplifiedPlaylist> {
+impl ControlSpotifyContext for TrackList<PlaylistTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -326,6 +336,47 @@ impl ControlSpotifyContext for TrackList<SimplifiedPlaylist> {
             self.model.spotify.ask(
                 self.model.stream.clone(),
                 move |tx| SpotifyCmd::GetPlaylistTracks {
+                    tx,
+                    uri: parent_id,
+                    limit: Self::PAGE_LIMIT,
+                    offset,
+                },
+                TrackListMsg::NewPage,
+            );
+        }
+    }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            self.model.spotify.tell(SpotifyCmd::PlayContext {
+                uri: parent_id.clone(),
+                start_uri: uris.first().cloned(),
+            });
+        }
+    }
+}
+
+impl TrackContainer for SimplifiedAlbum {
+    type Track = SimplifiedTrack;
+}
+
+impl TrackContainer for FullAlbum {
+    type Track = SimplifiedTrack;
+}
+
+impl TrackContainer for SavedAlbum {
+    type Track = SimplifiedTrack;
+}
+
+impl ControlSpotifyContext for TrackList<SimplifiedTrack> {
+    const PAGE_LIMIT: u32 = 10;
+
+    fn load_tracks_page(&self, offset: u32) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            let parent_id = parent_id.clone();
+            self.model.spotify.ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetAlbumTracks {
                     tx,
                     uri: parent_id,
                     limit: Self::PAGE_LIMIT,
@@ -347,42 +398,12 @@ impl ControlSpotifyContext for TrackList<SimplifiedPlaylist> {
 }
 
 impl TrackContainer for FullPlaylist {
-    type Id = String;
     type Track = PlaylistTrack;
-}
-
-impl ControlSpotifyContext for TrackList<FullPlaylist> {
-    const PAGE_LIMIT: u32 = 20;
-
-    fn load_tracks_page(&self, offset: u32) {
-        if let Some(ref parent_id) = self.model.parent_id {
-            let parent_id = parent_id.clone();
-            self.model.spotify.ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetPlaylistTracks {
-                    tx,
-                    uri: parent_id,
-                    limit: Self::PAGE_LIMIT,
-                    offset,
-                },
-                TrackListMsg::NewPage,
-            );
-        }
-    }
-
-    fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref parent_id) = self.model.parent_id {
-            self.model.spotify.tell(SpotifyCmd::PlayContext {
-                uri: parent_id.clone(),
-                start_uri: uris.first().cloned(),
-            });
-        }
-    }
 }
 
 impl<T> Update for TrackList<T>
 where
-    T: TrackContainer,
+    T: TrackLike + 'static,
     TrackList<T>: ControlSpotifyContext,
 {
     type Model = TrackListModel<T>;
@@ -553,7 +574,7 @@ where
 
 impl<T> Widget for TrackList<T>
 where
-    T: TrackContainer,
+    T: TrackLike + 'static,
     TrackList<T>: ControlSpotifyContext,
 {
     type Root = gtk::ScrolledWindow;

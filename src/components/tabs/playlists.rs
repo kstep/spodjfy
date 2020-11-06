@@ -8,7 +8,7 @@ use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
-use rspotify::model::playlist::SimplifiedPlaylist;
+use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
 use std::sync::Arc;
 
 const THUMB_SIZE: i32 = 256;
@@ -168,7 +168,7 @@ impl Widget for PlaylistsTab {
                     }
                 },
                 #[name="playlist_view"]
-                TrackList::<SimplifiedPlaylist>(self.model.spotify.clone()),
+                TrackList::<PlaylistTrack>(self.model.spotify.clone()),
             },
         }
     }
