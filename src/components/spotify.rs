@@ -6,8 +6,8 @@ use rspotify::model::audio::AudioFeatures;
 use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::page::Page;
-use rspotify::model::playlist::SimplifiedPlaylist;
-use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
+use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
+use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -118,7 +118,7 @@ pub enum SpotifyCmd {
         tx: ResultSender<Option<CurrentlyPlaybackContext>>,
     },
     GetPlaylistTracks {
-        tx: ResultSender<Page<FullTrack>>,
+        tx: ResultSender<Page<PlaylistTrack>>,
         limit: u32,
         offset: u32,
         uri: String,
@@ -352,23 +352,10 @@ impl Spotify {
         uri: &str,
         offset: u32,
         limit: u32,
-    ) -> ClientResult<Page<FullTrack>> {
+    ) -> ClientResult<Page<PlaylistTrack>> {
         self.client
             .playlist_tracks(uri, None, limit, offset, None)
             .await
-            .map(|page| Page {
-                items: page
-                    .items
-                    .into_iter()
-                    .filter_map(|track| track.track)
-                    .collect::<Vec<_>>(),
-                href: page.href,
-                limit: page.limit,
-                next: page.next,
-                offset: page.offset,
-                previous: page.previous,
-                total: page.total,
-            })
     }
 
     async fn get_album_tracks(

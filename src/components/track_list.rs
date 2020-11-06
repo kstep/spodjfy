@@ -15,11 +15,21 @@ use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
 use rspotify::model::page::Page;
+use rspotify::model::playlist::{FullPlaylist, PlaylistTrack};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use std::sync::Arc;
 
+pub trait TrackContainer: 'static {
+    type Id;
+    type Track: TrackLike + 'static;
+}
+
+pub trait LoadTracksPage {
+    const PAGE_LIMIT: u32;
+    fn load_tracks_page(&self, offset: u32);
+}
+
 pub trait TrackLike {
-    type ParentId;
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
@@ -34,9 +44,44 @@ pub trait TrackLike {
     }
 }
 
-impl TrackLike for FullTrack {
-    type ParentId = String;
+impl TrackLike for PlaylistTrack {
+    fn id(&self) -> &str {
+        self.track.as_ref().map(FullTrack::id).unwrap_or("")
+    }
 
+    fn uri(&self) -> &str {
+        self.track.as_ref().map(FullTrack::uri).unwrap_or("")
+    }
+
+    fn name(&self) -> &str {
+        self.track.as_ref().map(FullTrack::name).unwrap_or("")
+    }
+
+    fn artists(&self) -> &[SimplifiedArtist] {
+        self.track.as_ref().map(FullTrack::artists).unwrap_or(&[])
+    }
+
+    fn number(&self) -> u32 {
+        self.track.as_ref().map(FullTrack::number).unwrap_or(0)
+    }
+
+    fn album(&self) -> Option<&SimplifiedAlbum> {
+        self.track.as_ref().and_then(FullTrack::album)
+    }
+
+    fn is_playable(&self) -> bool {
+        self.track
+            .as_ref()
+            .map(FullTrack::is_playable)
+            .unwrap_or(false)
+    }
+
+    fn duration(&self) -> u32 {
+        self.track.as_ref().map(FullTrack::duration).unwrap_or(0)
+    }
+}
+
+impl TrackLike for FullTrack {
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -71,8 +116,6 @@ impl TrackLike for FullTrack {
 }
 
 impl TrackLike for SimplifiedTrack {
-    type ParentId = String;
-
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -107,8 +150,6 @@ impl TrackLike for SimplifiedTrack {
 }
 
 impl TrackLike for SavedTrack {
-    type ParentId = ();
-
     fn id(&self) -> &str {
         self.track.id()
     }
@@ -143,12 +184,12 @@ impl TrackLike for SavedTrack {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<T: TrackLike> {
+pub enum TrackListMsg<T: TrackContainer> {
     Clear,
-    Reset(<T as TrackLike>::ParentId),
+    Reset(T::Id),
     Reload,
     LoadPage(u32),
-    NewPage(Page<T>),
+    NewPage(Page<T::Track>),
 
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -160,7 +201,6 @@ pub enum TrackListMsg<T: TrackLike> {
     Click(gdk::EventButton),
 }
 
-const PAGE_LIMIT: u32 = 10;
 const THUMB_SIZE: i32 = 32;
 
 const COL_TRACK_ID: u32 = 0;
@@ -175,32 +215,35 @@ const COL_TRACK_DURATION_MS: u32 = 8;
 const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 
-pub struct TrackListModel<T: TrackLike> {
+pub struct TrackListModel<T: TrackContainer> {
     stream: EventStream<TrackListMsg<T>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
-    parent_id: Option<<T as TrackLike>::ParentId>,
+    parent_id: Option<T::Id>,
 }
 
-pub struct TrackList<T: TrackLike> {
+pub struct TrackList<T: TrackContainer> {
     model: TrackListModel<T>,
     root: gtk::ScrolledWindow,
     tracks_view: gtk::TreeView,
     context_menu: gtk::Menu,
 }
 
-pub trait LoadTracksPage {
-    fn load_tracks_page(&self, offset: u32);
+impl TrackContainer for () {
+    type Id = ();
+    type Track = SavedTrack;
 }
 
-impl LoadTracksPage for TrackList<SavedTrack> {
+impl LoadTracksPage for TrackList<()> {
+    const PAGE_LIMIT: u32 = 10;
+
     fn load_tracks_page(&self, offset: u32) {
         self.model.spotify.ask(
             self.model.stream.clone(),
             move |tx| SpotifyCmd::GetFavoriteTracks {
                 tx,
-                limit: PAGE_LIMIT,
+                limit: Self::PAGE_LIMIT,
                 offset,
             },
             TrackListMsg::NewPage,
@@ -208,10 +251,35 @@ impl LoadTracksPage for TrackList<SavedTrack> {
     }
 }
 
-impl<T: TrackLike> Update for TrackList<T>
+impl TrackContainer for FullPlaylist {
+    type Id = String;
+    type Track = PlaylistTrack;
+}
+
+impl LoadTracksPage for TrackList<FullPlaylist> {
+    const PAGE_LIMIT: u32 = 20;
+
+    fn load_tracks_page(&self, offset: u32) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            let parent_id = parent_id.clone();
+            self.model.spotify.ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetPlaylistTracks {
+                    tx,
+                    uri: parent_id,
+                    limit: Self::PAGE_LIMIT,
+                    offset,
+                },
+                TrackListMsg::NewPage,
+            );
+        }
+    }
+}
+
+impl<T> Update for TrackList<T>
 where
+    T: TrackContainer,
     TrackList<T>: LoadTracksPage,
-    T: 'static,
 {
     type Model = TrackListModel<T>;
     type ModelParam = Arc<SpotifyProxy>;
@@ -309,7 +377,7 @@ where
                 }
 
                 if page.next.is_some() {
-                    stream.emit(LoadPage(page.offset + PAGE_LIMIT));
+                    stream.emit(LoadPage(page.offset + Self::PAGE_LIMIT));
                 }
 
                 stream.emit(LoadTracksInfo(uris, iters));
@@ -378,7 +446,7 @@ where
 
 impl<T> Widget for TrackList<T>
 where
-    T: TrackLike + 'static,
+    T: TrackContainer,
     TrackList<T>: LoadTracksPage,
 {
     type Root = gtk::ScrolledWindow;
@@ -390,7 +458,10 @@ where
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
         let root = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
-        let tracks_view = gtk::TreeViewBuilder::new().model(&model.store).build();
+        let tracks_view = gtk::TreeViewBuilder::new()
+            .model(&model.store)
+            .expand(true)
+            .build();
 
         tracks_view
             .get_selection()

@@ -1,15 +1,13 @@
 use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::components::track_list::{TrackList, TrackListMsg};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{
-    CellRendererPixbuf, ImageExt, RangeExt, ScaleExt, TreeView, TreeViewColumn,
-    TreeViewColumnBuilder, TreeViewExt, WidgetExt,
-};
+use gtk::{ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::context::{Context, CurrentlyPlaybackContext};
-use rspotify::model::page::Page;
+use rspotify::model::playlist::FullPlaylist;
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::PlayingItem;
@@ -29,7 +27,6 @@ pub enum NowPlayingMsg {
     PrevTrack,
     NextTrack,
     LoadTracks(Type, String),
-    NewTracks(Page<FullTrack>),
     Tick(u32),
     SeekTrack(u32),
 }
@@ -39,43 +36,16 @@ pub struct NowPlayingModel {
     spotify: Arc<SpotifyProxy>,
     state: Option<CurrentlyPlaybackContext>,
     cover: Option<Pixbuf>,
-    tracks_store: gtk::ListStore,
     update_timer: glib::SourceId,
 }
 
-const PAGE_LIMIT: u32 = 20;
-const THUMB_SIZE: i32 = 32;
 const COVER_SIZE: i32 = 256;
-
-const COL_TRACK_ID: u32 = 0;
-const COL_TRACK_THUMB: u32 = 1;
-const COL_TRACK_NAME: u32 = 2;
-const COL_TRACK_ARTISTS: u32 = 3;
-const COL_TRACK_NUMBER: u32 = 4;
-const COL_TRACK_ALBUM: u32 = 5;
-const COL_TRACK_CAN_PLAY: u32 = 6;
-const COL_TRACK_DURATION: u32 = 7;
-const COL_TRACK_DURATION_MS: u32 = 8;
-const COL_TRACK_URI: u32 = 9;
-const COL_TRACK_BPM: u32 = 10;
 
 #[widget]
 impl Widget for NowPlayingTab {
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> NowPlayingModel {
         let stream = relm.stream().clone();
-        let tracks_store = gtk::ListStore::new(&[
-            String::static_type(),
-            Pixbuf::static_type(),
-            String::static_type(),
-            String::static_type(),
-            u32::static_type(),
-            String::static_type(),
-            bool::static_type(),
-            String::static_type(),
-            u32::static_type(),
-            String::static_type(),
-            f32::static_type(),
-        ]);
+
         let update_timer = {
             let stream = stream.clone();
             let mut counter = 0;
@@ -89,12 +59,12 @@ impl Widget for NowPlayingTab {
                 Continue(true)
             })
         };
+
         NowPlayingModel {
             stream,
             spotify,
             state: None,
             cover: None,
-            tracks_store,
             update_timer,
         }
     }
@@ -103,7 +73,7 @@ impl Widget for NowPlayingTab {
         use NowPlayingMsg::*;
         match event {
             ShowTab => {
-                self.model.tracks_store.clear();
+                self.tracks_view.emit(TrackListMsg::Clear);
                 self.model.stream.emit(LoadState);
             }
             LoadState => {
@@ -164,7 +134,6 @@ impl Widget for NowPlayingTab {
 
                 if let Some(ctx) = state.as_ref().and_then(|s| s.context.as_ref()) {
                     if &ctx.uri != old_context_uri {
-                        self.model.tracks_store.clear();
                         self.model
                             .stream
                             .emit(LoadTracks(ctx._type, ctx.uri.clone()));
@@ -213,16 +182,7 @@ impl Widget for NowPlayingTab {
             LoadTracks(kind, uri) => {
                 println!("loading tracks for {:?} {}", kind, uri);
                 match kind {
-                    Type::Playlist => self.model.spotify.ask(
-                        self.model.stream.clone(),
-                        |tx| SpotifyCmd::GetPlaylistTracks {
-                            tx,
-                            uri,
-                            offset: 0,
-                            limit: PAGE_LIMIT,
-                        },
-                        NewTracks,
-                    ),
+                    Type::Playlist => self.tracks_view.emit(TrackListMsg::Reset(uri)),
                     _ => (), // TODO: sources for other context types
                 }
             }
@@ -238,51 +198,6 @@ impl Widget for NowPlayingTab {
                     *progress += timeout * 1000;
                 }
                 self.model.state = state;
-            }
-            NewTracks(page) => {
-                let stream = &self.model.stream;
-                let store: &gtk::ListStore = &self.model.tracks_store;
-                let tracks = page.items;
-
-                //let mut uris = Vec::with_capacity(tracks.len());
-                //let mut iters = Vec::with_capacity(tracks.len());
-
-                for track in tracks {
-                    let pos = store.insert_with_values(
-                        None,
-                        &[
-                            COL_TRACK_ID,
-                            COL_TRACK_NAME,
-                            COL_TRACK_ARTISTS,
-                            COL_TRACK_NUMBER,
-                            COL_TRACK_ALBUM,
-                            COL_TRACK_CAN_PLAY,
-                            COL_TRACK_DURATION,
-                            COL_TRACK_DURATION_MS,
-                            COL_TRACK_URI,
-                        ],
-                        &[
-                            &track.id,
-                            &track.name,
-                            &track.artists.iter().map(|artist| &artist.name).join(", "),
-                            &track.track_number,
-                            &track.album.name,
-                            &track.is_playable.unwrap_or(false),
-                            &crate::utils::humanize_time(track.duration_ms),
-                            &track.duration_ms,
-                            &track.uri,
-                        ],
-                    );
-
-                    //let image = crate::utils::find_best_thumb(&track.album.images, THUMB_SIZE);
-
-                    //if let Some(url) = image {
-                    //    stream.emit(LoadThumb(url.to_owned(), pos.clone()));
-                    //}
-
-                    //uris.push(track.uri);
-                    //iters.push(pos);
-                }
             }
             Click(_) => {}
         }
@@ -373,110 +288,12 @@ impl Widget for NowPlayingTab {
                 },
             },
             // TODO: make an universal component out of this window
-            gtk::ScrolledWindow {
-                vexpand: true,
-                #[name="tracks_view"]
-                gtk::TreeView {
-                    model: Some(&self.model.tracks_store),
-                },
-            },
+            #[name="tracks_view"]
+            TrackList::<FullPlaylist>(self.model.spotify.clone()),
         }
     }
 
     fn init_view(&mut self) {
-        let tree: &TreeView = &self.tracks_view;
-        tree.get_selection().set_mode(gtk::SelectionMode::Multiple);
-
-        let base_column = TreeViewColumnBuilder::new()
-            .resizable(true)
-            .reorderable(true)
-            .expand(true);
-
-        tree.append_column(&{
-            let icon_cell = CellRendererPixbuf::new();
-            //icon_cell.set_property_icon_name(Some("audio-x-generic-symbolic"));
-
-            let column = TreeViewColumn::new();
-            column.pack_start(&icon_cell, true);
-            column.add_attribute(&icon_cell, "pixbuf", COL_TRACK_THUMB as i32);
-            column
-        });
-
-        tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Title")
-                .sort_column_id(COL_TRACK_NAME as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
-            column
-        });
-
-        tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
-            let column = base_column
-                .clone()
-                .title("Duration")
-                .sort_column_id(COL_TRACK_DURATION_MS as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_DURATION as i32);
-            column
-        });
-
-        tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
-            let column = base_column
-                .clone()
-                .title("BPM")
-                .sort_column_id(COL_TRACK_BPM as i32)
-                .build();
-            <TreeViewColumn as TreeViewColumnExt>::set_cell_data_func(
-                &column,
-                &text_cell,
-                Some(Box::new(|_layout, cell, model, iter| {
-                    let bpm: f32 = model
-                        .get_value(iter, COL_TRACK_BPM as i32)
-                        .get()
-                        .ok()
-                        .flatten()
-                        .unwrap_or(0.0);
-                    let _ = cell.set_property("text", &format!("{:.0}", bpm));
-                })),
-            );
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
-            column
-        });
-
-        tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Artists")
-                .sort_column_id(COL_TRACK_ARTISTS as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_ARTISTS as i32);
-            column
-        });
-
-        tree.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Album")
-                .sort_column_id(COL_TRACK_ALBUM as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_ALBUM as i32);
-            column
-        });
-
         self.track_seek_bar
             .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
     }
