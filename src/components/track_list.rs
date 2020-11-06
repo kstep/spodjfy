@@ -19,6 +19,7 @@ use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use std::sync::Arc;
 
 pub trait TrackLike {
+    type ParentId;
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
@@ -34,6 +35,8 @@ pub trait TrackLike {
 }
 
 impl TrackLike for FullTrack {
+    type ParentId = String;
+
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -68,6 +71,8 @@ impl TrackLike for FullTrack {
 }
 
 impl TrackLike for SimplifiedTrack {
+    type ParentId = String;
+
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -102,6 +107,8 @@ impl TrackLike for SimplifiedTrack {
 }
 
 impl TrackLike for SavedTrack {
+    type ParentId = ();
+
     fn id(&self) -> &str {
         self.track.id()
     }
@@ -136,7 +143,9 @@ impl TrackLike for SavedTrack {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<T> {
+pub enum TrackListMsg<T: TrackLike> {
+    Clear,
+    Reset(<T as TrackLike>::ParentId),
     Reload,
     LoadPage(u32),
     NewPage(Page<T>),
@@ -166,14 +175,15 @@ const COL_TRACK_DURATION_MS: u32 = 8;
 const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 
-pub struct TrackListModel<T> {
+pub struct TrackListModel<T: TrackLike> {
     stream: EventStream<TrackListMsg<T>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
+    parent_id: Option<<T as TrackLike>::ParentId>,
 }
 
-pub struct TrackList<T> {
+pub struct TrackList<T: TrackLike> {
     model: TrackListModel<T>,
     root: gtk::ScrolledWindow,
     tracks_view: gtk::TreeView,
@@ -229,12 +239,21 @@ where
             spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
+            parent_id: None,
         }
     }
 
     fn update(&mut self, event: Self::Msg) {
         use TrackListMsg::*;
         match event {
+            Clear => {
+                self.model.store.clear();
+            }
+            Reset(parent_id) => {
+                self.model.parent_id.replace(parent_id);
+                self.model.store.clear();
+                self.model.stream.emit(LoadPage(0))
+            }
             Reload => {
                 self.model.store.clear();
                 self.model.stream.emit(LoadPage(0))
@@ -357,10 +376,10 @@ where
     }
 }
 
-impl<T: TrackLike> Widget for TrackList<T>
+impl<T> Widget for TrackList<T>
 where
+    T: TrackLike + 'static,
     TrackList<T>: LoadTracksPage,
-    T: 'static,
 {
     type Root = gtk::ScrolledWindow;
 
