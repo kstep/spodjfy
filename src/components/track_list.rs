@@ -252,10 +252,7 @@ impl ControlSpotifyContext for TrackList<()> {
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
-        self.model.spotify.tell(SpotifyCmd::PlayTracks {
-            context_uri: None,
-            uris,
-        });
+        self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
     }
 }
 
@@ -284,10 +281,12 @@ impl ControlSpotifyContext for TrackList<FullPlaylist> {
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
-        self.model.spotify.tell(SpotifyCmd::PlayTracks {
-            context_uri: self.model.parent_id.clone(),
-            uris,
-        });
+        if let Some(ref parent_id) = self.model.parent_id {
+            self.model.spotify.tell(SpotifyCmd::PlayContext {
+                uri: parent_id.clone(),
+                start_uri: uris.first().cloned(),
+            });
+        }
     }
 }
 

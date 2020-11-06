@@ -296,5 +296,6 @@ impl Widget for NowPlayingTab {
     fn init_view(&mut self) {
         self.track_seek_bar
             .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
+        self.tracks_view.observe()
     }
 }

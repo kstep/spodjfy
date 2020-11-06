@@ -5,6 +5,7 @@ use rspotify::model::album::SavedAlbum;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
+use rspotify::model::offset;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
@@ -102,8 +103,11 @@ pub enum SpotifyCmd {
         limit: u32,
     },
     PlayTracks {
-        context_uri: Option<String>,
         uris: Vec<String>,
+    },
+    PlayContext {
+        uri: String,
+        start_uri: Option<String>,
     },
     GetTracksFeatures {
         tx: ResultSender<Vec<AudioFeatures>>,
@@ -215,8 +219,11 @@ impl Spotify {
                     let tracks = self.get_favorite_tracks(offset, limit).await;
                     tx.send(tracks).unwrap();
                 }
-                PlayTracks { context_uri, uris } => {
-                    self.play_tracks(context_uri, uris).await;
+                PlayTracks { uris } => {
+                    self.play_tracks(uris).await;
+                }
+                PlayContext { uri, start_uri } => {
+                    self.play_context(uri, start_uri).await;
                 }
                 GetTracksFeatures { tx, uris } => {
                     let features = self.get_tracks_features(uris).await;
@@ -234,10 +241,23 @@ impl Spotify {
         let _ = self.client.transfer_playback(&id, true).await;
     }
 
-    async fn play_tracks(&self, context_uri: Option<String>, uris: Vec<String>) {
+    async fn play_tracks(&self, uris: Vec<String>) {
         let _ = self
             .client
-            .start_playback(None, context_uri, Some(uris), None, None)
+            .start_playback(None, None, Some(uris), None, None)
+            .await;
+    }
+
+    async fn play_context(&self, uri: String, start_uri: Option<String>) {
+        let _ = self
+            .client
+            .start_playback(
+                None,
+                Some(uri),
+                None,
+                start_uri.and_then(offset::for_uri),
+                None,
+            )
             .await;
     }
 
