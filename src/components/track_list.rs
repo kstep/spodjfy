@@ -15,7 +15,7 @@ use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
 use rspotify::model::page::Page;
-use rspotify::model::playlist::{FullPlaylist, PlaylistTrack};
+use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
@@ -309,6 +309,40 @@ impl ControlSpotifyContext for TrackList<()> {
 
     fn play_tracks(&self, uris: Vec<String>) {
         self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
+    }
+}
+
+impl TrackContainer for SimplifiedPlaylist {
+    type Id = String;
+    type Track = PlaylistTrack;
+}
+
+impl ControlSpotifyContext for TrackList<SimplifiedPlaylist> {
+    const PAGE_LIMIT: u32 = 10;
+
+    fn load_tracks_page(&self, offset: u32) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            let parent_id = parent_id.clone();
+            self.model.spotify.ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetPlaylistTracks {
+                    tx,
+                    uri: parent_id,
+                    limit: Self::PAGE_LIMIT,
+                    offset,
+                },
+                TrackListMsg::NewPage,
+            );
+        }
+    }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            self.model.spotify.tell(SpotifyCmd::PlayContext {
+                uri: parent_id.clone(),
+                start_uri: uris.first().cloned(),
+            });
+        }
     }
 }
 

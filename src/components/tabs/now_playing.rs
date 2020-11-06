@@ -250,7 +250,7 @@ impl Widget for NowPlayingTab {
             },
             gtk::Box(gtk::Orientation::Horizontal, 10) {
                 #[name="track_seek_bar"]
-                gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 300000.0, 1000.0, 5000.0, 5000.0))) {
+                gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 300000.0, 1000.0, 1000.0, 1000.0))) {
                     margin_start: 10,
                     hexpand: true,
                     valign: gtk::Align::Center,
@@ -297,11 +297,9 @@ impl Widget for NowPlayingTab {
 
         self.track_seek_bar
             .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
-        self.tracks_view.stream().observe(move |msg| {
-            match msg {
-                TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
-                _ => (),
-            }
+        self.tracks_view.stream().observe(move |msg| match msg {
+            TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
+            _ => (),
         });
     }
 }
