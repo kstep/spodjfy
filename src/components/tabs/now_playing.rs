@@ -34,6 +34,7 @@ pub enum NowPlayingMsg {
     SeekTrack(u32),
     SetVolume(u8),
     SetShuffle(bool),
+    SetRepeatMode(bool),
 }
 
 pub struct NowPlayingModel {
@@ -205,6 +206,7 @@ impl Widget for NowPlayingTab {
                 });
                 self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
             }
+            SetRepeatMode(mode) => {}
             Play => {
                 self.model.spotify.tell(SpotifyCmd::StartPlayback);
                 self.model.stream.emit(LoadState);
@@ -310,29 +312,40 @@ impl Widget for NowPlayingTab {
             gtk::Box(gtk::Orientation::Horizontal, 5) {
                 halign: gtk::Align::Center,
                 gtk::Button {
-                    label: "« Prev",
+                    tooltip_text: Some("Previous track"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-skip-backward"), gtk::IconSize::LargeToolbar)),
                     clicked(_) => NowPlayingMsg::PrevTrack,
                 },
                 gtk::Button {
-                    label: "Play",
-                    clicked(_) => NowPlayingMsg::Play,
-                },
-                gtk::Button {
-                    label: "Pause",
+                    tooltip_text: Some("Pause"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-pause"), gtk::IconSize::LargeToolbar)),
                     clicked(_) => NowPlayingMsg::Pause,
                 },
                 gtk::Button {
-                    label: "Next »",
+                    tooltip_text: Some("Play"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-start"), gtk::IconSize::LargeToolbar)),
+                    clicked(_) => NowPlayingMsg::Play,
+                },
+                gtk::Button {
+                    tooltip_text: Some("Next track"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-skip-forward"), gtk::IconSize::LargeToolbar)),
                     clicked(_) => NowPlayingMsg::NextTrack,
                 },
 
                 gtk::ToggleButton {
-                    label: "Shuffle",
+                    tooltip_text: Some("Shuffle"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-shuffle"), gtk::IconSize::LargeToolbar)),
                     active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
                     toggled(btn) => NowPlayingMsg::SetShuffle(btn.get_active()),
                 },
+                gtk::ToggleButton {
+                    tooltip_text: Some("Repeat mode"),
+                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-repeat"), gtk::IconSize::LargeToolbar)),
+                    toggled(btn) => NowPlayingMsg::SetRepeatMode(btn.get_active()),
+                },
 
                 gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 101.0, 1.0, 1.0, 1.0))) {
+                    tooltip_text: Some("Volume"),
                     digits: 0,
                     value: self.model.state.as_ref().map(|s| s.device.volume_percent as f64).unwrap_or(0.0),
                     property_width_request: 200,
@@ -343,6 +356,7 @@ impl Widget for NowPlayingTab {
 
                 #[name="device_selector"]
                 gtk::ComboBox {
+                    tooltip_text: Some("Current device"),
                     halign: gtk::Align::Start,
                     model: Some(&self.model.devices),
                     active_id: self.model.state.as_ref().map(|s| &*s.device.id),
