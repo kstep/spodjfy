@@ -16,7 +16,9 @@ use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack};
+use rspotify::model::show::FullEpisode;
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
+use rspotify::model::PlayingItem;
 use std::sync::Arc;
 
 pub trait TrackContainer: 'static {
@@ -182,6 +184,59 @@ impl TrackLike for SavedTrack {
     fn duration(&self) -> u32 {
         self.track.duration()
     }
+}
+
+impl TrackLike for FullEpisode {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn artists(&self) -> &[SimplifiedArtist] {
+        &[]
+    }
+
+    fn number(&self) -> u32 {
+        0
+    }
+
+    fn album(&self) -> Option<&SimplifiedAlbum> {
+        None
+    }
+
+    fn is_playable(&self) -> bool {
+        self.is_playable
+    }
+
+    fn duration(&self) -> u32 {
+        self.duration_ms
+    }
+}
+
+macro_rules! impl_track_like_for_playing_item {
+    ($($method:ident -> $tpe:ty),+) => {
+        impl TrackLike for PlayingItem {
+            $(fn $method(&self) -> $tpe {
+                match self {
+                    PlayingItem::Track(track) => track.$method(),
+                    PlayingItem::Episode(episode) => episode.$method(),
+                }
+            })+
+        }
+    }
+}
+impl_track_like_for_playing_item! {
+    id -> &str, uri -> &str, name -> &str,
+    artists -> &[SimplifiedArtist], number -> u32,
+    album -> Option<&SimplifiedAlbum>, is_playable -> bool,
+    duration -> u32
 }
 
 #[derive(Msg)]
