@@ -83,9 +83,6 @@ impl Widget for Win {
                 #now_playing_tab label#track_album_label {
                     font-style: italic;
                 }
-                #now_playing_tab label#current_device_label {
-                    font-size: 10px;
-                }
                 "#,
             )
             .expect("Invalid CSS styles");

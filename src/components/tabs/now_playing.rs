@@ -2,11 +2,12 @@ use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::track_list::{TrackList, TrackListMsg};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{ImageExt, RangeExt, ScaleExt, WidgetExt};
+use gtk::{CellRendererText, ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::context::{Context, CurrentlyPlaybackContext};
+use rspotify::model::device::Device;
 use rspotify::model::playlist::PlaylistTrack;
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
@@ -19,6 +20,8 @@ pub enum NowPlayingMsg {
     ShowTab,
     LoadState,
     NewState(Option<CurrentlyPlaybackContext>),
+    NewDevices(Vec<Device>),
+    UseDevice(Option<String>),
     LoadCover(String),
     NewCover(Pixbuf),
     Click(gdk::EventButton),
@@ -35,6 +38,7 @@ pub enum NowPlayingMsg {
 
 pub struct NowPlayingModel {
     stream: EventStream<NowPlayingMsg>,
+    devices: gtk::ListStore,
     spotify: Arc<SpotifyProxy>,
     state: Option<CurrentlyPlaybackContext>,
     cover: Option<Pixbuf>,
@@ -62,11 +66,14 @@ impl Widget for NowPlayingTab {
             })
         };
 
+        let devices = gtk::ListStore::new(&[String::static_type(), String::static_type()]);
+
         NowPlayingModel {
             stream,
             spotify,
             state: None,
             cover: None,
+            devices,
             update_timer,
         }
     }
@@ -77,6 +84,27 @@ impl Widget for NowPlayingTab {
             ShowTab => {
                 self.tracks_view.emit(TrackListMsg::Clear);
                 self.model.stream.emit(LoadState);
+                self.model.spotify.ask(
+                    self.model.stream.clone(),
+                    |tx| SpotifyCmd::GetMyDevices { tx },
+                    NewDevices,
+                )
+            }
+            NewDevices(devices) => {
+                let store = &self.model.devices;
+                println!("DEVICS: {:?}", devices);
+                store.clear();
+                for device in devices {
+                    store.insert_with_values(None, &[0, 1], &[&device.id, &device.name]);
+                }
+            }
+            UseDevice(device_id) => {
+                if let Some(id) = device_id {
+                    self.model.state.as_mut().map(|s| {
+                        s.device.id = id.clone();
+                    });
+                    self.model.spotify.tell(SpotifyCmd::UseDevice { id });
+                }
             }
             LoadState => {
                 self.model.spotify.ask(
@@ -254,12 +282,10 @@ impl Widget for NowPlayingTab {
                             _ => None
                         }).unwrap_or("")
                     },
-                    #[name="current_device_label"]
-                    gtk::Label {
-                        widget_name: "current_device_label",
+                    /*gtk::Label {
                         halign: gtk::Align::Start,
                         text: self.model.state.as_ref().map(|s| &*s.device.name).unwrap_or("")
-                    },
+                    },*/
                 },
             },
             gtk::Box(gtk::Orientation::Horizontal, 10) {
@@ -314,6 +340,17 @@ impl Widget for NowPlayingTab {
 
                     change_value(_, _, pos) => (NowPlayingMsg::SetVolume(pos as u8), Inhibit(false)),
                 },
+
+                #[name="device_selector"]
+                gtk::ComboBox {
+                    halign: gtk::Align::Start,
+                    model: Some(&self.model.devices),
+                    active_id: self.model.state.as_ref().map(|s| &*s.device.id),
+                    id_column: 0,
+                    entry_text_column: 1,
+
+                    changed(combo) => NowPlayingMsg::UseDevice(combo.get_active_id().map(|id| id.into())),
+                },
             },
             // TODO: make an universal component out of this window
             #[name="tracks_view"]
@@ -337,5 +374,9 @@ impl Widget for NowPlayingTab {
             TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
             _ => (),
         });
+
+        let cell = gtk::CellRendererText::new();
+        self.device_selector.pack_start(&cell, true);
+        self.device_selector.add_attribute(&cell, "text", 1 as i32);
     }
 }

@@ -458,11 +458,12 @@ where
                 let stream = &self.model.stream;
                 let store = &self.model.store;
                 let tracks = page.items;
+                let offset = page.offset;
 
                 let mut uris = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
 
-                for track in tracks {
+                for (idx, track) in tracks.into_iter().enumerate() {
                     let pos = store.insert_with_values(
                         None,
                         &[
@@ -480,7 +481,7 @@ where
                             &track.id(),
                             &track.name(),
                             &track.artists().iter().map(|artist| &artist.name).join(", "),
-                            &track.number(),
+                            &(idx as u32 + offset + 1),
                             &track.album().map(|album| &*album.name),
                             &track.is_playable(),
                             &crate::utils::humanize_time(track.duration()),
@@ -502,7 +503,7 @@ where
                 }
 
                 if page.next.is_some() {
-                    stream.emit(LoadPage(page.offset + Self::PAGE_LIMIT));
+                    stream.emit(LoadPage(offset + Self::PAGE_LIMIT));
                 }
 
                 stream.emit(LoadTracksInfo(uris, iters));
@@ -612,6 +613,20 @@ where
 
         tracks_view.append_column(&{
             let text_cell = gtk::CellRendererText::new();
+
+            let column = base_column
+                .clone()
+                .expand(false)
+                .title("#")
+                .sort_column_id(COL_TRACK_NUMBER as i32)
+                .build();
+            column.pack_start(&text_cell, true);
+            column.add_attribute(&text_cell, "text", COL_TRACK_NUMBER as i32);
+            column
+        });
+
+        tracks_view.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
             let column = base_column
                 .clone()
                 .title("Title")
@@ -627,6 +642,7 @@ where
             text_cell.set_alignment(1.0, 0.5);
             let column = base_column
                 .clone()
+                .expand(false)
                 .title("Duration")
                 .sort_column_id(COL_TRACK_DURATION_MS as i32)
                 .build();
@@ -650,6 +666,7 @@ where
             });
             let column = base_column
                 .clone()
+                .expand(false)
                 .title("BPM")
                 .sort_column_id(COL_TRACK_BPM as i32)
                 .build();
