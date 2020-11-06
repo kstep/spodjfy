@@ -10,6 +10,7 @@ use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
+use rspotify::senum::RepeatState;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -124,6 +125,15 @@ pub enum SpotifyCmd {
     },
     UseDevice {
         id: String,
+    },
+    SetVolume {
+        value: u8,
+    },
+    SetShuffle {
+        state: bool,
+    },
+    SetRepeatMode {
+        mode: RepeatState,
     },
     GetPlaybackState {
         tx: ResultSender<Option<CurrentlyPlaybackContext>>,
@@ -242,6 +252,15 @@ impl Spotify {
                 GetMyDevices { tx } => {
                     let devices = self.get_my_devices().await;
                     tx.send(devices).unwrap();
+                }
+                SetVolume { value } => {
+                    let _ = self.set_volume(value).await;
+                }
+                SetShuffle { state } => {
+                    let _ = self.set_shuffle(state).await;
+                }
+                SetRepeatMode { mode } => {
+                    let _ = self.set_repeat_mode(mode).await;
                 }
             }
         }
@@ -411,5 +430,17 @@ impl Spotify {
 
     async fn seek_track(&self, pos: u32) -> ClientResult<()> {
         self.client.seek_track(pos, None).await
+    }
+
+    async fn set_volume(&self, value: u8) -> ClientResult<()> {
+        self.client.volume(value, None).await
+    }
+
+    async fn set_shuffle(&self, value: bool) -> ClientResult<()> {
+        self.client.shuffle(value, None).await
+    }
+
+    async fn set_repeat_mode(&self, mode: RepeatState) -> ClientResult<()> {
+        self.client.repeat(mode, None).await
     }
 }

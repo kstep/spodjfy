@@ -29,6 +29,8 @@ pub enum NowPlayingMsg {
     LoadTracks(Type, String),
     Tick(u32),
     SeekTrack(u32),
+    SetVolume(u8),
+    SetShuffle(bool),
 }
 
 pub struct NowPlayingModel {
@@ -163,6 +165,18 @@ impl Widget for NowPlayingTab {
                 }
                 //self.model.stream.emit(LoadState);
             }
+            SetVolume(value) => {
+                self.model.state.as_mut().map(|s| {
+                    s.device.volume_percent = value as u32;
+                });
+                self.model.spotify.tell(SpotifyCmd::SetVolume { value });
+            }
+            SetShuffle(state) => {
+                self.model.state.as_mut().map(|s| {
+                    s.shuffle_state = state;
+                });
+                self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
+            }
             Play => {
                 self.model.spotify.tell(SpotifyCmd::StartPlayback);
                 self.model.stream.emit(LoadState);
@@ -285,6 +299,21 @@ impl Widget for NowPlayingTab {
                     label: "Next »",
                     clicked(_) => NowPlayingMsg::NextTrack,
                 },
+
+                gtk::ToggleButton {
+                    label: "Shuffle",
+                    active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
+                    toggled(btn) => NowPlayingMsg::SetShuffle(btn.get_active()),
+                },
+
+                gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 101.0, 1.0, 1.0, 1.0))) {
+                    digits: 0,
+                    value: self.model.state.as_ref().map(|s| s.device.volume_percent as f64).unwrap_or(0.0),
+                    property_width_request: 200,
+                    valign: gtk::Align::Center,
+
+                    change_value(_, _, pos) => (NowPlayingMsg::SetVolume(pos as u8), Inhibit(false)),
+                },
             },
             // TODO: make an universal component out of this window
             #[name="tracks_view"]
@@ -295,8 +324,15 @@ impl Widget for NowPlayingTab {
     fn init_view(&mut self) {
         let stream = self.model.stream.clone();
 
-        self.track_seek_bar
-            .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
+        self.track_seek_bar.connect_format_value(|seek, value| {
+            let value = value as u32;
+            let duration = seek.get_adjustment().get_upper() as u32;
+            format!(
+                "{} / -{}",
+                crate::utils::humanize_time(value),
+                crate::utils::humanize_time(duration - value)
+            )
+        });
         self.tracks_view.stream().observe(move |msg| match msg {
             TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
             _ => (),
