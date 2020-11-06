@@ -250,6 +250,7 @@ pub enum TrackListMsg<T: TrackContainer> {
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
     PlayChosenTracks,
+    PlayingNewTrack,
     LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
 
@@ -501,8 +502,11 @@ where
                     })
                     .collect::<Vec<_>>();
 
+                //let uri = uris.first().cloned();
                 self.play_tracks(uris);
+                self.model.stream.emit(PlayingNewTrack);
             }
+            PlayingNewTrack => {}
             NewBpm(path, bpm) => {
                 let store = &self.model.store;
                 if let Some(iter) = store.get_iter(&path) {

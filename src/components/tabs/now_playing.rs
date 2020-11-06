@@ -180,7 +180,6 @@ impl Widget for NowPlayingTab {
                 self.model.stream.emit(LoadState);
             }
             LoadTracks(kind, uri) => {
-                println!("loading tracks for {:?} {}", kind, uri);
                 match kind {
                     Type::Playlist => self.tracks_view.emit(TrackListMsg::Reset(uri)),
                     _ => (), // TODO: sources for other context types
@@ -298,9 +297,11 @@ impl Widget for NowPlayingTab {
 
         self.track_seek_bar
             .connect_format_value(|_, value| crate::utils::humanize_time(value as u32));
-        self.tracks_view.stream().observe(move |msg| match msg {
-            TrackListMsg::PlayChosenTracks => stream.emit(NowPlayingMsg::LoadState),
-            _ => (),
+        self.tracks_view.stream().observe(move |msg| {
+            match msg {
+                TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
+                _ => (),
+            }
         });
     }
 }
