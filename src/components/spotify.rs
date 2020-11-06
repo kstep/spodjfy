@@ -102,6 +102,7 @@ pub enum SpotifyCmd {
         limit: u32,
     },
     PlayTracks {
+        context_uri: Option<String>,
         uris: Vec<String>,
     },
     GetTracksFeatures {
@@ -214,8 +215,8 @@ impl Spotify {
                     let tracks = self.get_favorite_tracks(offset, limit).await;
                     tx.send(tracks).unwrap();
                 }
-                PlayTracks { uris } => {
-                    self.play_tracks(uris).await;
+                PlayTracks { context_uri, uris } => {
+                    self.play_tracks(context_uri, uris).await;
                 }
                 GetTracksFeatures { tx, uris } => {
                     let features = self.get_tracks_features(uris).await;
@@ -233,10 +234,10 @@ impl Spotify {
         let _ = self.client.transfer_playback(&id, true).await;
     }
 
-    async fn play_tracks(&self, uris: Vec<String>) {
+    async fn play_tracks(&self, context_uri: Option<String>, uris: Vec<String>) {
         let _ = self
             .client
-            .start_playback(None, None, Some(uris), None, None)
+            .start_playback(None, context_uri, Some(uris), None, None)
             .await;
     }
 
@@ -340,11 +341,11 @@ impl Spotify {
     }
 
     async fn play_next_track(&self) -> ClientResult<()> {
-        self.client.previous_track(None).await
+        self.client.next_track(None).await
     }
 
     async fn play_prev_track(&self) -> ClientResult<()> {
-        self.client.next_track(None).await
+        self.client.previous_track(None).await
     }
 
     async fn get_playlist_tracks(

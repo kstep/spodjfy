@@ -24,9 +24,10 @@ pub trait TrackContainer: 'static {
     type Track: TrackLike + 'static;
 }
 
-pub trait LoadTracksPage {
+pub trait ControlSpotifyContext {
     const PAGE_LIMIT: u32;
     fn load_tracks_page(&self, offset: u32);
+    fn play_tracks(&self, uris: Vec<String>);
 }
 
 pub trait TrackLike {
@@ -235,7 +236,7 @@ impl TrackContainer for () {
     type Track = SavedTrack;
 }
 
-impl LoadTracksPage for TrackList<()> {
+impl ControlSpotifyContext for TrackList<()> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -249,6 +250,13 @@ impl LoadTracksPage for TrackList<()> {
             TrackListMsg::NewPage,
         );
     }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        self.model.spotify.tell(SpotifyCmd::PlayTracks {
+            context_uri: None,
+            uris,
+        });
+    }
 }
 
 impl TrackContainer for FullPlaylist {
@@ -256,7 +264,7 @@ impl TrackContainer for FullPlaylist {
     type Track = PlaylistTrack;
 }
 
-impl LoadTracksPage for TrackList<FullPlaylist> {
+impl ControlSpotifyContext for TrackList<FullPlaylist> {
     const PAGE_LIMIT: u32 = 20;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -274,12 +282,19 @@ impl LoadTracksPage for TrackList<FullPlaylist> {
             );
         }
     }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        self.model.spotify.tell(SpotifyCmd::PlayTracks {
+            context_uri: self.model.parent_id.clone(),
+            uris,
+        });
+    }
 }
 
 impl<T> Update for TrackList<T>
 where
     T: TrackContainer,
-    TrackList<T>: LoadTracksPage,
+    TrackList<T>: ControlSpotifyContext,
 {
     type Model = TrackListModel<T>;
     type ModelParam = Arc<SpotifyProxy>;
@@ -432,7 +447,7 @@ where
                     })
                     .collect::<Vec<_>>();
 
-                self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
+                self.play_tracks(uris);
             }
             NewBpm(path, bpm) => {
                 let store = &self.model.store;
@@ -447,7 +462,7 @@ where
 impl<T> Widget for TrackList<T>
 where
     T: TrackContainer,
-    TrackList<T>: LoadTracksPage,
+    TrackList<T>: ControlSpotifyContext,
 {
     type Root = gtk::ScrolledWindow;
 
