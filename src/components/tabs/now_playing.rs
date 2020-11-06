@@ -12,7 +12,7 @@ use rspotify::model::playlist::PlaylistTrack;
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::PlayingItem;
-use rspotify::senum::Type;
+use rspotify::senum::{RepeatState, Type};
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -206,7 +206,17 @@ impl Widget for NowPlayingTab {
                 });
                 self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
             }
-            SetRepeatMode(mode) => {}
+            SetRepeatMode(mode) => {
+                let mode = if mode {
+                    RepeatState::Context
+                } else {
+                    RepeatState::Off
+                };
+                self.model.state.as_mut().map(|s| {
+                    s.repeat_state = mode;
+                });
+                self.model.spotify.tell(SpotifyCmd::SetRepeatMode { mode });
+            }
             Play => {
                 self.model.spotify.tell(SpotifyCmd::StartPlayback);
                 self.model.stream.emit(LoadState);
@@ -341,6 +351,7 @@ impl Widget for NowPlayingTab {
                 gtk::ToggleButton {
                     tooltip_text: Some("Repeat mode"),
                     image: Some(&gtk::Image::from_icon_name(Some("media-playback-repeat"), gtk::IconSize::LargeToolbar)),
+                    active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
                     toggled(btn) => NowPlayingMsg::SetRepeatMode(btn.get_active()),
                 },
 

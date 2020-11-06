@@ -4,7 +4,8 @@ use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{
-    CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, TreeModelExt, TreeViewColumn, TreeViewExt,
+    CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, StatusbarExt, TreeModelExt,
+    TreeViewColumn, TreeViewExt,
 };
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
@@ -290,13 +291,16 @@ pub struct TrackListModel<T: TrackLike> {
     store: gtk::ListStore,
     image_loader: ImageLoader,
     parent_id: Option<T::ParentId>,
+    total_tracks: u32,
+    total_duration: u32,
 }
 
 pub struct TrackList<T: TrackLike> {
     model: TrackListModel<T>,
-    root: gtk::ScrolledWindow,
+    root: gtk::Box,
     tracks_view: gtk::TreeView,
     context_menu: gtk::Menu,
+    status_bar: gtk::Statusbar,
 }
 
 impl TrackContainer for () {
@@ -401,6 +405,14 @@ impl TrackContainer for FullPlaylist {
     type Track = PlaylistTrack;
 }
 
+impl<T: TrackLike> TrackList<T> {
+    fn clear_store(&mut self) {
+        self.model.store.clear();
+        self.model.total_duration = 0;
+        self.model.total_tracks = 0;
+    }
+}
+
 impl<T> Update for TrackList<T>
 where
     T: TrackLike + 'static,
@@ -433,6 +445,8 @@ where
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
             parent_id: None,
+            total_duration: 0,
+            total_tracks: 0,
         }
     }
 
@@ -440,15 +454,15 @@ where
         use TrackListMsg::*;
         match event {
             Clear => {
-                self.model.store.clear();
+                self.clear_store();
             }
             Reset(parent_id) => {
                 self.model.parent_id.replace(parent_id);
-                self.model.store.clear();
+                self.clear_store();
                 self.model.stream.emit(LoadPage(0))
             }
             Reload => {
-                self.model.store.clear();
+                self.clear_store();
                 self.model.stream.emit(LoadPage(0))
             }
             LoadPage(offset) => {
@@ -463,6 +477,7 @@ where
                 let mut uris = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
 
+                let mut page_duration = 0;
                 for (idx, track) in tracks.into_iter().enumerate() {
                     let pos = store.insert_with_values(
                         None,
@@ -500,10 +515,26 @@ where
 
                     uris.push(track.uri().to_owned());
                     iters.push(pos);
+                    page_duration += track.duration();
                 }
+
+                self.model.total_duration += page_duration;
 
                 if page.next.is_some() {
                     stream.emit(LoadPage(offset + Self::PAGE_LIMIT));
+                } else {
+                    self.model.total_tracks = page.total;
+
+                    let status_ctx = self.status_bar.get_context_id("totals");
+                    self.status_bar.remove_all(status_ctx);
+                    self.status_bar.push(
+                        status_ctx,
+                        &format!(
+                            "Total tracks: {}, total duration: {}",
+                            self.model.total_tracks,
+                            crate::utils::humanize_time(self.model.total_duration)
+                        ),
+                    );
                 }
 
                 stream.emit(LoadTracksInfo(uris, iters));
@@ -578,14 +609,16 @@ where
     T: TrackLike + 'static,
     TrackList<T>: ControlSpotifyContext,
 {
-    type Root = gtk::ScrolledWindow;
+    type Root = gtk::Box;
 
     fn root(&self) -> Self::Root {
         self.root.clone()
     }
 
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
-        let root = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
+        let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
         let tracks_view = gtk::TreeViewBuilder::new()
             .model(&model.store)
@@ -718,7 +751,11 @@ where
             Inhibit(false)
         });
 
-        root.add(&tracks_view);
+        scroller.add(&tracks_view);
+        root.add(&scroller);
+
+        let status_bar = gtk::Statusbar::new();
+        root.add(&status_bar);
 
         let context_menu = gtk::Menu::new();
 
@@ -744,6 +781,7 @@ where
             root,
             tracks_view,
             context_menu,
+            status_bar,
         }
     }
 }
