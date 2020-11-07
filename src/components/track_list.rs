@@ -788,7 +788,7 @@ where
         let stream = relm.stream().clone();
         tracks_view.connect_button_press_event(move |_, event| {
             stream.emit(TrackListMsg::Click(event.clone()));
-            Inhibit(false)
+            Inhibit(event.get_button() == 3)
         });
 
         scroller.add(&tracks_view);
