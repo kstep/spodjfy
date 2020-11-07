@@ -819,6 +819,15 @@ where
 
         tracks_view.set_search_column(COL_TRACK_NAME as i32);
         tracks_view.set_enable_search(true);
+        tracks_view.set_search_equal_func(|model, col, needle, pos| {
+            if let Ok(Some(haystack)) = model.get_value(pos, col).get::<&str>() {
+                let haystack = haystack.to_ascii_lowercase();
+                let needle = needle.to_ascii_lowercase();
+                !haystack.contains(&needle)
+            } else {
+                true
+            }
+        });
 
         let stream = relm.stream().clone();
         tracks_view.connect_row_activated(move |tree, path, _col| {
