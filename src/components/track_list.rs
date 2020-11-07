@@ -269,6 +269,8 @@ pub enum TrackListMsg<T: TrackLike> {
 
     NewBpm(gtk::TreePath, f32),
     Click(gdk::EventButton),
+
+    GoToTrack(String),
 }
 
 const THUMB_SIZE: i32 = 32;
@@ -284,6 +286,7 @@ const COL_TRACK_DURATION: u32 = 7;
 const COL_TRACK_DURATION_MS: u32 = 8;
 const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
+const COL_TRACK_TIMELINE: u32 = 11;
 
 pub struct TrackListModel<T: TrackLike> {
     stream: EventStream<TrackListMsg<T>>,
@@ -435,6 +438,7 @@ where
             u32::static_type(),    // duration in ms
             String::static_type(), // track uri
             f32::static_type(),    // bpm
+            String::static_type(), // duration from start
         ]);
 
         let stream = relm.stream().clone();
@@ -491,6 +495,7 @@ where
                             COL_TRACK_DURATION,
                             COL_TRACK_DURATION_MS,
                             COL_TRACK_URI,
+                            COL_TRACK_TIMELINE,
                         ],
                         &[
                             &track.id(),
@@ -502,6 +507,7 @@ where
                             &crate::utils::humanize_time(track.duration()),
                             &track.duration(),
                             &track.uri(),
+                            &crate::utils::humanize_time(self.model.total_duration + page_duration),
                         ],
                     );
 
@@ -565,6 +571,22 @@ where
                 self.model
                     .store
                     .set_value(&pos, COL_TRACK_THUMB, &thumb.to_value());
+            }
+            GoToTrack(track_id) => {
+                let store = &self.model.store;
+                if let Some(pos) = store.get_iter_first() {
+                    loop {
+                        if let Ok(Some(uri)) = store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>() {
+                            if uri == &track_id {
+                                let select = self.tracks_view.get_selection();
+                                select.unselect_all();
+                                select.select_iter(&pos);
+                                break;
+                            }
+                        }
+                        if !store.iter_next(&pos) { break; }
+                    }
+                }
             }
             Click(event) if event.get_button() == 3 => {
                 self.context_menu.popup_at_pointer(Some(&event));
@@ -681,6 +703,20 @@ where
                 .build();
             column.pack_start(&text_cell, true);
             column.add_attribute(&text_cell, "text", COL_TRACK_DURATION as i32);
+            column
+        });
+
+        tracks_view.append_column(&{
+            let text_cell = gtk::CellRendererText::new();
+            text_cell.set_alignment(1.0, 0.5);
+            let column = base_column
+                .clone()
+                .expand(false)
+                .title("Timeline")
+                .sort_column_id(COL_TRACK_NUMBER as i32)
+                .build();
+            column.pack_start(&text_cell, true);
+            column.add_attribute(&text_cell, "text", COL_TRACK_TIMELINE as i32);
             column
         });
 

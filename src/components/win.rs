@@ -76,7 +76,8 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
-                #now_playing_tab label#track_name_label {
+                #now_playing_tab button.link#track_name_label {
+                    padding: 0;
                     font-size: 32px;
                     font-weight: bold;
                 }

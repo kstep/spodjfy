@@ -35,6 +35,7 @@ pub enum NowPlayingMsg {
     SetVolume(u8),
     SetShuffle(bool),
     SetRepeatMode(bool),
+    GoToTrack(Option<String>),
 }
 
 pub struct NowPlayingModel {
@@ -217,6 +218,11 @@ impl Widget for NowPlayingTab {
                 });
                 self.model.spotify.tell(SpotifyCmd::SetRepeatMode { mode });
             }
+            GoToTrack(track_uri) => {
+                if let Some(track_uri) = track_uri {
+                    self.tracks_view.emit(TrackListMsg::GoToTrack(track_uri));
+                }
+            }
             Play => {
                 self.model.spotify.tell(SpotifyCmd::StartPlayback);
                 self.model.stream.emit(LoadState);
@@ -268,14 +274,20 @@ impl Widget for NowPlayingTab {
                 gtk::Box(gtk::Orientation::Vertical, 10) {
                     halign: gtk::Align::Start,
                     #[name="track_name_label"]
-                    gtk::Label {
+                    gtk::LinkButton {
                         widget_name: "track_name_label",
                         halign: gtk::Align::Start,
                         hexpand: true,
-                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
+                        label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
                             PlayingItem::Track(track) => Some(&*track.name),
                             _ => None
-                        }).unwrap_or("<Nothing>")
+                        }).unwrap_or("<Nothing>"),
+                        uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
+                            PlayingItem::Track(track) => Some(&*track.uri),
+                            _ => None
+                        }).unwrap_or(""),
+
+                        activate_link(btn) => (NowPlayingMsg::GoToTrack(btn.get_uri().map(|u| u.into())), Inhibit(true)),
                     },
                     #[name="track_artists_label"]
                     gtk::Label {
