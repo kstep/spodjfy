@@ -282,7 +282,7 @@ const COL_TRACK_NAME: u32 = 2;
 const COL_TRACK_ARTISTS: u32 = 3;
 const COL_TRACK_NUMBER: u32 = 4;
 const COL_TRACK_ALBUM: u32 = 5;
-const COL_TRACK_CAN_PLAY: u32 = 6;
+const COL_TRACK_CANT_PLAY: u32 = 6;
 const COL_TRACK_DURATION: u32 = 7;
 const COL_TRACK_DURATION_MS: u32 = 8;
 const COL_TRACK_URI: u32 = 9;
@@ -492,7 +492,7 @@ where
                             COL_TRACK_ARTISTS,
                             COL_TRACK_NUMBER,
                             COL_TRACK_ALBUM,
-                            COL_TRACK_CAN_PLAY,
+                            COL_TRACK_CANT_PLAY,
                             COL_TRACK_DURATION,
                             COL_TRACK_DURATION_MS,
                             COL_TRACK_URI,
@@ -504,7 +504,7 @@ where
                             &track.artists().iter().map(|artist| &artist.name).join(", "),
                             &(idx as u32 + offset + 1),
                             &track.album().map(|album| &*album.name),
-                            &track.is_playable(),
+                            &!track.is_playable(),
                             &crate::utils::humanize_time(track.duration()),
                             &track.duration(),
                             &track.uri(),
@@ -701,6 +701,7 @@ where
                 .build();
             column.pack_start(&text_cell, true);
             column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
+            column.add_attribute(&text_cell, "strikethrough", COL_TRACK_CANT_PLAY as i32);
             column
         });
 
