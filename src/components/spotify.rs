@@ -17,6 +17,7 @@ use std::time::Duration;
 
 const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
+#[derive(Clone)]
 pub struct SpotifyProxy {
     spotify_tx: Sender<SpotifyCmd>,
     errors_stream: relm::EventStream<ClientError>,
@@ -58,7 +59,10 @@ impl SpotifyProxy {
         let errors_stream = self.errors_stream.clone();
         let (_, tx) = relm::Channel::<ClientResult<T>>::new(move |reply| match reply {
             Ok(out) => stream.emit(convert_output(out)),
-            Err(err) => errors_stream.emit(err),
+            Err(err) => {
+                error!("spotify error: {:?}", err);
+                errors_stream.emit(err)
+            }
         });
         self.spotify_tx.send(make_command(tx)).unwrap();
     }

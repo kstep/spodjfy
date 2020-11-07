@@ -8,7 +8,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::components::notifier::{Notifier, NotifierMsg};
-use crate::components::spotify::SpotifyProxy;
+use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
@@ -254,6 +254,7 @@ impl Widget for Win {
 
         let stream = self.model.stream.clone();
         let notifier = self.model.notifier.stream().clone();
+        let spotify = self.model.spotify.clone();
         self.model.spotify_errors.observe(move |err| {
             use rspotify::client::ClientError::*;
             match err {
@@ -263,6 +264,7 @@ impl Widget for Win {
                         body: format!("Authentication error: {}. Check credentials in <Settings> and click <Authorize> to fix", msg),
                         timeout_ms: 5000,
                     });
+                    spotify.tell(SpotifyCmd::RefreshUserToken);
                     stream.emit(Msg::GoToSettings);
                 },
                 Unauthorized => {
