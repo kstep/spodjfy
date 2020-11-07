@@ -93,7 +93,8 @@ pub struct NowPlayingModel {
     context_cover: Option<Pixbuf>,
 }
 
-const COVER_SIZE: i32 = 256;
+const TRACK_COVER_SIZE: i32 = 256;
+const CONTEXT_COVER_SIZE: i32 = 128;
 
 #[widget]
 impl Widget for NowPlayingTab {
@@ -188,12 +189,15 @@ impl Widget for NowPlayingTab {
                 if let Some(item) = state.as_ref().and_then(|s| s.item.as_ref()) {
                     let (cover_url, duration_ms, track_uri) = match item {
                         PlayingItem::Track(track) => (
-                            crate::utils::find_best_thumb(track.album.images.iter(), COVER_SIZE),
+                            crate::utils::find_best_thumb(
+                                track.album.images.iter(),
+                                TRACK_COVER_SIZE,
+                            ),
                             track.duration_ms,
                             &*track.uri,
                         ),
                         PlayingItem::Episode(episode) => (
-                            crate::utils::find_best_thumb(episode.images.iter(), COVER_SIZE),
+                            crate::utils::find_best_thumb(episode.images.iter(), TRACK_COVER_SIZE),
                             episode.duration_ms,
                             &*episode.uri,
                         ),
@@ -221,7 +225,14 @@ impl Widget for NowPlayingTab {
                 self.model.state = state;
             }
             LoadCover(url, is_for_track) => {
-                let pixbuf = crate::utils::pixbuf_from_url(&url, COVER_SIZE);
+                let pixbuf = crate::utils::pixbuf_from_url(
+                    &url,
+                    if is_for_track {
+                        TRACK_COVER_SIZE
+                    } else {
+                        CONTEXT_COVER_SIZE
+                    },
+                );
                 if let Ok(cover) = pixbuf {
                     self.model.stream.emit(NewCover(cover, is_for_track));
                 }
@@ -326,7 +337,7 @@ impl Widget for NowPlayingTab {
             }
             NewContext(context) => {
                 let images = context.images();
-                if let Some(cover_url) = crate::utils::find_best_thumb(images, COVER_SIZE) {
+                if let Some(cover_url) = crate::utils::find_best_thumb(images, CONTEXT_COVER_SIZE) {
                     self.model
                         .stream
                         .emit(LoadCover(cover_url.to_owned(), false));
@@ -353,8 +364,9 @@ impl Widget for NowPlayingTab {
     view! {
         gtk::Box(gtk::Orientation::Vertical, 10) {
             gtk::Box(gtk::Orientation::Horizontal, 10) {
-                halign: gtk::Align::Center,
+                halign: gtk::Align::Start,
                 margin_top: 15,
+                margin_start: 15,
                 #[name="track_cover_image"]
                 gtk::Image {
                     from_pixbuf: self.model.track_cover.as_ref()
@@ -395,22 +407,22 @@ impl Widget for NowPlayingTab {
                             _ => None
                         }).unwrap_or("")
                     },
-                    /*gtk::Label {
-                        halign: gtk::Align::Start,
-                        text: self.model.state.as_ref().map(|s| &*s.device.name).unwrap_or("")
-                    },*/
                 },
                 #[name="context_cover_image"]
                 gtk::Image {
-                    from_pixbuf: self.model.context_cover.as_ref()
+                    valign: gtk::Align::Start,
+                    halign: gtk::Align::End,
+                    from_pixbuf: self.model.context_cover.as_ref(),
                 },
                 #[name="context_infobox"]
-               gtk::Box(gtk::Orientation::Vertical, 10) {
+                gtk::Box(gtk::Orientation::Vertical, 10) {
+                    halign: gtk::Align::End,
                     #[name="context_name_label"]
                     gtk::Label {
                         widget_name: "context_name_label",
+                        line_wrap: true,
+                        property_width_request: 200,
                         halign: gtk::Align::Start,
-                        hexpand: true,
                         text: self.model.context.as_ref().map(|c| c.name()).unwrap_or("<No context>"),
                     },
                     #[name="context_genres_label"]
@@ -428,7 +440,7 @@ impl Widget for NowPlayingTab {
                         text: self.model.context.as_ref()
                             .map(|c| match c.tracks_number() {
                                 0 => String::new(),
-                                n => n.to_string(),
+                                n => format!("Tracks: {}", n),
                             })
                             .as_deref()
                             .unwrap_or("")

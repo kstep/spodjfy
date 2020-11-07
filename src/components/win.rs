@@ -74,12 +74,20 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
-                #now_playing_tab button.link#track_name_label {
+                #now_playing_tab button.link#track_name_label,
+                #now_playing_tab label#context_name_label {
                     padding: 0;
-                    font-size: 32px;
                     font-weight: bold;
                 }
-                #now_playing_tab label#track_album_label {
+                #now_playing_tab button.link#track_name_label {
+                    font-size: 32px;
+                }
+                #now_playing_tab label#context_name_label {
+                    font-size: 24px;
+                }
+
+                #now_playing_tab label#track_album_label,
+                #now_playing_tab label#context_genres_label {
                     font-style: italic;
                 }
                 "#,
