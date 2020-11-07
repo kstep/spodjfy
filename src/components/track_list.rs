@@ -309,6 +309,7 @@ pub struct TrackListModel<T: TrackLike> {
     stream: EventStream<TrackListMsg<T>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
+    filter: gtk::TreeModelFilter,
     image_loader: ImageLoader,
     parent_id: Option<T::ParentId>,
     total_tracks: u32,
@@ -473,12 +474,15 @@ where
             String::static_type(), // duration from start
         ]);
 
+        let filter = gtk::TreeModelFilter::new(&store, None);
+
         let stream = relm.stream().clone();
 
         TrackListModel {
             stream,
             spotify,
             store,
+            filter,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
             parent_id: None,
             total_duration: 0,
