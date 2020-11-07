@@ -800,6 +800,9 @@ where
             Inhibit(event.get_button() == 3)
         });
 
+        tracks_view.set_search_column(COL_TRACK_NAME as i32);
+        tracks_view.set_enable_search(true);
+
         scroller.add(&tracks_view);
         root.add(&scroller);
 
