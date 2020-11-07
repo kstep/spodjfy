@@ -1,6 +1,6 @@
 use gtk::{
     self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, StackExt,
-    StackSidebarExt, StatusbarExt, WidgetExt,
+    StackSidebarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -48,7 +48,6 @@ pub struct State {
 pub enum Msg {
     SearchStart(gdk::EventKey),
     ChangeTab(Option<glib::GString>),
-    StatusMessage(String),
     GoToSettings,
     Quit,
 }
@@ -140,9 +139,6 @@ impl Widget for Win {
                 }
                 _ => {}
             },
-            StatusMessage(msg) => {
-                self.push_status(&msg);
-            }
         }
     }
 
@@ -244,8 +240,6 @@ impl Widget for Win {
                         }
                     },
 
-                    #[name="status_bar"]
-                    gtk::Statusbar {},
                 },
             },
 
@@ -292,11 +286,6 @@ impl Widget for Win {
         });
 
         self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
-    }
-
-    fn push_status(&self, msg: &str) {
-        self.status_bar
-            .push(self.status_bar.get_context_id("main"), msg);
     }
 
     fn notify<T: Into<Cow<'static, str>>, B: Into<Cow<'static, str>>>(&self, title: T, body: B) {

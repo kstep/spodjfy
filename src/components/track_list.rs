@@ -576,7 +576,9 @@ where
                 let store = &self.model.store;
                 if let Some(pos) = store.get_iter_first() {
                     loop {
-                        if let Ok(Some(uri)) = store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>() {
+                        if let Ok(Some(uri)) =
+                            store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>()
+                        {
                             if uri == &track_id {
                                 let select = self.tracks_view.get_selection();
                                 select.unselect_all();
@@ -584,7 +586,9 @@ where
                                 break;
                             }
                         }
-                        if !store.iter_next(&pos) { break; }
+                        if !store.iter_next(&pos) {
+                            break;
+                        }
                     }
                 }
             }
