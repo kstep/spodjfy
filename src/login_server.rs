@@ -1,21 +1,21 @@
 use crate::components::spotify::SpotifyCmd;
 use std::io::{Error, ErrorKind};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-pub async fn start(spotify: Arc<Mutex<Sender<SpotifyCmd>>>) -> Result<(), Error> {
+pub async fn start(spotify: Sender<SpotifyCmd>) -> Result<(), Error> {
     let addr = "127.0.0.1:8888";
     let mut server = TcpListener::bind(&addr).await?;
 
     loop {
         let (stream, _) = server.accept().await?;
-        let _ = tokio::task::spawn(handle(stream, spotify.clone())).await;
+        let spt = spotify.clone();
+        let _ = tokio::task::spawn(handle(stream, spt)).await;
     }
 }
 
-async fn handle(mut stream: TcpStream, spotify: Arc<Mutex<Sender<SpotifyCmd>>>) {
+async fn handle(mut stream: TcpStream, spotify: Sender<SpotifyCmd>) {
     match process(&mut stream).await {
         Err(err) => {
             error!("error in oauth callback handler: {}", err);
@@ -28,10 +28,7 @@ async fn handle(mut stream: TcpStream, spotify: Arc<Mutex<Sender<SpotifyCmd>>>) 
         Ok(Some(code)) => {
             let _ = respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 47\r\n\r\n<html><body><h1>Login successful!</h1></body>\r\n").await;
             info!("oauth code received");
-            let _ = spotify
-                .lock()
-                .unwrap()
-                .send(SpotifyCmd::AuthorizeUser { code });
+            let _ = spotify.send(SpotifyCmd::AuthorizeUser { code });
         }
     };
 }

@@ -30,7 +30,7 @@ async fn main() {
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
 
     {
-        let tx = std::sync::Arc::new(std::sync::Mutex::new(tx.clone()));
+        let tx = tx.clone();
 
         std::thread::spawn(move || {
             let mut rt = tokio::runtime::Builder::new()
