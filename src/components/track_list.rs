@@ -309,7 +309,6 @@ pub struct TrackListModel<T: TrackLike> {
     stream: EventStream<TrackListMsg<T>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
-    filter: gtk::TreeModelFilter,
     image_loader: ImageLoader,
     parent_id: Option<T::ParentId>,
     total_tracks: u32,
@@ -474,15 +473,12 @@ where
             String::static_type(), // duration from start
         ]);
 
-        let filter = gtk::TreeModelFilter::new(&store, None);
-
         let stream = relm.stream().clone();
 
         TrackListModel {
             stream,
             spotify,
             store,
-            filter,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
             parent_id: None,
             total_duration: 0,
@@ -624,7 +620,7 @@ where
                         if let Ok(Some(uri)) =
                             store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>()
                         {
-                            if uri == &track_id {
+                            if uri == track_id {
                                 let select = self.tracks_view.get_selection();
                                 select.unselect_all();
                                 select.select_iter(&pos);
@@ -693,6 +689,7 @@ where
         self.root.clone()
     }
 
+    #[allow(clippy::redundant_clone)]
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -918,10 +915,7 @@ where
             item
         });
 
-        context_menu.append(&{
-            let item = gtk::MenuItem::with_label("Remove from library");
-            item
-        });
+        context_menu.append(&gtk::MenuItem::with_label("Remove from library"));
 
         context_menu.show_all();
 

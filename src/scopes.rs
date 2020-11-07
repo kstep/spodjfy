@@ -47,7 +47,7 @@ impl Scope {
         }
     }
 
-    pub fn to_string(scopes: &[Scope]) -> String {
+    pub fn stringify(scopes: &[Scope]) -> String {
         let mut value = scopes
             .iter()
             .map(|scope| scope.as_str())

@@ -89,7 +89,7 @@ impl SpotifyProxy {
         };
         dialog.close();
 
-        return url;
+        url
     }
 }
 
@@ -373,7 +373,7 @@ impl Spotify {
         cache_path: PathBuf,
     ) -> rspotify::client::Spotify {
         let oauth: rspotify::oauth2::OAuth = rspotify::oauth2::OAuthBuilder::default()
-            .scope(Scope::to_string(&[
+            .scope(Scope::stringify(&[
                 UserFollowRead,
                 UserReadRecentlyPlayed,
                 UserReadPlaybackState,

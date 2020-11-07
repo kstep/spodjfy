@@ -123,7 +123,7 @@ impl Widget for DevicesTab {
                                 .unwrap()
                                 .unwrap(),
                         );
-                        let icon = self.get_device_icon(&icon_theme, device_type.clone(), false);
+                        let icon = self.get_device_icon(&icon_theme, device_type, false);
                         store.set_value(pos, COL_DEVICE_ICON, &icon.to_value());
                         false
                     });
@@ -135,7 +135,7 @@ impl Widget for DevicesTab {
                             .unwrap()
                             .unwrap(),
                     );
-                    let icon = self.get_device_icon(&icon_theme, device_type.clone(), true);
+                    let icon = self.get_device_icon(&icon_theme, device_type, true);
                     store.set_value(&sel_pos, COL_DEVICE_ICON, &icon.to_value());
                 }
             }

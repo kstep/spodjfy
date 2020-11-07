@@ -5,8 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 pub async fn start(spotify: Sender<SpotifyCmd>) -> Result<(), Error> {
-    let addr = "127.0.0.1:8888";
-    let mut server = TcpListener::bind(&addr).await?;
+    let mut server = TcpListener::bind("127.0.0.1:8888").await?;
 
     loop {
         let (stream, _) = server.accept().await?;
@@ -53,7 +52,7 @@ async fn process(stream: &mut TcpStream) -> Result<Option<String>, Error> {
             .next()
             .and_then(|line| {
                 if line.ends_with(" HTTP/1.1") {
-                    line.split(" ").nth(1)
+                    line.split(' ').nth(1)
                 } else {
                     None
                 }

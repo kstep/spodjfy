@@ -9,6 +9,12 @@ pub struct ImageLoader {
     resize: i32,
 }
 
+impl Default for ImageLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ImageLoader {
     pub fn new() -> Self {
         Self::new_with_resize(0)

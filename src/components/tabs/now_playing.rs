@@ -63,7 +63,7 @@ impl PlayContext {
 pub enum NowPlayingMsg {
     ShowTab,
     LoadState,
-    NewState(Option<CurrentlyPlaybackContext>),
+    NewState(Box<Option<CurrentlyPlaybackContext>>),
     NewDevices(Vec<Device>),
     UseDevice(Option<String>),
     LoadCover(String, bool),
@@ -75,7 +75,7 @@ pub enum NowPlayingMsg {
     NextTrack,
     LoadTracks(Type, String),
     LoadContext(Type, String),
-    NewContext(PlayContext),
+    NewContext(Box<PlayContext>),
     Tick(u32),
     SeekTrack(u32),
     SetVolume(u8),
@@ -149,9 +149,9 @@ impl Widget for NowPlayingTab {
             }
             UseDevice(device_id) => {
                 if let Some(id) = device_id {
-                    self.model.state.as_mut().map(|s| {
-                        s.device.id = id.clone();
-                    });
+                    if let Some(state) = self.model.state.as_mut() {
+                        state.device.id = id.clone();
+                    }
                     self.model.spotify.tell(SpotifyCmd::UseDevice { id });
                 }
             }
@@ -159,7 +159,7 @@ impl Widget for NowPlayingTab {
                 self.model.spotify.ask(
                     self.model.stream.clone(),
                     move |tx| SpotifyCmd::GetPlaybackState { tx },
-                    NewState,
+                    |reply| NewState(Box::new(reply)),
                 );
             }
             NewState(state) => {
@@ -186,7 +186,7 @@ impl Widget for NowPlayingTab {
                     _ => "",
                 };
 
-                if let Some(item) = state.as_ref().and_then(|s| s.item.as_ref()) {
+                if let Some(item) = state.as_ref().as_ref().and_then(|s| s.item.as_ref()) {
                     let (cover_url, duration_ms, track_uri) = match item {
                         PlayingItem::Track(track) => (
                             crate::utils::find_best_thumb(
@@ -214,15 +214,15 @@ impl Widget for NowPlayingTab {
                     }
                 }
 
-                if let Some(ctx) = state.as_ref().and_then(|s| s.context.as_ref()) {
-                    if &ctx.uri != old_context_uri {
+                if let Some(ctx) = state.as_ref().as_ref().and_then(|s| s.context.as_ref()) {
+                    if ctx.uri != old_context_uri {
                         self.model
                             .stream
                             .emit(LoadContext(ctx._type, ctx.uri.clone()));
                     }
                 }
 
-                self.model.state = state;
+                self.model.state = *state;
             }
             LoadCover(url, is_for_track) => {
                 let pixbuf = crate::utils::pixbuf_from_url(
@@ -257,15 +257,15 @@ impl Widget for NowPlayingTab {
                 //self.model.stream.emit(LoadState);
             }
             SetVolume(value) => {
-                self.model.state.as_mut().map(|s| {
-                    s.device.volume_percent = value as u32;
-                });
+                if let Some(state) = self.model.state.as_mut() {
+                    state.device.volume_percent = value as u32;
+                }
                 self.model.spotify.tell(SpotifyCmd::SetVolume { value });
             }
             SetShuffle(state) => {
-                self.model.state.as_mut().map(|s| {
-                    s.shuffle_state = state;
-                });
+                if let Some(st) = self.model.state.as_mut() {
+                    st.shuffle_state = state;
+                }
                 self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
             }
             SetRepeatMode(mode) => {
@@ -274,9 +274,9 @@ impl Widget for NowPlayingTab {
                 } else {
                     RepeatState::Off
                 };
-                self.model.state.as_mut().map(|s| {
-                    s.repeat_state = mode;
-                });
+                if let Some(state) = self.model.state.as_mut() {
+                    state.repeat_state = mode;
+                }
                 self.model.spotify.tell(SpotifyCmd::SetRepeatMode { mode });
             }
             GoToTrack(track_uri) => {
@@ -303,7 +303,12 @@ impl Widget for NowPlayingTab {
             LoadTracks(kind, uri) => {
                 match kind {
                     Type::Playlist => self.tracks_view.emit(TrackListMsg::Reset(uri, true)),
-                    _ => (), // TODO: sources for other context types
+                    // TODO: sources for other context types:
+                    Type::Album => (),
+                    Type::Artist => (),
+                    Type::User => (),
+                    Type::Show => (),
+                    _ => (),
                 }
             }
             LoadContext(kind, uri) => {
@@ -315,17 +320,17 @@ impl Widget for NowPlayingTab {
                         Type::Playlist => self.model.spotify.ask(
                             stream.clone(),
                             |tx| SpotifyCmd::GetPlaylist { tx, uri },
-                            |reply| NewContext(PlayContext::Playlist(reply)),
+                            |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
                         ),
                         Type::Album => self.model.spotify.ask(
                             stream.clone(),
                             |tx| SpotifyCmd::GetAlbum { tx, uri },
-                            |reply| NewContext(PlayContext::Album(reply)),
+                            |reply| NewContext(Box::new(PlayContext::Album(reply))),
                         ),
                         Type::Artist => self.model.spotify.ask(
                             stream.clone(),
                             |tx| SpotifyCmd::GetArtist { tx, uri },
-                            |reply| NewContext(PlayContext::Artist(reply)),
+                            |reply| NewContext(Box::new(PlayContext::Artist(reply))),
                         ),
                         _ => {
                             self.model.context = None;
@@ -342,7 +347,7 @@ impl Widget for NowPlayingTab {
                         .stream
                         .emit(LoadCover(cover_url.to_owned(), false));
                 }
-                self.model.context = Some(context);
+                self.model.context = Some(*context);
             }
             Tick(timeout) => {
                 // FIXME: it's a hack to make #[widget] insert view bindings here
@@ -558,9 +563,10 @@ impl Widget for NowPlayingTab {
                 crate::utils::humanize_time(duration - value)
             )
         });
-        self.tracks_view.stream().observe(move |msg| match msg {
-            TrackListMsg::PlayingNewTrack => stream.emit(NowPlayingMsg::LoadState),
-            _ => (),
+        self.tracks_view.stream().observe(move |msg| {
+            if let TrackListMsg::PlayingNewTrack = msg {
+                stream.emit(NowPlayingMsg::LoadState);
+            }
         });
 
         let cell = gtk::CellRendererText::new();
