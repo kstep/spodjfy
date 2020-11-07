@@ -127,7 +127,7 @@ impl Widget for PlaylistsTab {
                         )
                     })
                 {
-                    self.playlist_view.emit(TrackListMsg::Reset(uri));
+                    self.playlist_view.emit(TrackListMsg::Reset(uri, true));
 
                     let playlist_widget = self.playlist_view.widget();
                     self.stack.set_child_title(playlist_widget, Some(&name));

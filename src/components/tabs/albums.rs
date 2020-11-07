@@ -133,7 +133,7 @@ impl Widget for AlbumsTab {
                         )
                     })
                 {
-                    self.album_view.emit(TrackListMsg::Reset(uri));
+                    self.album_view.emit(TrackListMsg::Reset(uri, true));
 
                     let album_widget = self.album_view.widget();
                     self.stack.set_child_title(album_widget, Some(&name));

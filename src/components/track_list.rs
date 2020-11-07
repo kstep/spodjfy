@@ -255,7 +255,7 @@ impl_track_like_for_playing_item! {
 #[derive(Msg)]
 pub enum TrackListMsg<T: TrackLike> {
     Clear,
-    Reset(T::ParentId),
+    Reset(T::ParentId, bool),
     Reload,
     LoadPage(u32),
     NewPage(Page<T>),
@@ -461,10 +461,12 @@ where
             Clear => {
                 self.clear_store();
             }
-            Reset(parent_id) => {
+            Reset(parent_id, reload) => {
                 self.model.parent_id.replace(parent_id);
                 self.clear_store();
-                self.model.stream.emit(LoadPage(0))
+                if reload {
+                    self.model.stream.emit(LoadPage(0))
+                }
             }
             Reload => {
                 self.clear_store();

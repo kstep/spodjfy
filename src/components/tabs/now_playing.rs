@@ -6,14 +6,57 @@ use gtk::{ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
+use rspotify::model::album::FullAlbum;
+use rspotify::model::artist::FullArtist;
 use rspotify::model::context::{Context, CurrentlyPlaybackContext};
 use rspotify::model::device::Device;
-use rspotify::model::playlist::PlaylistTrack;
+use rspotify::model::image::Image;
+use rspotify::model::playlist::{FullPlaylist, PlaylistTrack};
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::PlayingItem;
 use rspotify::senum::{RepeatState, Type};
 use std::sync::Arc;
+
+pub enum PlayContext {
+    Album(FullAlbum),
+    Playlist(FullPlaylist),
+    Artist(FullArtist),
+}
+
+impl PlayContext {
+    fn name(&self) -> &str {
+        match self {
+            PlayContext::Album(ctx) => &*ctx.name,
+            PlayContext::Artist(ctx) => &*ctx.name,
+            PlayContext::Playlist(ctx) => &*ctx.name,
+        }
+    }
+
+    fn genres(&self) -> Option<&Vec<String>> {
+        match self {
+            PlayContext::Album(ctx) => Some(&ctx.genres),
+            PlayContext::Artist(ctx) => Some(&ctx.genres),
+            PlayContext::Playlist(_) => None,
+        }
+    }
+
+    fn images(&self) -> &Vec<Image> {
+        match self {
+            PlayContext::Album(ctx) => &ctx.images,
+            PlayContext::Artist(ctx) => &ctx.images,
+            PlayContext::Playlist(ctx) => &ctx.images,
+        }
+    }
+
+    fn tracks_number(&self) -> u32 {
+        match self {
+            PlayContext::Album(ctx) => ctx.tracks.total,
+            PlayContext::Artist(_) => 0,
+            PlayContext::Playlist(ctx) => ctx.tracks.total,
+        }
+    }
+}
 
 #[derive(Msg)]
 pub enum NowPlayingMsg {
@@ -22,14 +65,16 @@ pub enum NowPlayingMsg {
     NewState(Option<CurrentlyPlaybackContext>),
     NewDevices(Vec<Device>),
     UseDevice(Option<String>),
-    LoadCover(String),
-    NewCover(Pixbuf),
+    LoadCover(String, bool),
+    NewCover(Pixbuf, bool),
     Click(gdk::EventButton),
     Play,
     Pause,
     PrevTrack,
     NextTrack,
     LoadTracks(Type, String),
+    LoadContext(Type, String),
+    NewContext(PlayContext),
     Tick(u32),
     SeekTrack(u32),
     SetVolume(u8),
@@ -43,7 +88,9 @@ pub struct NowPlayingModel {
     devices: gtk::ListStore,
     spotify: Arc<SpotifyProxy>,
     state: Option<CurrentlyPlaybackContext>,
-    cover: Option<Pixbuf>,
+    context: Option<PlayContext>,
+    track_cover: Option<Pixbuf>,
+    context_cover: Option<Pixbuf>,
 }
 
 const COVER_SIZE: i32 = 256;
@@ -72,9 +119,11 @@ impl Widget for NowPlayingTab {
         NowPlayingModel {
             stream,
             spotify,
-            state: None,
-            cover: None,
             devices,
+            state: None,
+            context: None,
+            track_cover: None,
+            context_cover: None,
         }
     }
 
@@ -151,10 +200,10 @@ impl Widget for NowPlayingTab {
                     };
 
                     if track_uri != old_track_uri {
-                        self.model.cover = None;
+                        self.model.track_cover = None;
 
                         if let Some(url) = cover_url {
-                            self.model.stream.emit(LoadCover(url.to_owned()));
+                            self.model.stream.emit(LoadCover(url.to_owned(), true));
                         }
 
                         self.track_seek_bar.set_range(0.0, duration_ms as f64);
@@ -165,20 +214,24 @@ impl Widget for NowPlayingTab {
                     if &ctx.uri != old_context_uri {
                         self.model
                             .stream
-                            .emit(LoadTracks(ctx._type, ctx.uri.clone()));
+                            .emit(LoadContext(ctx._type, ctx.uri.clone()));
                     }
                 }
 
                 self.model.state = state;
             }
-            LoadCover(url) => {
+            LoadCover(url, is_for_track) => {
                 let pixbuf = crate::utils::pixbuf_from_url(&url, COVER_SIZE);
                 if let Ok(cover) = pixbuf {
-                    self.model.stream.emit(NewCover(cover));
+                    self.model.stream.emit(NewCover(cover, is_for_track));
                 }
             }
-            NewCover(cover) => {
-                self.model.cover = Some(cover);
+            NewCover(cover, is_for_track) => {
+                if is_for_track {
+                    self.model.track_cover = Some(cover);
+                } else {
+                    self.model.context_cover = Some(cover);
+                }
             }
             SeekTrack(pos) => {
                 self.model.spotify.tell(SpotifyCmd::SeekTrack { pos });
@@ -238,9 +291,47 @@ impl Widget for NowPlayingTab {
             }
             LoadTracks(kind, uri) => {
                 match kind {
-                    Type::Playlist => self.tracks_view.emit(TrackListMsg::Reset(uri)),
+                    Type::Playlist => self.tracks_view.emit(TrackListMsg::Reset(uri, true)),
                     _ => (), // TODO: sources for other context types
                 }
+            }
+            LoadContext(kind, uri) => {
+                let stream = &self.model.stream;
+
+                {
+                    let uri = uri.clone();
+                    match kind {
+                        Type::Playlist => self.model.spotify.ask(
+                            stream.clone(),
+                            |tx| SpotifyCmd::GetPlaylist { tx, uri },
+                            |reply| NewContext(PlayContext::Playlist(reply)),
+                        ),
+                        Type::Album => self.model.spotify.ask(
+                            stream.clone(),
+                            |tx| SpotifyCmd::GetAlbum { tx, uri },
+                            |reply| NewContext(PlayContext::Album(reply)),
+                        ),
+                        Type::Artist => self.model.spotify.ask(
+                            stream.clone(),
+                            |tx| SpotifyCmd::GetArtist { tx, uri },
+                            |reply| NewContext(PlayContext::Artist(reply)),
+                        ),
+                        _ => {
+                            self.model.context = None;
+                        }
+                    };
+                }
+
+                stream.emit(LoadTracks(kind, uri));
+            }
+            NewContext(context) => {
+                let images = context.images();
+                if let Some(cover_url) = crate::utils::find_best_thumb(images, COVER_SIZE) {
+                    self.model
+                        .stream
+                        .emit(LoadCover(cover_url.to_owned(), false));
+                }
+                self.model.context = Some(context);
             }
             Tick(timeout) => {
                 // FIXME: it's a hack to make #[widget] insert view bindings here
@@ -266,8 +357,9 @@ impl Widget for NowPlayingTab {
                 margin_top: 15,
                 #[name="track_cover_image"]
                 gtk::Image {
-                    from_pixbuf: self.model.cover.as_ref()
+                    from_pixbuf: self.model.track_cover.as_ref()
                 },
+                #[name="track_infobox"]
                 gtk::Box(gtk::Orientation::Vertical, 10) {
                     halign: gtk::Align::Start,
                     #[name="track_name_label"]
@@ -308,6 +400,40 @@ impl Widget for NowPlayingTab {
                         text: self.model.state.as_ref().map(|s| &*s.device.name).unwrap_or("")
                     },*/
                 },
+                #[name="context_cover_image"]
+                gtk::Image {
+                    from_pixbuf: self.model.context_cover.as_ref()
+                },
+                #[name="context_infobox"]
+               gtk::Box(gtk::Orientation::Vertical, 10) {
+                    #[name="context_name_label"]
+                    gtk::Label {
+                        widget_name: "context_name_label",
+                        halign: gtk::Align::Start,
+                        hexpand: true,
+                        text: self.model.context.as_ref().map(|c| c.name()).unwrap_or("<No context>"),
+                    },
+                    #[name="context_genres_label"]
+                    gtk::Label {
+                        halign: gtk::Align::Start,
+                        text: self.model.context.as_ref()
+                            .and_then(|c| c.genres())
+                            .map(|gs| gs.iter().join(", "))
+                            .as_deref()
+                            .unwrap_or("")
+                    },
+                    #[name="context_tracks_number_label"]
+                    gtk::Label {
+                        halign: gtk::Align::Start,
+                        text: self.model.context.as_ref()
+                            .map(|c| match c.tracks_number() {
+                                0 => String::new(),
+                                n => n.to_string(),
+                            })
+                            .as_deref()
+                            .unwrap_or("")
+                    },
+                }
             },
             gtk::Box(gtk::Orientation::Horizontal, 10) {
                 #[name="track_seek_bar"]

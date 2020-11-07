@@ -1,14 +1,14 @@
 use crate::scopes::Scope::{self, *};
 use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
-use rspotify::model::album::SavedAlbum;
+use rspotify::model::album::{FullAlbum, SavedAlbum};
 use rspotify::model::artist::FullArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
-use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
+use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::RepeatState;
 use std::path::PathBuf;
@@ -173,6 +173,18 @@ pub enum SpotifyCmd {
     SeekTrack {
         pos: u32,
     },
+    GetPlaylist {
+        tx: ResultSender<FullPlaylist>,
+        uri: String,
+    },
+    GetAlbum {
+        tx: ResultSender<FullAlbum>,
+        uri: String,
+    },
+    GetArtist {
+        tx: ResultSender<FullArtist>,
+        uri: String,
+    },
 }
 
 pub struct Spotify {
@@ -286,6 +298,18 @@ impl Spotify {
                 }
                 SetRepeatMode { mode } => {
                     let _ = self.set_repeat_mode(mode).await;
+                }
+                GetAlbum { tx, uri } => {
+                    let reply = self.get_album(&uri).await;
+                    tx.send(reply).unwrap();
+                }
+                GetPlaylist { tx, uri } => {
+                    let reply = self.get_playlist(&uri).await;
+                    tx.send(reply).unwrap();
+                }
+                GetArtist { tx, uri } => {
+                    let reply = self.get_artist(&uri).await;
+                    tx.send(reply).unwrap();
                 }
             }
         }
@@ -481,5 +505,17 @@ impl Spotify {
         } else {
             Err(ClientError::InvalidAuth("Missing refresh token".into()))
         }
+    }
+
+    async fn get_album(&self, uri: &str) -> ClientResult<FullAlbum> {
+        self.client.album(uri).await
+    }
+
+    async fn get_artist(&self, uri: &str) -> ClientResult<FullArtist> {
+        self.client.artist(uri).await
+    }
+
+    async fn get_playlist(&self, uri: &str) -> ClientResult<FullPlaylist> {
+        self.client.playlist(uri, None, None).await
     }
 }
