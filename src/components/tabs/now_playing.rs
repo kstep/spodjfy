@@ -425,15 +425,6 @@ impl Widget for NowPlayingTab {
                         halign: gtk::Align::Start,
                         text: self.model.context.as_ref().map(|c| c.name()).unwrap_or("<No context>"),
                     },
-                    #[name="context_genres_label"]
-                    gtk::Label {
-                        halign: gtk::Align::Start,
-                        text: self.model.context.as_ref()
-                            .and_then(|c| c.genres())
-                            .map(|gs| gs.iter().join(", "))
-                            .as_deref()
-                            .unwrap_or("")
-                    },
                     #[name="context_tracks_number_label"]
                     gtk::Label {
                         halign: gtk::Align::Start,
@@ -442,6 +433,15 @@ impl Widget for NowPlayingTab {
                                 0 => String::new(),
                                 n => format!("Tracks: {}", n),
                             })
+                            .as_deref()
+                            .unwrap_or("")
+                    },
+                    #[name="context_genres_label"]
+                    gtk::Label {
+                        halign: gtk::Align::Start,
+                        text: self.model.context.as_ref()
+                            .and_then(|c| c.genres())
+                            .map(|gs| gs.iter().join(", "))
                             .as_deref()
                             .unwrap_or("")
                     },

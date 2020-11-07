@@ -671,26 +671,28 @@ where
             .expand(true);
 
         tracks_view.append_column(&{
-            let icon_cell = gtk::CellRendererPixbuf::new();
-            icon_cell.set_property_icon_name(Some("audio-x-generic-symbolic"));
-
-            let column = TreeViewColumn::new();
-            column.pack_start(&icon_cell, true);
-            column.add_attribute(&icon_cell, "pixbuf", COL_TRACK_THUMB as i32);
-            column
-        });
-
-        tracks_view.append_column(&{
             let text_cell = gtk::CellRendererText::new();
+            text_cell.set_alignment(1.0, 0.5);
 
             let column = base_column
                 .clone()
                 .expand(false)
                 .title("#")
                 .sort_column_id(COL_TRACK_NUMBER as i32)
+                .alignment(1.0)
                 .build();
             column.pack_start(&text_cell, true);
             column.add_attribute(&text_cell, "text", COL_TRACK_NUMBER as i32);
+            column
+        });
+
+        tracks_view.append_column(&{
+            let icon_cell = gtk::CellRendererPixbuf::new();
+            icon_cell.set_property_icon_name(Some("audio-x-generic-symbolic"));
+
+            let column = TreeViewColumn::new();
+            column.pack_start(&icon_cell, true);
+            column.add_attribute(&icon_cell, "pixbuf", COL_TRACK_THUMB as i32);
             column
         });
 
