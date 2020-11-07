@@ -1,5 +1,4 @@
 use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
-use crate::components::track_list::{TrackList, TrackListMsg};
 use crate::utils::ImageLoader;
 use glib::StaticType;
 use gtk::prelude::*;
@@ -109,7 +108,7 @@ impl Widget for ArtistsTab {
             OpenChosenArtist => {
                 let icon_view: &gtk::IconView = &self.artists_view;
                 let store: &gtk::ListStore = &self.model.store;
-                if let Some((Some(uri), Some(name))) = icon_view
+                if let Some((Some(_uri), Some(_name))) = icon_view
                     .get_selected_items()
                     .first()
                     .and_then(|path| store.get_iter(path))

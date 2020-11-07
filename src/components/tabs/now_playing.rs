@@ -2,7 +2,7 @@ use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::track_list::{TrackList, TrackListMsg};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{CellRendererText, ImageExt, RangeExt, ScaleExt, WidgetExt};
+use gtk::{ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -44,7 +44,6 @@ pub struct NowPlayingModel {
     spotify: Arc<SpotifyProxy>,
     state: Option<CurrentlyPlaybackContext>,
     cover: Option<Pixbuf>,
-    update_timer: glib::SourceId,
 }
 
 const COVER_SIZE: i32 = 256;
@@ -54,7 +53,7 @@ impl Widget for NowPlayingTab {
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> NowPlayingModel {
         let stream = relm.stream().clone();
 
-        let update_timer = {
+        let _update_timer = {
             let stream = stream.clone();
             let mut counter = 0;
             glib::timeout_add_seconds_local(1, move || {
@@ -76,7 +75,6 @@ impl Widget for NowPlayingTab {
             state: None,
             cover: None,
             devices,
-            update_timer,
         }
     }
 
@@ -94,7 +92,6 @@ impl Widget for NowPlayingTab {
             }
             NewDevices(devices) => {
                 let store = &self.model.devices;
-                println!("DEVICS: {:?}", devices);
                 store.clear();
                 for device in devices {
                     store.insert_with_values(None, &[0, 1], &[&device.id, &device.name]);

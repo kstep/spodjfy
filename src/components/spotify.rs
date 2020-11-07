@@ -13,6 +13,9 @@ use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::RepeatState;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::Duration;
+
+const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
 pub struct SpotifyProxy {
     spotify_tx: Sender<SpotifyCmd>,
@@ -21,6 +24,8 @@ pub struct SpotifyProxy {
 
 impl SpotifyProxy {
     pub fn new(spotify_tx: Sender<SpotifyCmd>) -> (SpotifyProxy, relm::EventStream<ClientError>) {
+        tokio::spawn(Self::refresh_token_thread(spotify_tx.clone()));
+
         let errors_stream = relm::EventStream::new();
         (
             SpotifyProxy {
@@ -29,6 +34,16 @@ impl SpotifyProxy {
             },
             errors_stream,
         )
+    }
+
+    async fn refresh_token_thread(spotify_tx: Sender<SpotifyCmd>) {
+        let mut refresh_token_timer =
+            tokio::time::interval(Duration::from_secs(DEFAULT_REFRESH_TOKEN_TIMEOUT));
+        loop {
+            refresh_token_timer.tick().await;
+            info!("refresh access token");
+            spotify_tx.send(SpotifyCmd::RefreshUserToken).unwrap();
+        }
     }
 
     pub fn tell(&self, cmd: SpotifyCmd) {
@@ -85,6 +100,7 @@ pub enum SpotifyCmd {
     AuthorizeUser {
         code: String,
     },
+    RefreshUserToken,
     PausePlayback,
     StartPlayback,
     PlayPrevTrack,
@@ -174,6 +190,7 @@ impl Spotify {
 
     pub async fn run(&mut self, channel: Receiver<SpotifyCmd>) {
         use SpotifyCmd::*;
+
         while let Ok(msg) = channel.recv() {
             match msg {
                 SetupClient { id, secret } => self.setup_client(id, secret).await,
@@ -221,7 +238,11 @@ impl Spotify {
                     self.use_device(id).await;
                 }
                 AuthorizeUser { code } => {
-                    self.authorize_user(code).await;
+                    let _ = self.authorize_user(code).await;
+                }
+                RefreshUserToken => {
+                    let result = self.refresh_user_token().await;
+                    info!("refresh access token result: {:?}", result);
                 }
                 GetMyArtists { tx, cursor, limit } => {
                     let artists = self.get_my_artists(cursor, limit).await;
@@ -442,5 +463,19 @@ impl Spotify {
 
     async fn set_repeat_mode(&self, mode: RepeatState) -> ClientResult<()> {
         self.client.repeat(mode, None).await
+    }
+
+    async fn refresh_user_token(&mut self) -> ClientResult<()> {
+        if let Some(refresh_token) = self
+            .client
+            .token
+            .as_ref()
+            .and_then(|t| t.refresh_token.as_deref())
+        {
+            let token = refresh_token.to_owned();
+            self.client.refresh_user_token(&token).await
+        } else {
+            Err(ClientError::InvalidAuth("Missing refresh token".into()))
+        }
     }
 }

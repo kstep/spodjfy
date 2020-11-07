@@ -59,7 +59,7 @@ where
     let image_file = gio::File::new_for_uri(url);
     let cancel = gio::Cancellable::new();
 
-    println!("loading url {} with file {:?}", url, image_file);
+    debug!("loading url {} with file {:?}", url, image_file);
     match image_file.read(Some(&cancel)) {
         Err(err) => callback(Err(err)),
         Ok(stream) => {
@@ -82,7 +82,7 @@ where
         reply: *mut gio_sys::GAsyncResult,
         user_data: glib_sys::gpointer,
     ) {
-        println!("loaded pixbuf: {:?}", reply);
+        debug!("loaded pixbuf: {:?}", reply);
         let mut error = std::ptr::null_mut();
         let pixbuf = gdk_pixbuf_sys::gdk_pixbuf_new_from_stream_finish(reply, &mut error);
         let result: Result<Pixbuf, glib::Error> = if error.is_null() {
@@ -90,18 +90,18 @@ where
         } else {
             Err(from_glib_full(error))
         };
-        println!("result: {:?}", result);
+        debug!("result: {:?}", result);
         let callback: Box<R> = Box::from_raw(user_data as *mut _);
         callback(result);
     }
 
-    println!("ready to call async pixbuf load for stream {:?}", stream);
+    debug!("ready to call async pixbuf load for stream {:?}", stream);
     let user_data: Box<F> = Box::new(callback);
     let callback = connect_async_trampoline::<F>;
 
     unsafe {
         if resize > 0 {
-            println!("calling gdk_pixbuf_new_from_stream_at_scale_async(...)");
+            debug!("calling gdk_pixbuf_new_from_stream_at_scale_async(...)");
             gdk_pixbuf_sys::gdk_pixbuf_new_from_stream_at_scale_async(
                 stream.as_ref().to_glib_none().0,
                 resize,
@@ -112,7 +112,7 @@ where
                 Box::into_raw(user_data) as *mut _,
             )
         } else {
-            println!("calling gdk_pixbuf_new_from_stream_async(...)");
+            debug!("calling gdk_pixbuf_new_from_stream_async(...)");
             gdk_pixbuf_sys::gdk_pixbuf_new_from_stream_async(
                 stream.as_ref().to_glib_none().0,
                 cancel.to_glib_none().0,

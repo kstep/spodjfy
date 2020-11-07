@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let (tx, rx) = std::sync::mpsc::channel::<SpotifyCmd>();
 
     let dirs = directories::ProjectDirs::from("me", "kstep", "spodjfy");

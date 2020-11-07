@@ -16,7 +16,6 @@ use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::now_playing::{NowPlayingMsg, NowPlayingTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
-use std::borrow::Cow;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Settings {
@@ -286,13 +285,5 @@ impl Widget for Win {
         });
 
         self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
-    }
-
-    fn notify<T: Into<Cow<'static, str>>, B: Into<Cow<'static, str>>>(&self, title: T, body: B) {
-        self.model.notifier.emit(NotifierMsg::Notify {
-            title: title.into().into_owned(),
-            body: body.into().into_owned(),
-            timeout_ms: 5000,
-        });
     }
 }
