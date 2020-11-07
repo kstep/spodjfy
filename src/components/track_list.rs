@@ -583,6 +583,15 @@ where
                                 let select = self.tracks_view.get_selection();
                                 select.unselect_all();
                                 select.select_iter(&pos);
+
+                                self.tracks_view.scroll_to_cell(
+                                    store.get_path(&pos).as_ref(),
+                                    None::<&gtk::TreeViewColumn>,
+                                    false,
+                                    0.0,
+                                    0.0,
+                                );
+
                                 break;
                             }
                         }
