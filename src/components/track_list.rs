@@ -4,8 +4,8 @@ use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{
-    CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, StatusbarExt, TreeModelExt,
-    TreeViewColumn, TreeViewExt,
+    CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, ProgressBarExt, StatusbarExt,
+    TreeModelExt, TreeViewColumn, TreeViewExt,
 };
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
@@ -46,6 +46,10 @@ pub trait TrackLike {
 
     fn images(&self) -> Option<&Vec<Image>> {
         self.album().map(|album| &album.images)
+    }
+
+    fn unavailable_columns() -> &'static [u32] {
+        &[]
     }
 }
 
@@ -127,6 +131,10 @@ impl TrackLike for FullTrack {
 impl TrackLike for SimplifiedTrack {
     type ParentId = String;
 
+    fn unavailable_columns() -> &'static [u32] {
+        &[COL_TRACK_ALBUM, COL_TRACK_THUMB]
+    }
+
     fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("")
     }
@@ -199,6 +207,14 @@ impl TrackLike for SavedTrack {
 impl TrackLike for FullEpisode {
     type ParentId = ();
 
+    fn unavailable_columns() -> &'static [u32] {
+        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
+    }
+
+    fn images(&self) -> Option<&Vec<Image>> {
+        Some(&self.images)
+    }
+
     fn id(&self) -> &str {
         &self.id
     }
@@ -249,7 +265,7 @@ impl_track_like_for_playing_item! {
     id -> &str, uri -> &str, name -> &str,
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
-    duration -> u32
+    duration -> u32, images -> Option<&Vec<Image>>
 }
 
 #[derive(Msg)]
@@ -306,6 +322,7 @@ pub struct TrackList<T: TrackLike> {
     tracks_view: gtk::TreeView,
     context_menu: gtk::Menu,
     status_bar: gtk::Statusbar,
+    progress_bar: gtk::ProgressBar,
 }
 
 impl TrackContainer for () {
@@ -419,6 +436,16 @@ impl<T: TrackLike> TrackList<T> {
         self.model.total_duration = 0;
         self.model.total_tracks = 0;
     }
+
+    fn start_load(&mut self) {
+        self.model.epoch += 1;
+        self.progress_bar.set_fraction(0.0);
+        self.progress_bar.set_visible(true);
+        self.progress_bar.pulse();
+        self.model
+            .stream
+            .emit(TrackListMsg::LoadPage(0, self.model.epoch))
+    }
 }
 
 impl<T> Update for TrackList<T>
@@ -470,14 +497,12 @@ where
                 self.model.parent_id.replace(parent_id);
                 self.clear_store();
                 if reload {
-                    self.model.epoch += 1;
-                    self.model.stream.emit(LoadPage(0, self.model.epoch))
+                    self.start_load()
                 }
             }
             Reload => {
                 self.clear_store();
-                self.model.epoch += 1;
-                self.model.stream.emit(LoadPage(0, self.model.epoch))
+                self.start_load();
             }
             LoadPage(offset, epoch) if epoch == self.model.epoch => {
                 self.load_tracks_page(offset);
@@ -488,6 +513,9 @@ where
                 let store = &self.model.store;
                 let tracks = page.items;
                 let offset = page.offset;
+
+                self.progress_bar
+                    .set_fraction((page.offset as f64 + tracks.len() as f64) / page.total as f64);
 
                 let mut uris = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
@@ -543,6 +571,7 @@ where
                     self.model.total_tracks = page.total;
 
                     let status_ctx = self.status_bar.get_context_id("totals");
+                    self.progress_bar.set_visible(false);
                     self.status_bar.remove_all(status_ctx);
                     self.status_bar.push(
                         status_ctx,
@@ -668,6 +697,7 @@ where
         let tracks_view = gtk::TreeViewBuilder::new()
             .model(&model.store)
             .expand(true)
+            .reorderable(true)
             .build();
 
         tracks_view
@@ -679,133 +709,151 @@ where
             .reorderable(true)
             .expand(true);
 
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
+        let unavailable_columns = <T as TrackLike>::unavailable_columns();
 
-            let column = base_column
-                .clone()
-                .expand(false)
-                .title("#")
-                .sort_column_id(COL_TRACK_NUMBER as i32)
-                .alignment(1.0)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_NUMBER as i32);
-            column
-        });
+        if !unavailable_columns.contains(&COL_TRACK_NUMBER) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                text_cell.set_alignment(1.0, 0.5);
 
-        tracks_view.append_column(&{
-            let icon_cell = gtk::CellRendererPixbuf::new();
-            icon_cell.set_property_icon_name(Some("audio-x-generic-symbolic"));
-
-            let column = TreeViewColumn::new();
-            column.pack_start(&icon_cell, true);
-            column.add_attribute(&icon_cell, "pixbuf", COL_TRACK_THUMB as i32);
-            column
-        });
-
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Title")
-                .sort_column_id(COL_TRACK_NAME as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
-            column.add_attribute(&text_cell, "strikethrough", COL_TRACK_CANT_PLAY as i32);
-            column
-        });
-
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
-            let column = base_column
-                .clone()
-                .expand(false)
-                .title("Duration")
-                .sort_column_id(COL_TRACK_DURATION_MS as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_DURATION as i32);
-            column
-        });
-
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            text_cell.set_alignment(1.0, 0.5);
-            let column = base_column
-                .clone()
-                .expand(false)
-                .title("Timeline")
-                .sort_column_id(COL_TRACK_NUMBER as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_TIMELINE as i32);
-            column
-        });
-
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererTextBuilder::new()
-                .xalign(1.0)
-                .editable(true)
-                .mode(gtk::CellRendererMode::Editable)
-                .build();
-
-            let stream = relm.stream().clone();
-            text_cell.connect_edited(move |_, path, new_text| {
-                if let Ok(bpm) = new_text.parse::<f32>() {
-                    stream.emit(TrackListMsg::NewBpm(path, bpm));
-                }
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("#")
+                    .sort_column_id(COL_TRACK_NUMBER as i32)
+                    .alignment(1.0)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_NUMBER as i32);
+                column
             });
-            let column = base_column
-                .clone()
-                .expand(false)
-                .title("BPM")
-                .sort_column_id(COL_TRACK_BPM as i32)
-                .build();
-            <TreeViewColumn as TreeViewColumnExt>::set_cell_data_func(
-                &column,
-                &text_cell,
-                Some(Box::new(|_layout, cell, model, iter| {
-                    let bpm: f32 = model
-                        .get_value(iter, COL_TRACK_BPM as i32)
-                        .get()
-                        .ok()
-                        .flatten()
-                        .unwrap_or(0.0);
-                    let _ = cell.set_property("text", &format!("{:.0}", bpm));
-                })),
-            );
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
-            column
-        });
+        }
 
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Artists")
-                .sort_column_id(COL_TRACK_ARTISTS as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_ARTISTS as i32);
-            column
-        });
+        if !unavailable_columns.contains(&COL_TRACK_THUMB) {
+            tracks_view.append_column(&{
+                let icon_cell = gtk::CellRendererPixbuf::new();
+                icon_cell.set_property_icon_name(Some("audio-x-generic-symbolic"));
 
-        tracks_view.append_column(&{
-            let text_cell = gtk::CellRendererText::new();
-            let column = base_column
-                .clone()
-                .title("Album")
-                .sort_column_id(COL_TRACK_ALBUM as i32)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", COL_TRACK_ALBUM as i32);
-            column
-        });
+                let column = TreeViewColumn::new();
+                column.pack_start(&icon_cell, true);
+                column.add_attribute(&icon_cell, "pixbuf", COL_TRACK_THUMB as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_NAME) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Title")
+                    .sort_column_id(COL_TRACK_NAME as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
+                column.add_attribute(&text_cell, "strikethrough", COL_TRACK_CANT_PLAY as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_DURATION) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                text_cell.set_alignment(1.0, 0.5);
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("Duration")
+                    .sort_column_id(COL_TRACK_DURATION_MS as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_DURATION as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_TIMELINE) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                text_cell.set_alignment(1.0, 0.5);
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("Timeline")
+                    .sort_column_id(COL_TRACK_NUMBER as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_TIMELINE as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_BPM) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererTextBuilder::new()
+                    .xalign(1.0)
+                    .editable(true)
+                    .mode(gtk::CellRendererMode::Editable)
+                    .build();
+
+                let stream = relm.stream().clone();
+                text_cell.connect_edited(move |_, path, new_text| {
+                    if let Ok(bpm) = new_text.parse::<f32>() {
+                        stream.emit(TrackListMsg::NewBpm(path, bpm));
+                    }
+                });
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("BPM")
+                    .sort_column_id(COL_TRACK_BPM as i32)
+                    .build();
+                <TreeViewColumn as TreeViewColumnExt>::set_cell_data_func(
+                    &column,
+                    &text_cell,
+                    Some(Box::new(|_layout, cell, model, iter| {
+                        let bpm: f32 = model
+                            .get_value(iter, COL_TRACK_BPM as i32)
+                            .get()
+                            .ok()
+                            .flatten()
+                            .unwrap_or(0.0);
+                        let _ = cell.set_property("text", &format!("{:.0}", bpm));
+                    })),
+                );
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_ARTISTS) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Artists")
+                    .sort_column_id(COL_TRACK_ARTISTS as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_ARTISTS as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_ALBUM) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Album")
+                    .sort_column_id(COL_TRACK_ALBUM as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_ALBUM as i32);
+                column
+            });
+        }
 
         let stream = relm.stream().clone();
         tracks_view.connect_button_press_event(move |_, event| {
@@ -848,6 +896,13 @@ where
         root.add(&scroller);
 
         let status_bar = gtk::Statusbar::new();
+        let progress_bar = gtk::ProgressBarBuilder::new()
+            .valign(gtk::Align::Center)
+            .width_request(200)
+            .visible(false)
+            .show_text(true)
+            .build();
+        status_bar.pack_end(&progress_bar, false, true, 0);
         root.add(&status_bar);
 
         let context_menu = gtk::Menu::new();
@@ -875,6 +930,7 @@ where
             tracks_view,
             context_menu,
             status_bar,
+            progress_bar,
         }
     }
 }
