@@ -257,8 +257,8 @@ pub enum TrackListMsg<T: TrackLike> {
     Clear,
     Reset(T::ParentId, bool),
     Reload,
-    LoadPage(u32),
-    NewPage(Page<T>),
+    LoadPage(u32, u32),
+    NewPage(Page<T>, u32),
 
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -297,6 +297,7 @@ pub struct TrackListModel<T: TrackLike> {
     parent_id: Option<T::ParentId>,
     total_tracks: u32,
     total_duration: u32,
+    epoch: u32,
 }
 
 pub struct TrackList<T: TrackLike> {
@@ -315,6 +316,7 @@ impl ControlSpotifyContext for TrackList<SavedTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
+        let epoch = self.model.epoch;
         self.model.spotify.ask(
             self.model.stream.clone(),
             move |tx| SpotifyCmd::GetMyTracks {
@@ -322,7 +324,7 @@ impl ControlSpotifyContext for TrackList<SavedTrack> {
                 limit: Self::PAGE_LIMIT,
                 offset,
             },
-            TrackListMsg::NewPage,
+            move |reply| TrackListMsg::NewPage(reply, epoch),
         );
     }
 
@@ -341,6 +343,7 @@ impl ControlSpotifyContext for TrackList<PlaylistTrack> {
     fn load_tracks_page(&self, offset: u32) {
         if let Some(ref parent_id) = self.model.parent_id {
             let parent_id = parent_id.clone();
+            let epoch = self.model.epoch;
             self.model.spotify.ask(
                 self.model.stream.clone(),
                 move |tx| SpotifyCmd::GetPlaylistTracks {
@@ -349,7 +352,7 @@ impl ControlSpotifyContext for TrackList<PlaylistTrack> {
                     limit: Self::PAGE_LIMIT,
                     offset,
                 },
-                TrackListMsg::NewPage,
+                move |reply| TrackListMsg::NewPage(reply, epoch),
             );
         }
     }
@@ -382,6 +385,7 @@ impl ControlSpotifyContext for TrackList<SimplifiedTrack> {
     fn load_tracks_page(&self, offset: u32) {
         if let Some(ref parent_id) = self.model.parent_id {
             let parent_id = parent_id.clone();
+            let epoch = self.model.epoch;
             self.model.spotify.ask(
                 self.model.stream.clone(),
                 move |tx| SpotifyCmd::GetAlbumTracks {
@@ -390,7 +394,7 @@ impl ControlSpotifyContext for TrackList<SimplifiedTrack> {
                     limit: Self::PAGE_LIMIT,
                     offset,
                 },
-                TrackListMsg::NewPage,
+                move |reply| TrackListMsg::NewPage(reply, epoch),
             );
         }
     }
@@ -452,6 +456,7 @@ where
             parent_id: None,
             total_duration: 0,
             total_tracks: 0,
+            epoch: 0,
         }
     }
 
@@ -465,17 +470,20 @@ where
                 self.model.parent_id.replace(parent_id);
                 self.clear_store();
                 if reload {
-                    self.model.stream.emit(LoadPage(0))
+                    self.model.epoch += 1;
+                    self.model.stream.emit(LoadPage(0, self.model.epoch))
                 }
             }
             Reload => {
                 self.clear_store();
-                self.model.stream.emit(LoadPage(0))
+                self.model.epoch += 1;
+                self.model.stream.emit(LoadPage(0, self.model.epoch))
             }
-            LoadPage(offset) => {
+            LoadPage(offset, epoch) if epoch == self.model.epoch => {
                 self.load_tracks_page(offset);
             }
-            NewPage(page) => {
+            LoadPage(_, _) => {}
+            NewPage(page, epoch) if epoch == self.model.epoch => {
                 let stream = &self.model.stream;
                 let store = &self.model.store;
                 let tracks = page.items;
@@ -530,7 +538,7 @@ where
                 self.model.total_duration += page_duration;
 
                 if page.next.is_some() {
-                    stream.emit(LoadPage(offset + Self::PAGE_LIMIT));
+                    stream.emit(LoadPage(offset + Self::PAGE_LIMIT, self.model.epoch));
                 } else {
                     self.model.total_tracks = page.total;
 
@@ -548,6 +556,7 @@ where
 
                 stream.emit(LoadTracksInfo(uris, iters));
             }
+            NewPage(_, _) => {}
             LoadTracksInfo(uris, iters) => {
                 self.model.spotify.ask(
                     self.model.stream.clone(),
