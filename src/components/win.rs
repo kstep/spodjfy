@@ -1,6 +1,6 @@
 use gtk::{
-    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, StackExt,
-    StackSidebarExt, WidgetExt,
+    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, SettingsExt,
+    StackExt, StackSidebarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -62,6 +62,12 @@ impl Widget for Win {
     fn model(relm: &Relm<Self>, params: Params) -> State {
         let style = gtk::CssProvider::new();
         let screen = gdk::Screen::get_default().unwrap();
+
+        if let Some(settings) =
+            gtk::Settings::get_for_screen(&screen).or_else(gtk::Settings::get_default)
+        {
+            settings.set_property_gtk_error_bell(false);
+        }
 
         style
             .load_from_data(
