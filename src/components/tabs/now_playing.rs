@@ -133,7 +133,6 @@ impl Widget for NowPlayingTab {
         use NowPlayingMsg::*;
         match event {
             ShowTab => {
-                self.tracks_view.emit(TrackListMsg::Clear);
                 self.model.stream.emit(LoadState);
                 self.model.spotify.ask(
                     self.model.stream.clone(),
