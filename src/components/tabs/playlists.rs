@@ -142,7 +142,7 @@ impl Widget for PlaylistsTab {
     }
 
     view! {
-        gtk::Box(gtk::Orientation::Vertical, 0) {
+        gtk::Box(gtk::Orientation::Vertical, 1) {
             #[name="breadcrumb"]
             gtk::StackSwitcher {},
             #[name="stack"]
