@@ -18,6 +18,7 @@ use rspotify::model::PlayingItem;
 use rspotify::senum::{RepeatState, Type};
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub enum PlayContext {
     Album(FullAlbum),
     Playlist(FullPlaylist),
@@ -417,13 +418,29 @@ impl Widget for NowPlayingTab {
                 #[name="context_infobox"]
                 gtk::Box(gtk::Orientation::Vertical, 10) {
                     halign: gtk::Align::End,
-                    #[name="context_name_label"]
-                    gtk::Label {
-                        widget_name: "context_name_label",
-                        line_wrap: true,
-                        property_width_request: 200,
-                        halign: gtk::Align::Start,
-                        text: self.model.context.as_ref().map(|c| c.name()).unwrap_or("<No context>"),
+
+                    gtk::Box(gtk::Orientation::Horizontal, 5) {
+                        gtk::Image {
+                            from_pixbuf: gtk::IconTheme::new()
+                                .load_icon(match self.model.context {
+                                    Some(PlayContext::Album(_)) => "media-optical",
+                                    Some(PlayContext::Playlist(_)) => "folder-music",
+                                    Some(PlayContext::Artist(_)) => "emblem-music",
+                                    None => "emblem-music",
+                                }, 24, gtk::IconLookupFlags::empty())
+                                .ok()
+                                .flatten()
+                                .as_ref(),
+                        },
+                        #[name="context_name_label"]
+                        gtk::Label {
+                            widget_name: "context_name_label",
+                            line_wrap: true,
+                            property_width_request: 200,
+                            halign: gtk::Align::Start,
+                            text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
+
+                        },
                     },
                     #[name="context_tracks_number_label"]
                     gtk::Label {
