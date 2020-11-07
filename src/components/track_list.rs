@@ -269,7 +269,7 @@ pub enum TrackListMsg<T: TrackLike> {
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
 
     NewBpm(gtk::TreePath, f32),
-    Click(gdk::EventButton),
+    OpenContextMenu(gdk::EventButton),
 
     GoToTrack(String),
 }
@@ -602,13 +602,9 @@ where
                     }
                 }
             }
-            Click(event) if event.get_button() == 3 => {
+            OpenContextMenu(event) => {
                 self.context_menu.popup_at_pointer(Some(&event));
             }
-            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.stream.emit(PlayChosenTracks);
-            }
-            Click(_) => {}
             PlayChosenTracks => {
                 let tree = &self.tracks_view;
                 let select = tree.get_selection();
@@ -799,8 +795,12 @@ where
 
         let stream = relm.stream().clone();
         tracks_view.connect_button_press_event(move |_, event| {
-            stream.emit(TrackListMsg::Click(event.clone()));
-            Inhibit(event.get_button() == 3)
+            if event.get_button() == 3 {
+                stream.emit(TrackListMsg::OpenContextMenu(event.clone()));
+                Inhibit(true)
+            } else {
+                Inhibit(false)
+            }
         });
 
         tracks_view.set_search_column(COL_TRACK_NAME as i32);
