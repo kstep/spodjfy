@@ -263,6 +263,7 @@ pub enum TrackListMsg<T: TrackLike> {
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
     PlayChosenTracks,
+    PlayTracks(Vec<String>),
     PlayingNewTrack,
     LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
@@ -624,7 +625,9 @@ where
                     })
                     .collect::<Vec<_>>();
 
-                //let uri = uris.first().cloned();
+                self.model.stream.emit(PlayTracks(uris));
+            }
+            PlayTracks(uris) => {
                 self.play_tracks(uris);
                 self.model.stream.emit(PlayingNewTrack);
             }
@@ -802,6 +805,21 @@ where
 
         tracks_view.set_search_column(COL_TRACK_NAME as i32);
         tracks_view.set_enable_search(true);
+
+        let stream = relm.stream().clone();
+        tracks_view.connect_row_activated(move |tree, path, _col| {
+            if let Some(track_uri) = tree.get_model().and_then(|store| {
+                store.get_iter(path).and_then(|pos| {
+                    store
+                        .get_value(&pos, COL_TRACK_URI as i32)
+                        .get::<String>()
+                        .ok()
+                        .flatten()
+                })
+            }) {
+                stream.emit(TrackListMsg::PlayTracks(vec![track_uri]));
+            }
+        });
 
         scroller.add(&tracks_view);
         root.add(&scroller);
