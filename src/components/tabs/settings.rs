@@ -39,9 +39,11 @@ impl Widget for SettingsTab {
             Authorize => {
                 let spotify: &SpotifyProxy = &self.model.spotify;
                 spotify.tell(SpotifyCmd::OpenAuthorizeUrl);
+                /*
                 if let Some(code) = SpotifyProxy::get_code_url_from_user() {
                     spotify.tell(SpotifyCmd::AuthorizeUser { code });
                 }
+                 */
             }
             Save => {
                 self.model.spotify.tell(SpotifyCmd::SetupClient {
