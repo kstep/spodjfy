@@ -316,7 +316,7 @@ impl Spotify {
     }
 
     async fn use_device(&self, id: String) {
-        let _ = self.client.transfer_playback(&id, true).await;
+        let _ = self.client.transfer_playback(&id, false).await;
     }
 
     async fn play_tracks(&self, uris: Vec<String>) {
