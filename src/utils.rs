@@ -35,25 +35,22 @@ impl ImageLoader {
     {
         self.process_queue();
 
-        if self.cache.contains_key(url) {
-            return callback(Ok(self.cache.get(url).cloned()));
+        if let Some(pixbuf) = self.cache.get(url) {
+            return callback(Ok(Some(pixbuf.clone())));
         }
 
         let queue = self.queue.clone();
         let key = url.to_owned();
-        pixbuf_from_url_async(url, self.resize, move |reply| {
-            match reply {
-                Ok((Some(pixbuf), data)) => {
-                    //cache.lock().unwrap().insert(url, pixbuf.clone());
-                    queue.lock().unwrap().push((key, data));
-                    callback(Ok(Some(pixbuf)));
-                }
-                Ok((None, _)) => {
-                    callback(Ok(None));
-                }
-                Err(error) => {
-                    callback(Err(error));
-                }
+        pixbuf_from_url_async(url, self.resize, move |reply| match reply {
+            Ok((Some(pixbuf), data)) => {
+                queue.lock().unwrap().push((key, data));
+                callback(Ok(Some(pixbuf)));
+            }
+            Ok((None, _)) => {
+                callback(Ok(None));
+            }
+            Err(error) => {
+                callback(Err(error));
             }
         });
     }
