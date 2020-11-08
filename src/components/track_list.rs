@@ -602,8 +602,8 @@ where
             LoadThumb(url, pos) => {
                 let stream = Fragile::new(self.model.stream.clone());
                 let pos = Fragile::new(pos);
-                self.model.image_loader.load_from_url(url, move |loaded| {
-                    if let Ok(pb) = loaded {
+                self.model.image_loader.load_from_url(&url, move |loaded| {
+                    if let Ok(Some(pb)) = loaded {
                         stream.into_inner().emit(NewThumb(pb, pos.into_inner()));
                     }
                 });
