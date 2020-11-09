@@ -1,10 +1,11 @@
-use crate::components::spotify::SpotifyCmd;
+use crate::components::spotify::Spotify;
 use std::io::{Error, ErrorKind};
-use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 
-pub async fn start(spotify: Sender<SpotifyCmd>) -> Result<(), Error> {
+pub async fn start(spotify: Arc<Mutex<Spotify>>) -> Result<(), Error> {
     let mut server = TcpListener::bind("127.0.0.1:8888").await?;
 
     loop {
@@ -14,7 +15,7 @@ pub async fn start(spotify: Sender<SpotifyCmd>) -> Result<(), Error> {
     }
 }
 
-async fn handle(mut stream: TcpStream, spotify: Sender<SpotifyCmd>) {
+async fn handle(mut stream: TcpStream, spotify: Arc<Mutex<Spotify>>) {
     match process(&mut stream).await {
         Err(err) => {
             error!("error in oauth callback handler: {}", err);
@@ -25,9 +26,20 @@ async fn handle(mut stream: TcpStream, spotify: Sender<SpotifyCmd>) {
             let _ = respond(stream, "HTTP/1.1 400 BAD REQUEST\r\nContent-Type: text/html\r\nContent-Length: 40\r\n\r\n<html><body><h1>Empty URL!</h1></body>\r\n").await;
         }
         Ok(Some(code)) => {
-            let _ = respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 47\r\n\r\n<html><body><h1>Login successful!</h1></body>\r\n").await;
             info!("oauth code received");
-            let _ = spotify.send(SpotifyCmd::AuthorizeUser { code });
+            match spotify.lock().await.authorize_user(code).await {
+                Ok(_) => {
+                    let _ = respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 47\r\n\r\n<html><body><h1>Login successful!</h1></body>\r\n").await;
+                }
+                Err(error) => {
+                    let message = format!(
+                        "<html><body><h1>Login error: {:?}</h1></body></html>\r\n",
+                        error
+                    );
+                    let response = format!("HTTP/1.1 401 UNAUTHORIZED\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}", message.len(), message);
+                    let _ = respond(stream, &response).await;
+                }
+            }
         }
     };
 }

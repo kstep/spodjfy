@@ -13,7 +13,9 @@ use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::RepeatState;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
@@ -102,6 +104,7 @@ pub enum SpotifyCmd {
     },
     OpenAuthorizeUrl,
     AuthorizeUser {
+        tx: ResultSender<()>,
         code: String,
     },
     RefreshUserToken,
@@ -204,29 +207,29 @@ impl Spotify {
         self.client.device().await.map(|reply| reply.devices)
     }
 
-    pub async fn run(&mut self, channel: Receiver<SpotifyCmd>) {
+    pub async fn run(client: Arc<Mutex<Self>>, channel: Receiver<SpotifyCmd>) {
         use SpotifyCmd::*;
 
         while let Ok(msg) = channel.recv() {
             match msg {
-                SetupClient { id, secret } => self.setup_client(id, secret).await,
+                SetupClient { id, secret } => client.lock().await.setup_client(id, secret).await,
                 StartPlayback => {
-                    let _ = self.start_playback().await;
+                    let _ = client.lock().await.start_playback().await;
                 }
                 SeekTrack { pos } => {
-                    let _ = self.seek_track(pos).await;
+                    let _ = client.lock().await.seek_track(pos).await;
                 }
                 PausePlayback => {
-                    let _ = self.pause_playback().await;
+                    let _ = client.lock().await.pause_playback().await;
                 }
                 PlayNextTrack => {
-                    let _ = self.play_next_track().await;
+                    let _ = client.lock().await.play_next_track().await;
                 }
                 PlayPrevTrack => {
-                    let _ = self.play_prev_track().await;
+                    let _ = client.lock().await.play_prev_track().await;
                 }
                 GetPlaybackState { tx } => {
-                    let state = self.get_playback_state().await;
+                    let state = client.lock().await.get_playback_state().await;
                     tx.send(state).unwrap();
                 }
                 GetAlbumTracks {
@@ -235,7 +238,11 @@ impl Spotify {
                     offset,
                     uri,
                 } => {
-                    let tracks = self.get_album_tracks(&uri, offset, limit).await;
+                    let tracks = client
+                        .lock()
+                        .await
+                        .get_album_tracks(&uri, offset, limit)
+                        .await;
                     tx.send(tracks).unwrap();
                 }
                 GetPlaylistTracks {
@@ -244,71 +251,76 @@ impl Spotify {
                     offset,
                     uri,
                 } => {
-                    let tracks = self.get_playlist_tracks(&uri, offset, limit).await;
+                    let tracks = client
+                        .lock()
+                        .await
+                        .get_playlist_tracks(&uri, offset, limit)
+                        .await;
                     tx.send(tracks).unwrap();
                 }
                 OpenAuthorizeUrl => {
-                    self.open_authorize_url();
+                    client.lock().await.open_authorize_url();
                 }
                 UseDevice { id } => {
-                    self.use_device(id).await;
+                    client.lock().await.use_device(id).await;
                 }
-                AuthorizeUser { code } => {
-                    let _ = self.authorize_user(code).await;
+                AuthorizeUser { tx, code } => {
+                    let reply = client.lock().await.authorize_user(code).await;
+                    tx.send(reply).unwrap();
                 }
                 RefreshUserToken => {
-                    let result = self.refresh_user_token().await;
+                    let result = client.lock().await.refresh_user_token().await;
                     info!("refresh access token result: {:?}", result);
                 }
                 GetMyArtists { tx, cursor, limit } => {
-                    let artists = self.get_my_artists(cursor, limit).await;
+                    let artists = client.lock().await.get_my_artists(cursor, limit).await;
                     tx.send(artists).unwrap();
                 }
                 GetMyAlbums { tx, offset, limit } => {
-                    let albums = self.get_my_albums(offset, limit).await;
+                    let albums = client.lock().await.get_my_albums(offset, limit).await;
                     tx.send(albums).unwrap();
                 }
                 GetMyPlaylists { tx, offset, limit } => {
-                    let playlists = self.get_my_playlists(offset, limit).await;
+                    let playlists = client.lock().await.get_my_playlists(offset, limit).await;
                     tx.send(playlists).unwrap();
                 }
                 GetMyTracks { tx, offset, limit } => {
-                    let tracks = self.get_my_tracks(offset, limit).await;
+                    let tracks = client.lock().await.get_my_tracks(offset, limit).await;
                     tx.send(tracks).unwrap();
                 }
                 PlayTracks { uris } => {
-                    self.play_tracks(uris).await;
+                    client.lock().await.play_tracks(uris).await;
                 }
                 PlayContext { uri, start_uri } => {
-                    self.play_context(uri, start_uri).await;
+                    client.lock().await.play_context(uri, start_uri).await;
                 }
                 GetTracksFeatures { tx, uris } => {
-                    let features = self.get_tracks_features(uris).await;
+                    let features = client.lock().await.get_tracks_features(uris).await;
                     tx.send(features).unwrap();
                 }
                 GetMyDevices { tx } => {
-                    let devices = self.get_my_devices().await;
+                    let devices = client.lock().await.get_my_devices().await;
                     tx.send(devices).unwrap();
                 }
                 SetVolume { value } => {
-                    let _ = self.set_volume(value).await;
+                    let _ = client.lock().await.set_volume(value).await;
                 }
                 SetShuffle { state } => {
-                    let _ = self.set_shuffle(state).await;
+                    let _ = client.lock().await.set_shuffle(state).await;
                 }
                 SetRepeatMode { mode } => {
-                    let _ = self.set_repeat_mode(mode).await;
+                    let _ = client.lock().await.set_repeat_mode(mode).await;
                 }
                 GetAlbum { tx, uri } => {
-                    let reply = self.get_album(&uri).await;
+                    let reply = client.lock().await.get_album(&uri).await;
                     tx.send(reply).unwrap();
                 }
                 GetPlaylist { tx, uri } => {
-                    let reply = self.get_playlist(&uri).await;
+                    let reply = client.lock().await.get_playlist(&uri).await;
                     tx.send(reply).unwrap();
                 }
                 GetArtist { tx, uri } => {
-                    let reply = self.get_artist(&uri).await;
+                    let reply = client.lock().await.get_artist(&uri).await;
                     tx.send(reply).unwrap();
                 }
             }
@@ -406,7 +418,7 @@ impl Spotify {
         client
     }
 
-    async fn authorize_user(&mut self, code: String) -> ClientResult<()> {
+    pub async fn authorize_user(&mut self, code: String) -> ClientResult<()> {
         if code.starts_with("http") {
             if let Some(code) = self.client.parse_response_code(&code) {
                 self.client.request_user_token(&code).await

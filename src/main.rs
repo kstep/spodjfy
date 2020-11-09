@@ -3,6 +3,8 @@ use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
@@ -29,22 +31,20 @@ async fn main() {
 
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
 
-    {
-        let tx = tx.clone();
-
-        std::thread::spawn(move || {
-            let mut rt = tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(async {
-                tokio::spawn(spodjfy::login_server::start(tx));
-                let mut client = Spotify::new(client_id, client_secret, spotify_cache_path).await;
-                client.run(rx).await;
-            });
+    std::thread::spawn(move || {
+        let mut rt = tokio::runtime::Builder::new()
+            .threaded_scheduler()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let client = Arc::new(Mutex::new(
+                Spotify::new(client_id, client_secret, spotify_cache_path).await,
+            ));
+            tokio::spawn(spodjfy::login_server::start(client.clone()));
+            Spotify::run(client, rx).await;
         });
-    }
+    });
 
     let (spotify, spotify_errors) = SpotifyProxy::new(tx);
     Win::run(Params {
