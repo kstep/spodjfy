@@ -1,7 +1,5 @@
 use gdk_pixbuf::{Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
-use glib::translate::{from_glib_full, ToGlib, ToGlibPtr};
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -59,7 +57,7 @@ impl ImageLoader {
         let mut queue = self.queue.lock().unwrap();
         if !queue.is_empty() {
             for (url, data) in queue.drain(..) {
-                if let Some(pb) = pixbuf_from_raw_bytes(&data, self.resize) {
+                if let Ok(Some(pb)) = pixbuf_from_raw_bytes(&data, self.resize) {
                     self.cache.insert(url, pb);
                 }
             }
@@ -67,14 +65,14 @@ impl ImageLoader {
     }
 }
 
-fn pixbuf_from_raw_bytes(data: &[u8], resize: i32) -> Option<Pixbuf> {
+fn pixbuf_from_raw_bytes(data: &[u8], resize: i32) -> Result<Option<Pixbuf>, glib::Error> {
     let loader = PixbufLoader::new();
     if resize > 0 {
         loader.set_size(resize, resize);
     }
-    loader.write(data);
-    loader.close();
-    loader.get_pixbuf()
+    loader.write(data)?;
+    loader.close()?;
+    Ok(loader.get_pixbuf())
 }
 
 pub fn pixbuf_from_url_async<F>(url: &str, resize: i32, callback: F) -> gio::Cancellable
@@ -84,7 +82,10 @@ where
     let image_file = gio::File::new_for_uri(url);
     let cancel = gio::Cancellable::new();
     image_file.load_contents_async(Some(&cancel), move |reply| match reply {
-        Ok((data, _)) => callback(Ok((pixbuf_from_raw_bytes(&data, resize), data))),
+        Ok((data, _)) => {
+            let result = pixbuf_from_raw_bytes(&data, resize);
+            callback(result.map(|pixbuf| (pixbuf, data)));
+        }
         Err(err) => {
             callback(Err(err));
         }
