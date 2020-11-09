@@ -96,6 +96,16 @@ impl Widget for Win {
                 #now_playing_tab label#context_genres_label {
                     font-style: italic;
                 }
+
+                #now_playing_tab buttonbox button {
+                    min-width: 30px;
+                    min-height: 30px;
+                }
+                #now_playing_tab buttonbox button#play_btn {
+                    border-radius: 15px;
+                    min-height: 50px;
+                    min-width: 80px;
+                }
                 "#,
             )
             .expect("Invalid CSS styles");

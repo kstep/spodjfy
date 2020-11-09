@@ -2,7 +2,7 @@ use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::track_list::{TrackList, TrackListMsg};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{ImageExt, RangeExt, ScaleExt, WidgetExt};
+use gtk::{ButtonBoxExt, ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -491,38 +491,54 @@ impl Widget for NowPlayingTab {
             },
             gtk::Box(gtk::Orientation::Horizontal, 5) {
                 halign: gtk::Align::Center,
-                gtk::Button {
-                    tooltip_text: Some("Previous track"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-skip-backward"), gtk::IconSize::LargeToolbar)),
-                    clicked(_) => NowPlayingMsg::PrevTrack,
-                },
-                gtk::Button {
-                    tooltip_text: Some("Pause"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-pause"), gtk::IconSize::LargeToolbar)),
-                    clicked(_) => NowPlayingMsg::Pause,
-                },
-                gtk::Button {
-                    tooltip_text: Some("Play"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-start"), gtk::IconSize::LargeToolbar)),
-                    clicked(_) => NowPlayingMsg::Play,
-                },
-                gtk::Button {
-                    tooltip_text: Some("Next track"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-skip-forward"), gtk::IconSize::LargeToolbar)),
-                    clicked(_) => NowPlayingMsg::NextTrack,
-                },
 
-                gtk::ToggleButton {
-                    tooltip_text: Some("Shuffle"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-shuffle"), gtk::IconSize::LargeToolbar)),
-                    active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
-                    toggled(btn) => NowPlayingMsg::SetShuffle(btn.get_active()),
-                },
-                gtk::ToggleButton {
-                    tooltip_text: Some("Repeat mode"),
-                    image: Some(&gtk::Image::from_icon_name(Some("media-playback-repeat"), gtk::IconSize::LargeToolbar)),
-                    active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
-                    toggled(btn) => NowPlayingMsg::SetRepeatMode(btn.get_active()),
+                #[name="buttons"]
+                gtk::ButtonBox(gtk::Orientation::Horizontal) {
+                    layout: gtk::ButtonBoxStyle::Center,
+                    hexpand: false,
+                    #[name="prev_track_btn"]
+                    gtk::Button {
+                        tooltip_text: Some("Previous track"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-skip-backward"), gtk::IconSize::LargeToolbar)),
+                        clicked(_) => NowPlayingMsg::PrevTrack,
+                    },
+                    #[name="pause_btn"]
+                    gtk::Button {
+                        tooltip_text: Some("Pause"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-playback-pause"), gtk::IconSize::LargeToolbar)),
+                        clicked(_) => NowPlayingMsg::Pause,
+                    },
+                    #[name="play_btn"]
+                    gtk::Button {
+                        widget_name: "play_btn",
+                        tooltip_text: Some("Play"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-playback-start"), gtk::IconSize::LargeToolbar)),
+                        child: {
+                            non_homogeneous: true,
+                        },
+                        clicked(_) => NowPlayingMsg::Play,
+                    },
+                    #[name="next_track_btn"]
+                    gtk::Button {
+                        tooltip_text: Some("Next track"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-skip-forward"), gtk::IconSize::LargeToolbar)),
+                        clicked(_) => NowPlayingMsg::NextTrack,
+                    },
+
+                    #[name="shuffle_btn"]
+                    gtk::ToggleButton {
+                        tooltip_text: Some("Shuffle"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-playlist-shuffle"), gtk::IconSize::LargeToolbar)),
+                        active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
+                        toggled(btn) => NowPlayingMsg::SetShuffle(btn.get_active()),
+                    },
+                    #[name="repeat_btn"]
+                    gtk::ToggleButton {
+                        tooltip_text: Some("Repeat mode"),
+                        image: Some(&gtk::Image::from_icon_name(Some("media-playlist-repeat"), gtk::IconSize::LargeToolbar)),
+                        active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
+                        toggled(btn) => NowPlayingMsg::SetRepeatMode(btn.get_active()),
+                    },
                 },
 
                 gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 101.0, 1.0, 1.0, 1.0))) {
@@ -531,6 +547,7 @@ impl Widget for NowPlayingTab {
                     value: self.model.state.as_ref().map(|s| s.device.volume_percent as f64).unwrap_or(0.0),
                     property_width_request: 200,
                     valign: gtk::Align::Center,
+                    vexpand: false,
 
                     change_value(_, _, pos) => (NowPlayingMsg::SetVolume(pos as u8), Inhibit(false)),
                 },
@@ -539,6 +556,8 @@ impl Widget for NowPlayingTab {
                 gtk::ComboBox {
                     tooltip_text: Some("Current device"),
                     halign: gtk::Align::Start,
+                    valign: gtk::Align::Center,
+                    vexpand: false,
                     model: Some(&self.model.devices),
                     active_id: self.model.state.as_ref().map(|s| &*s.device.id),
                     id_column: 0,
@@ -574,5 +593,7 @@ impl Widget for NowPlayingTab {
         let cell = gtk::CellRendererText::new();
         self.device_selector.pack_start(&cell, true);
         self.device_selector.add_attribute(&cell, "text", 1 as i32);
+
+        self.buttons.get_style_context().add_class("linked");
     }
 }
