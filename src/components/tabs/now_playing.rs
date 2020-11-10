@@ -68,7 +68,6 @@ pub enum NowPlayingMsg {
     UseDevice(Option<String>),
     LoadCover(String, bool),
     NewCover(Pixbuf, bool),
-    Click(gdk::EventButton),
     Play,
     Pause,
     PrevTrack,
@@ -368,19 +367,16 @@ impl Widget for NowPlayingTab {
                 self.model.context = Some(*context);
             }
             Tick(timeout) => {
-                // FIXME: it's a hack to make #[widget] insert view bindings here
-                let mut state = self.model.state.take();
                 if let Some(CurrentlyPlaybackContext {
                     is_playing: true,
                     progress_ms: Some(ref mut progress),
                     ..
-                }) = state
+                }) = self.model.state
                 {
                     *progress += timeout * 1000;
+                    self.track_seek_bar.set_value(*progress as f64);
                 }
-                self.model.state = state;
             }
-            Click(_) => {}
         }
     }
 
