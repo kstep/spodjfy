@@ -582,8 +582,12 @@ impl Spotify {
         offset: u32,
         limit: u32,
     ) -> ClientResult<Page<SimplifiedEpisode>> {
-        self.client
-            .get_shows_episodes(uri.to_owned(), limit, offset, None)
-            .await
+        if let Some(id) = uri.split(':').last() {
+            self.client
+                .get_shows_episodes(id.to_owned(), limit, offset, None)
+                .await
+        } else {
+            Err(ClientError::CLI("Invalid show URI".into()))
+        }
     }
 }

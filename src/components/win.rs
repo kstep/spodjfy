@@ -324,6 +324,7 @@ impl Widget for Win {
         let albums_stream = self.albums_tab.stream().clone();
         let playlists_stream = self.playlists_tab.stream().clone();
         let favorites_stream = self.favorites_tab.stream().clone();
+        let shows_stream = self.shows_tab.stream().clone();
         self.media_controls.stream().observe(move |msg| match msg {
             MediaControlsMsg::GoToTrack(kind, uri) => {
                 let uri = uri.clone();
@@ -331,6 +332,7 @@ impl Widget for Win {
                     Type::Album => albums_stream.emit(AlbumsMsg::GoToTrack(uri)),
                     Type::Playlist => playlists_stream.emit(PlaylistsMsg::GoToTrack(uri)),
                     Type::Track => favorites_stream.emit(FavoritesMsg::GoToTrack(uri)),
+                    Type::Show => shows_stream.emit(ShowsMsg::GoToTrack(uri)),
                     _ => (),
                 }
             }

@@ -13,7 +13,7 @@ use rspotify::model::context::{Context, CurrentlyPlaybackContext};
 use rspotify::model::device::Device;
 use rspotify::model::image::Image;
 use rspotify::model::playlist::FullPlaylist;
-use rspotify::model::show::FullEpisode;
+use rspotify::model::show::{FullEpisode, FullShow};
 use rspotify::model::track::FullTrack;
 use rspotify::model::PlayingItem;
 use rspotify::senum::{RepeatState, Type};
@@ -24,6 +24,7 @@ pub enum PlayContext {
     Album(FullAlbum),
     Playlist(FullPlaylist),
     Artist(FullArtist),
+    Show(FullShow),
 }
 
 impl PlayContext {
@@ -32,6 +33,7 @@ impl PlayContext {
             PlayContext::Album(ctx) => &*ctx.name,
             PlayContext::Artist(ctx) => &*ctx.name,
             PlayContext::Playlist(ctx) => &*ctx.name,
+            PlayContext::Show(ctx) => &*ctx.name,
         }
     }
 
@@ -40,6 +42,7 @@ impl PlayContext {
             PlayContext::Album(ctx) => Some(&ctx.genres),
             PlayContext::Artist(ctx) => Some(&ctx.genres),
             PlayContext::Playlist(_) => None,
+            PlayContext::Show(_) => None,
         }
     }
 
@@ -48,6 +51,7 @@ impl PlayContext {
             PlayContext::Album(ctx) => &ctx.images,
             PlayContext::Artist(ctx) => &ctx.images,
             PlayContext::Playlist(ctx) => &ctx.images,
+            PlayContext::Show(ctx) => &ctx.images,
         }
     }
 
@@ -56,6 +60,7 @@ impl PlayContext {
             PlayContext::Album(ctx) => ctx.tracks.total,
             PlayContext::Artist(_) => 0,
             PlayContext::Playlist(ctx) => ctx.tracks.total,
+            PlayContext::Show(ctx) => ctx.episodes.total,
         }
     }
 
@@ -64,6 +69,7 @@ impl PlayContext {
             PlayContext::Album(_) => Type::Album,
             PlayContext::Artist(_) => Type::Artist,
             PlayContext::Playlist(_) => Type::Playlist,
+            PlayContext::Show(_) => Type::Show,
         }
     }
 }
@@ -482,6 +488,7 @@ impl Widget for MediaControls {
                                         Some(PlayContext::Album(_)) => "media-optical",
                                         Some(PlayContext::Playlist(_)) => "folder-music",
                                         Some(PlayContext::Artist(_)) => "emblem-music",
+                                        Some(PlayContext::Show(_)) => "folder",
                                         None => "emblem-music",
                                     }, 24, gtk::IconLookupFlags::empty())
                                     .ok()

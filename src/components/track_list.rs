@@ -288,7 +288,7 @@ impl TrackLike for SimplifiedEpisode {
     }
 
     fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
+        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_BPM]
     }
 }
 
