@@ -661,7 +661,9 @@ where
                     );
                 }
 
-                stream.emit(LoadTracksInfo(uris, iters));
+                if !<T as TrackLike>::unavailable_columns().contains(&COL_TRACK_BPM) {
+                    stream.emit(LoadTracksInfo(uris, iters));
+                }
             }
             NewPage(_, _) => {}
             LoadTracksInfo(uris, iters) => {

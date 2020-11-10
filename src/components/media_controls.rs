@@ -379,6 +379,11 @@ impl Widget for MediaControls {
                             |tx| SpotifyCmd::GetArtist { tx, uri },
                             |reply| NewContext(Box::new(PlayContext::Artist(reply))),
                         ),
+                        Type::Show => self.model.spotify.ask(
+                            stream.clone(),
+                            |tx| SpotifyCmd::GetShow { tx, uri },
+                            |reply| NewContext(Box::new(PlayContext::Show(reply))),
+                        ),
                         _ => {
                             self.model.context = None;
                             self.model.context_cover = None;

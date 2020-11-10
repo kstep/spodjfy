@@ -9,7 +9,7 @@ use rspotify::model::device::Device;
 use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
-use rspotify::model::show::{Show, SimplifiedEpisode};
+use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::{AdditionalType, RepeatState};
 use std::borrow::Cow;
@@ -201,6 +201,10 @@ pub enum SpotifyCmd {
         tx: ResultSender<FullArtist>,
         uri: String,
     },
+    GetShow {
+        tx: ResultSender<FullShow>,
+        uri: String,
+    },
 }
 
 pub struct Spotify {
@@ -351,6 +355,10 @@ impl Spotify {
                 }
                 GetArtist { tx, uri } => {
                     let reply = client.lock().await.get_artist(&uri).await;
+                    tx.send(reply).unwrap();
+                }
+                GetShow { tx, uri } => {
+                    let reply = client.lock().await.get_show(&uri).await;
                     tx.send(reply).unwrap();
                 }
             }
@@ -576,18 +584,30 @@ impl Spotify {
         self.client.get_saved_show(limit, offset).await
     }
 
+    async fn get_show(&self, uri: &str) -> ClientResult<FullShow> {
+        if let Some(id) = Self::get_id(uri) {
+            self.client.get_a_show(id.to_owned(), None).await
+        } else {
+            Err(ClientError::CLI("Invalid show URI".into()))
+        }
+    }
+
     async fn get_show_episodes(
         &self,
         uri: &str,
         offset: u32,
         limit: u32,
     ) -> ClientResult<Page<SimplifiedEpisode>> {
-        if let Some(id) = uri.split(':').last() {
+        if let Some(id) = Self::get_id(uri) {
             self.client
                 .get_shows_episodes(id.to_owned(), limit, offset, None)
                 .await
         } else {
             Err(ClientError::CLI("Invalid show URI".into()))
         }
+    }
+
+    fn get_id(uri: &str) -> Option<&str> {
+        uri.split(':').last()
     }
 }
