@@ -92,6 +92,7 @@ pub struct NowPlayingModel {
     context: Option<PlayContext>,
     track_cover: Option<Pixbuf>,
     context_cover: Option<Pixbuf>,
+    show_notifications: bool,
 }
 
 const TRACK_COVER_SIZE: i32 = 256;
@@ -99,7 +100,10 @@ const CONTEXT_COVER_SIZE: i32 = 128;
 
 #[widget]
 impl Widget for NowPlayingTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> NowPlayingModel {
+    fn model(
+        relm: &Relm<Self>,
+        (spotify, show_notifications): (Arc<SpotifyProxy>, bool),
+    ) -> NowPlayingModel {
         let stream = relm.stream().clone();
 
         let _update_timer = {
@@ -122,6 +126,7 @@ impl Widget for NowPlayingTab {
             stream,
             spotify,
             devices,
+            show_notifications,
             state: None,
             context: None,
             track_cover: None,
@@ -216,18 +221,20 @@ impl Widget for NowPlayingTab {
 
                         let item = state.as_ref().as_ref().unwrap().item.as_ref().unwrap();
 
-                        let _ = Notification::new()
-                            .summary(item.name())
-                            .body(&format!(
-                                "\u{1F935} {}\n\u{1F4BF} {}",
-                                item.artists()
-                                    .iter()
-                                    .next()
-                                    .map(|a| &*a.name)
-                                    .unwrap_or("<Unknown Artist>"),
-                                item.album().map(|a| &*a.name).unwrap_or("<No Album>"),
-                            ))
-                            .show();
+                        if self.model.show_notifications {
+                            let _ = Notification::new()
+                                .summary(item.name())
+                                .body(&format!(
+                                    "\u{1F935} {}\n\u{1F4BF} {}",
+                                    item.artists()
+                                        .iter()
+                                        .next()
+                                        .map(|a| &*a.name)
+                                        .unwrap_or("<Unknown Artist>"),
+                                    item.album().map(|a| &*a.name).unwrap_or("<No Album>"),
+                                ))
+                                .show();
+                        }
                     }
                 }
 

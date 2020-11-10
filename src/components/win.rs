@@ -21,6 +21,8 @@ use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 pub struct Settings {
     pub client_id: String,
     pub client_secret: String,
+    #[serde(default)]
+    pub show_notifications: bool,
 }
 
 impl Default for Settings {
@@ -28,6 +30,7 @@ impl Default for Settings {
         Self {
             client_id: String::new(),
             client_secret: String::new(),
+            show_notifications: true,
         }
     }
 }
@@ -197,7 +200,7 @@ impl Widget for Win {
                             transition_type: gtk::StackTransitionType::SlideUpDown,
 
                             #[name="now_playing_tab"]
-                            NowPlayingTab(self.model.spotify.clone()) {
+                            NowPlayingTab((self.model.spotify.clone(), self.model.settings.show_notifications)) {
                                widget_name: "now_playing_tab",
                                child: {
                                    name: Some("now_playing_tab"),

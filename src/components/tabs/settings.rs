@@ -3,7 +3,6 @@ use crate::components::win::Settings;
 use gtk::{self, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, WidgetExt};
 use relm::Widget;
 use relm_derive::{widget, Msg};
-use serde_derive::Serialize;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -14,22 +13,15 @@ pub enum SettingsMsg {
     Save,
 }
 
-#[derive(Serialize)]
 pub struct SettingsModel {
-    client_id: String,
-    client_secret: String,
-    #[serde(skip)]
+    settings: Settings,
     spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for SettingsTab {
     fn model((settings, spotify): (Settings, Arc<SpotifyProxy>)) -> SettingsModel {
-        SettingsModel {
-            client_id: settings.client_id,
-            client_secret: settings.client_secret,
-            spotify,
-        }
+        SettingsModel { settings, spotify }
     }
 
     fn update(&mut self, event: SettingsMsg) {
@@ -47,8 +39,8 @@ impl Widget for SettingsTab {
             }
             Save => {
                 self.model.spotify.tell(SpotifyCmd::SetupClient {
-                    id: self.model.client_id.clone(),
-                    secret: self.model.client_secret.clone(),
+                    id: self.model.settings.client_id.clone(),
+                    secret: self.model.settings.client_secret.clone(),
                 });
 
                 directories::ProjectDirs::from("me", "kstep", "spodjfy")
@@ -56,7 +48,7 @@ impl Widget for SettingsTab {
                         std::fs::File::create(dirs.config_dir().join("settings.toml")).ok()
                     })
                     .and_then(|mut conf_file| {
-                        toml::to_vec(&self.model)
+                        toml::to_vec(&self.model.settings)
                             .ok()
                             .and_then(|data| conf_file.write_all(&data).ok())
                     })
@@ -88,7 +80,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_id_entry"]
                 gtk::Entry {
-                    text: &self.model.client_id,
+                    text: &self.model.settings.client_id,
                     cell: {
                         left_attach: 1,
                         top_attach: 0,
@@ -106,7 +98,7 @@ impl Widget for SettingsTab {
                 },
                 #[name="client_secret_entry"]
                 gtk::Entry {
-                    text: &self.model.client_secret,
+                    text: &self.model.settings.client_secret,
                     cell: {
                         left_attach: 1,
                         top_attach: 1,
