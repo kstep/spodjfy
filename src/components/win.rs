@@ -16,6 +16,7 @@ use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
+use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
 use rspotify::senum::Type;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -161,6 +162,9 @@ impl Widget for Win {
                 Some("favorites_tab") => {
                     self.favorites_tab.emit(FavoritesMsg::ShowTab);
                 }
+                Some("shows_tab") => {
+                    self.shows_tab.emit(ShowsMsg::ShowTab);
+                }
                 _ => {}
             },
         }
@@ -236,6 +240,15 @@ impl Widget for Win {
                                     child: {
                                         name: Some("albums_tab"),
                                         title: Some("\u{1F4BF} Albums"),
+                                    }
+                                },
+
+                                #[name="shows_tab"]
+                                ShowsTab(self.model.spotify.clone()) {
+                                    widget_name: "shows_tab",
+                                    child: {
+                                        name: Some("shows_tab"),
+                                        title: Some("\u{1F4FB} Shows"),
                                     }
                                 },
 

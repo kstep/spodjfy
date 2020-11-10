@@ -9,6 +9,7 @@ use rspotify::model::device::Device;
 use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
+use rspotify::model::show::{Show, SimplifiedEpisode};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::{AdditionalType, RepeatState};
 use std::borrow::Cow;
@@ -113,6 +114,17 @@ pub enum SpotifyCmd {
     StartPlayback,
     PlayPrevTrack,
     PlayNextTrack,
+    GetMyShows {
+        tx: ResultSender<Page<Show>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetShowEpisodes {
+        tx: ResultSender<Page<SimplifiedEpisode>>,
+        limit: u32,
+        offset: u32,
+        uri: String,
+    },
     GetMyArtists {
         tx: ResultSender<CursorBasedPage<FullArtist>>,
         cursor: Option<String>,
@@ -272,6 +284,23 @@ impl Spotify {
                 RefreshUserToken => {
                     let result = client.lock().await.refresh_user_token().await;
                     info!("refresh access token result: {:?}", result);
+                }
+                GetMyShows { tx, offset, limit } => {
+                    let result = client.lock().await.get_my_shows(offset, limit).await;
+                    tx.send(result).unwrap();
+                }
+                GetShowEpisodes {
+                    tx,
+                    uri,
+                    offset,
+                    limit,
+                } => {
+                    let result = client
+                        .lock()
+                        .await
+                        .get_show_episodes(&uri, offset, limit)
+                        .await;
+                    tx.send(result).unwrap();
                 }
                 GetMyArtists { tx, cursor, limit } => {
                     let artists = client.lock().await.get_my_artists(cursor, limit).await;
@@ -541,5 +570,20 @@ impl Spotify {
         if let Some(ref mut oauth) = self.client.oauth {
             oauth.redirect_uri = url.into().into_owned();
         }
+    }
+
+    async fn get_my_shows(&self, offset: u32, limit: u32) -> ClientResult<Page<Show>> {
+        self.client.get_saved_show(limit, offset).await
+    }
+
+    async fn get_show_episodes(
+        &self,
+        uri: &str,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedEpisode>> {
+        self.client
+            .get_shows_episodes(uri.to_owned(), limit, offset, None)
+            .await
     }
 }

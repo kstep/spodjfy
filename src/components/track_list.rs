@@ -17,7 +17,7 @@ use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
 use rspotify::model::page::Page;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
-use rspotify::model::show::FullEpisode;
+use rspotify::model::show::{FullEpisode, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
 use std::sync::Arc;
@@ -207,13 +207,49 @@ impl TrackLike for SavedTrack {
 impl TrackLike for FullEpisode {
     type ParentId = ();
 
-    fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn artists(&self) -> &[SimplifiedArtist] {
+        &[]
+    }
+
+    fn number(&self) -> u32 {
+        0
+    }
+
+    fn album(&self) -> Option<&SimplifiedAlbum> {
+        None
+    }
+
+    fn is_playable(&self) -> bool {
+        self.is_playable
+    }
+
+    fn duration(&self) -> u32 {
+        self.duration_ms
     }
 
     fn images(&self) -> Option<&Vec<Image>> {
         Some(&self.images)
     }
+
+    fn unavailable_columns() -> &'static [u32] {
+        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
+    }
+}
+
+impl TrackLike for SimplifiedEpisode {
+    type ParentId = String;
 
     fn id(&self) -> &str {
         &self.id
@@ -245,6 +281,14 @@ impl TrackLike for FullEpisode {
 
     fn duration(&self) -> u32 {
         self.duration_ms
+    }
+
+    fn images(&self) -> Option<&Vec<Image>> {
+        Some(&self.images)
+    }
+
+    fn unavailable_columns() -> &'static [u32] {
+        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
     }
 }
 
@@ -394,6 +438,40 @@ impl TrackContainer for FullAlbum {
 
 impl TrackContainer for SavedAlbum {
     type Track = SimplifiedTrack;
+}
+
+impl TrackContainer for Show {
+    type Track = SimplifiedEpisode;
+}
+
+impl ControlSpotifyContext for TrackList<SimplifiedEpisode> {
+    const PAGE_LIMIT: u32 = 10;
+
+    fn load_tracks_page(&self, offset: u32) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            let parent_id = parent_id.clone();
+            let epoch = self.model.epoch;
+            self.model.spotify.ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetShowEpisodes {
+                    tx,
+                    uri: parent_id,
+                    limit: Self::PAGE_LIMIT,
+                    offset,
+                },
+                move |reply| TrackListMsg::NewPage(reply, epoch),
+            );
+        }
+    }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        if let Some(ref parent_id) = self.model.parent_id {
+            self.model.spotify.tell(SpotifyCmd::PlayContext {
+                uri: parent_id.clone(),
+                start_uri: uris.first().cloned(),
+            });
+        }
+    }
 }
 
 impl ControlSpotifyContext for TrackList<SimplifiedTrack> {
