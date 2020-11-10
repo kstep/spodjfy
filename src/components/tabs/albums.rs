@@ -20,7 +20,8 @@ pub enum AlbumsMsg {
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
     OpenChosenAlbum,
-    Click(gdk::EventButton),
+    OpenAlbum(Option<(String, String)>),
+    GoToTrack(String),
 }
 
 const THUMB_SIZE: i32 = 256;
@@ -114,36 +115,38 @@ impl Widget for AlbumsTab {
             OpenChosenAlbum => {
                 let icon_view: &gtk::IconView = &self.albums_view;
                 let store: &gtk::ListStore = &self.model.store;
-                if let Some((Some(uri), Some(name))) = icon_view
-                    .get_selected_items()
-                    .first()
-                    .and_then(|path| store.get_iter(path))
-                    .map(|iter| {
-                        (
+                self.model.stream.emit(OpenAlbum(
+                    icon_view
+                        .get_selected_items()
+                        .first()
+                        .and_then(|path| store.get_iter(path))
+                        .and_then(|iter| {
                             store
                                 .get_value(&iter, COL_ALBUM_URI as i32)
                                 .get::<String>()
                                 .ok()
-                                .flatten(),
-                            store
-                                .get_value(&iter, COL_ALBUM_NAME as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten(),
-                        )
-                    })
-                {
-                    self.album_view.emit(TrackListMsg::Reset(uri, true));
+                                .flatten()
+                                .zip(
+                                    store
+                                        .get_value(&iter, COL_ALBUM_NAME as i32)
+                                        .get::<String>()
+                                        .ok()
+                                        .flatten(),
+                                )
+                        }),
+                ));
+            }
+            OpenAlbum(Some((uri, name))) => {
+                self.album_view.emit(TrackListMsg::Reset(uri, true));
 
-                    let album_widget = self.album_view.widget();
-                    self.stack.set_child_title(album_widget, Some(&name));
-                    self.stack.set_visible_child(album_widget);
-                }
+                let album_widget = self.album_view.widget();
+                self.stack.set_child_title(album_widget, Some(&name));
+                self.stack.set_visible_child(album_widget);
             }
-            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.stream.emit(OpenChosenAlbum);
+            OpenAlbum(None) => {}
+            GoToTrack(uri) => {
+                self.album_view.emit(TrackListMsg::GoToTrack(uri));
             }
-            Click(_) => {}
         }
     }
 
@@ -171,7 +174,12 @@ impl Widget for AlbumsTab {
                         text_column: COL_ALBUM_NAME as i32,
                         model: Some(&self.model.store),
 
-                        button_press_event(_, event) => (AlbumsMsg::Click(event.clone()), Inhibit(false)),
+                        item_activated(view, path) => AlbumsMsg::OpenAlbum(
+                            view.get_model().and_then(|model| {
+                                model.get_iter(path).and_then(|pos|
+                                    model.get_value(&pos, COL_ALBUM_URI as i32).get::<String>().ok().flatten()
+                                        .zip(model.get_value(&pos, COL_ALBUM_NAME as i32).get::<String>().ok().flatten()))
+                            })),
                     }
                 },
                 #[name="album_view"]

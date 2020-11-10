@@ -8,6 +8,7 @@ use std::sync::Arc;
 #[derive(Msg)]
 pub enum FavoritesMsg {
     ShowTab,
+    GoToTrack(String),
 }
 
 pub struct FavoritesModel {
@@ -24,6 +25,9 @@ impl Widget for FavoritesTab {
         match event {
             FavoritesMsg::ShowTab => {
                 self.tracks.emit(TrackListMsg::Reload);
+            }
+            FavoritesMsg::GoToTrack(uri) => {
+                self.tracks.emit(TrackListMsg::GoToTrack(uri));
             }
         }
     }

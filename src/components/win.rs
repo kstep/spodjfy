@@ -14,9 +14,9 @@ use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
-use crate::components::tabs::now_playing::{NowPlayingMsg, NowPlayingTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
+use rspotify::senum::Type;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Settings {
@@ -143,9 +143,6 @@ impl Widget for Win {
                 self.stack.set_visible_child(self.settings_tab.widget());
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
-                Some("now_playing_tab") => {
-                    self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
-                }
                 Some("settings_tab") => {
                     self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
@@ -205,15 +202,6 @@ impl Widget for Win {
                                 vexpand: true,
                                 hexpand: true,
                                 transition_type: gtk::StackTransitionType::SlideUpDown,
-
-                                #[name="now_playing_tab"]
-                                NowPlayingTab(self.model.spotify.clone()) {
-                                   widget_name: "now_playing_tab",
-                                   child: {
-                                       name: Some("now_playing_tab"),
-                                       title: Some("\u{25B6} Now playing")
-                                   },
-                                },
 
                                 #[name="favorites_tab"]
                                 FavoritesTab(self.model.spotify.clone()) {
@@ -320,16 +308,18 @@ impl Widget for Win {
             }
         });
 
-        self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
-
-        let now_playing_stream = self.now_playing_tab.stream().clone();
-
+        let albums_stream = self.albums_tab.stream().clone();
+        let playlists_stream = self.playlists_tab.stream().clone();
+        let favorites_stream = self.favorites_tab.stream().clone();
         self.media_controls.stream().observe(move |msg| match msg {
-            MediaControlsMsg::LoadContext(kind, ref uri) => {
-                now_playing_stream.emit(NowPlayingMsg::LoadTracks(*kind, uri.clone()));
-            }
-            MediaControlsMsg::GoToTrack(Some(uri)) => {
-                now_playing_stream.emit(NowPlayingMsg::GoToTrack(uri.clone()));
+            MediaControlsMsg::GoToTrack(kind, uri) => {
+                let uri = uri.clone();
+                match kind {
+                    Type::Album => albums_stream.emit(AlbumsMsg::GoToTrack(uri)),
+                    Type::Playlist => playlists_stream.emit(PlaylistsMsg::GoToTrack(uri)),
+                    Type::Track => favorites_stream.emit(FavoritesMsg::GoToTrack(uri)),
+                    _ => (),
+                }
             }
             _ => {}
         })

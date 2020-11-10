@@ -58,6 +58,14 @@ impl PlayContext {
             PlayContext::Playlist(ctx) => ctx.tracks.total,
         }
     }
+
+    fn kind(&self) -> Type {
+        match self {
+            PlayContext::Album(_) => Type::Album,
+            PlayContext::Artist(_) => Type::Artist,
+            PlayContext::Playlist(_) => Type::Playlist,
+        }
+    }
 }
 
 #[derive(Msg)]
@@ -81,7 +89,8 @@ pub enum MediaControlsMsg {
     SetVolume(u8),
     SetShuffle(bool),
     ToggleRepeatMode,
-    GoToTrack(Option<String>),
+    ClickTrackUri(Option<String>),
+    GoToTrack(Type, String),
     ShowInfo(bool),
 }
 
@@ -246,6 +255,9 @@ impl Widget for MediaControls {
                             .stream
                             .emit(LoadContext(ctx._type, ctx.uri.clone()));
                     }
+                } else {
+                    self.model.context = None;
+                    self.model.context_cover = None;
                 }
 
                 self.model.state = *state;
@@ -363,6 +375,7 @@ impl Widget for MediaControls {
                         ),
                         _ => {
                             self.model.context = None;
+                            self.model.context_cover = None;
                         }
                     };
                 }
@@ -387,7 +400,19 @@ impl Widget for MediaControls {
                     self.track_seek_bar.set_value(*progress as f64);
                 }
             }
-            GoToTrack(_) => {}
+            ClickTrackUri(Some(uri)) => {
+                let kind = self
+                    .model
+                    .context
+                    .as_ref()
+                    .map(|ctx| ctx.kind())
+                    .unwrap_or(Type::Track);
+                self.model
+                    .stream
+                    .emit(MediaControlsMsg::GoToTrack(kind, uri));
+            }
+            ClickTrackUri(None) => {}
+            GoToTrack(_, _) => {}
         }
     }
 
@@ -420,7 +445,7 @@ impl Widget for MediaControls {
                                 PlayingItem::Episode(episode) => &*episode.uri,
                             }).unwrap_or(""),
 
-                            activate_link(btn) => (MediaControlsMsg::GoToTrack(btn.get_uri().map(|u| u.into())), Inhibit(true)),
+                            activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
                         },
                         #[name="track_artists_label"]
                         gtk::Label {

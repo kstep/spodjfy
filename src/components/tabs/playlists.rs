@@ -25,8 +25,9 @@ pub enum PlaylistsMsg {
     NewPage(Page<SimplifiedPlaylist>),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
-    Click(gdk::EventButton),
     OpenChosenPlaylist,
+    OpenPlaylist(Option<(String, String)>),
+    GoToTrack(String),
 }
 
 pub struct PlaylistsModel {
@@ -108,36 +109,38 @@ impl Widget for PlaylistsTab {
             OpenChosenPlaylist => {
                 let icon_view: &gtk::IconView = &self.playlists_view;
                 let store: &gtk::ListStore = &self.model.store;
-                if let Some((Some(uri), Some(name))) = icon_view
-                    .get_selected_items()
-                    .first()
-                    .and_then(|path| store.get_iter(path))
-                    .map(|iter| {
-                        (
+                self.model.stream.emit(OpenPlaylist(
+                    icon_view
+                        .get_selected_items()
+                        .first()
+                        .and_then(|path| store.get_iter(path))
+                        .and_then(|iter| {
                             store
                                 .get_value(&iter, COL_PLAYLIST_URI as i32)
                                 .get::<String>()
                                 .ok()
-                                .flatten(),
-                            store
-                                .get_value(&iter, COL_PLAYLIST_NAME as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten(),
-                        )
-                    })
-                {
-                    self.playlist_view.emit(TrackListMsg::Reset(uri, true));
+                                .flatten()
+                                .zip(
+                                    store
+                                        .get_value(&iter, COL_PLAYLIST_NAME as i32)
+                                        .get::<String>()
+                                        .ok()
+                                        .flatten(),
+                                )
+                        }),
+                ));
+            }
+            OpenPlaylist(Some((uri, name))) => {
+                self.playlist_view.emit(TrackListMsg::Reset(uri, true));
 
-                    let playlist_widget = self.playlist_view.widget();
-                    self.stack.set_child_title(playlist_widget, Some(&name));
-                    self.stack.set_visible_child(playlist_widget);
-                }
+                let playlist_widget = self.playlist_view.widget();
+                self.stack.set_child_title(playlist_widget, Some(&name));
+                self.stack.set_visible_child(playlist_widget);
             }
-            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.stream.emit(OpenChosenPlaylist);
+            OpenPlaylist(None) => {}
+            GoToTrack(uri) => {
+                self.playlist_view.emit(TrackListMsg::GoToTrack(uri));
             }
-            Click(_) => {}
         }
     }
 
@@ -164,7 +167,12 @@ impl Widget for PlaylistsTab {
                         text_column: COL_PLAYLIST_NAME as i32,
                         model: Some(&self.model.store),
 
-                        button_press_event(_, event) => (PlaylistsMsg::Click(event.clone()), Inhibit(false)),
+                        item_activated(view, path) => PlaylistsMsg::OpenPlaylist(
+                            view.get_model().and_then(|model| {
+                                model.get_iter(path).and_then(|pos|
+                                    model.get_value(&pos, COL_PLAYLIST_URI as i32).get::<String>().ok().flatten()
+                                        .zip(model.get_value(&pos, COL_PLAYLIST_NAME as i32).get::<String>().ok().flatten()))
+                            })),
                     }
                 },
                 #[name="playlist_view"]
