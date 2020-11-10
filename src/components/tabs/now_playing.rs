@@ -1,9 +1,10 @@
 use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
-use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::components::track_list::{TrackLike, TrackList, TrackListMsg};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, ImageExt, RangeExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
+use notify_rust::Notification;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::FullAlbum;
@@ -212,6 +213,21 @@ impl Widget for NowPlayingTab {
                         }
 
                         self.track_seek_bar.set_range(0.0, duration_ms as f64);
+
+                        let item = state.as_ref().as_ref().unwrap().item.as_ref().unwrap();
+
+                        let _ = Notification::new()
+                            .summary(item.name())
+                            .body(&format!(
+                                "\u{1F935} {}\n\u{1F4BF} {}",
+                                item.artists()
+                                    .iter()
+                                    .next()
+                                    .map(|a| &*a.name)
+                                    .unwrap_or("<Unknown Artist>"),
+                                item.album().map(|a| &*a.name).unwrap_or("<No Album>"),
+                            ))
+                            .show();
                     }
                 }
 
