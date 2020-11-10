@@ -322,6 +322,8 @@ impl Widget for Win {
                 }
             }
             _ => {}
-        })
+        });
+
+        self.favorites_tab.emit(FavoritesMsg::ShowTab);
     }
 }
