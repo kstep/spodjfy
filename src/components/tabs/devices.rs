@@ -15,7 +15,7 @@ pub enum DevicesMsg {
     LoadList,
     NewList(Vec<Device>),
     UseChosenDevice,
-    Click(gdk::EventButton),
+    UseDevice(Option<String>),
 }
 
 pub struct DevicesModel {
@@ -100,19 +100,22 @@ impl Widget for DevicesTab {
                 let selected = devices_view.get_selected_items();
                 let store: &gtk::ListStore = &self.model.store;
 
-                if let Some((id, sel_pos)) = selected
-                    .first()
-                    .and_then(|path| store.get_iter(path))
-                    .and_then(|pos| {
-                        store
-                            .get_value(&pos, COL_DEVICE_ID as i32)
-                            .get::<String>()
-                            .ok()
-                            .flatten()
-                            .map(|id| (id, pos))
-                    })
-                {
-                    self.model.spotify.tell(SpotifyCmd::UseDevice { id });
+                self.model.stream.emit(UseDevice(
+                    selected
+                        .first()
+                        .and_then(|path| store.get_iter(path))
+                        .and_then(|pos| {
+                            store
+                                .get_value(&pos, COL_DEVICE_ID as i32)
+                                .get::<String>()
+                                .ok()
+                                .flatten()
+                        }),
+                ));
+            }
+            UseDevice(device_id) => {
+                if let Some(id) = device_id {
+                    let store: &gtk::ListStore = &self.model.store;
                     let icon_theme = self.icon_theme();
 
                     store.foreach(|_model, _path, pos| {
@@ -123,29 +126,20 @@ impl Widget for DevicesTab {
                                 .unwrap()
                                 .unwrap(),
                         );
-                        let icon = self.get_device_icon(&icon_theme, device_type, false);
+                        let is_active = store
+                            .get_value(pos, COL_DEVICE_ID as i32)
+                            .get::<&str>()
+                            .unwrap()
+                            .unwrap()
+                            == id;
+                        let icon = self.get_device_icon(&icon_theme, device_type, is_active);
                         store.set_value(pos, COL_DEVICE_ICON, &icon.to_value());
                         false
                     });
 
-                    let device_type = Self::device_type_from_num(
-                        store
-                            .get_value(&sel_pos, COL_DEVICE_TYPE as i32)
-                            .get::<u8>()
-                            .unwrap()
-                            .unwrap(),
-                    );
-                    let icon = self.get_device_icon(&icon_theme, device_type, true);
-                    store.set_value(&sel_pos, COL_DEVICE_ICON, &icon.to_value());
+                    self.model.spotify.tell(SpotifyCmd::UseDevice { id });
                 }
             }
-            Click(event) if event.get_button() == 3 => {
-                self.context_menu.popup_at_pointer(Some(&event));
-            }
-            Click(event) if event.get_event_type() == gdk::EventType::DoubleButtonPress => {
-                self.model.stream.emit(UseChosenDevice);
-            }
-            Click(_) => {}
         }
     }
 
@@ -234,7 +228,10 @@ impl Widget for DevicesTab {
                 model: Some(&self.model.store),
                 selection_mode: gtk::SelectionMode::Single,
 
-                button_press_event(_, event) => (DevicesMsg::Click(event.clone()), Inhibit(false))
+                item_activated(view, path) => DevicesMsg::UseDevice(
+                    view.get_model().and_then(|model| {
+                        model.get_iter(path).and_then(|pos| model.get_value(&pos, COL_DEVICE_ID as i32).get::<String>().ok().flatten())
+                    })),
             },
 
             #[name="context_menu"]
