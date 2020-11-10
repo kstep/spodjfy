@@ -10,7 +10,7 @@ use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
-use rspotify::senum::RepeatState;
+use rspotify::senum::{AdditionalType, RepeatState};
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
@@ -438,7 +438,12 @@ impl Spotify {
     }
 
     async fn get_playback_state(&self) -> ClientResult<Option<CurrentlyPlaybackContext>> {
-        self.client.current_playback(None, None).await
+        self.client
+            .current_playback(
+                None,
+                Some(vec![AdditionalType::Track, AdditionalType::Episode]),
+            )
+            .await
     }
 
     async fn start_playback(&self) -> ClientResult<()> {

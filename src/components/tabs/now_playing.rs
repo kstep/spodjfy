@@ -386,13 +386,13 @@ impl Widget for NowPlayingTab {
                         widget_name: "track_name_label",
                         halign: gtk::Align::Start,
                         hexpand: true,
-                        label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
-                            PlayingItem::Track(track) => Some(&*track.name),
-                            _ => None
+                        label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                            PlayingItem::Track(track) => &*track.name,
+                            PlayingItem::Episode(episode) => &*episode.name,
                         }).unwrap_or("<Nothing>"),
-                        uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
-                            PlayingItem::Track(track) => Some(&*track.uri),
-                            _ => None
+                        uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                            PlayingItem::Track(track) => &*track.uri,
+                            PlayingItem::Episode(episode) => &*episode.uri,
                         }).unwrap_or(""),
 
                         activate_link(btn) => (NowPlayingMsg::GoToTrack(btn.get_uri().map(|u| u.into())), Inhibit(true)),
@@ -400,18 +400,18 @@ impl Widget for NowPlayingTab {
                     #[name="track_artists_label"]
                     gtk::Label {
                         halign: gtk::Align::Start,
-                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
-                            PlayingItem::Track(track) => Some(track.artists.iter().map(|artist| &artist.name).join(", ")),
-                            _ => None
+                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                            PlayingItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
+                            PlayingItem::Episode(episode) => episode.show.publisher.clone(),
                         }).as_deref().unwrap_or("<Unknown Artist>")
                     },
                     #[name="track_album_label"]
                     gtk::Label {
                         widget_name: "track_album_label",
                         halign: gtk::Align::Start,
-                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
-                            PlayingItem::Track(track) => Some(&*track.album.name),
-                            _ => None
+                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                            PlayingItem::Track(track) => &*track.album.name,
+                            PlayingItem::Episode(episode) => &*episode.show.name,
                         }).unwrap_or("")
                     },
                 },
@@ -483,9 +483,9 @@ impl Widget for NowPlayingTab {
                 },
                 gtk::Label {
                     margin_end: 10,
-                    text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).and_then(|it| match it {
-                        PlayingItem::Track(track) => Some(track.duration_ms),
-                        _ => None
+                    text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                        PlayingItem::Track(track) => track.duration_ms,
+                        PlayingItem::Episode(episode) => episode.duration_ms,
                     }).map(crate::utils::humanize_time).as_deref().unwrap_or("??:??")
                 },
             },
