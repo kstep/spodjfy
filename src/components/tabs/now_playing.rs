@@ -514,7 +514,16 @@ impl Widget for NowPlayingTab {
                     value_pos: gtk::PositionType::Left,
                     value: self.model.state.as_ref().and_then(|s| s.progress_ms).unwrap_or(0) as f64,
 
-                    change_value(_, _, pos) => (NowPlayingMsg::SeekTrack(pos as u32), Inhibit(false))
+                    change_value(_, _, pos) => (NowPlayingMsg::SeekTrack(pos as u32), Inhibit(false)),
+                    format_value(seek, value) => return {
+                        let value = value as u32;
+                        let duration = seek.get_adjustment().get_upper() as u32;
+                        format!(
+                            "{} / -{}",
+                            crate::utils::humanize_time(value),
+                            crate::utils::humanize_time(duration - value)
+                        )
+                    },
                 },
                 gtk::Label {
                     margin_end: 10,
@@ -619,15 +628,6 @@ impl Widget for NowPlayingTab {
     fn init_view(&mut self) {
         let stream = self.model.stream.clone();
 
-        self.track_seek_bar.connect_format_value(|seek, value| {
-            let value = value as u32;
-            let duration = seek.get_adjustment().get_upper() as u32;
-            format!(
-                "{} / -{}",
-                crate::utils::humanize_time(value),
-                crate::utils::humanize_time(duration - value)
-            )
-        });
         self.tracks_view.stream().observe(move |msg| {
             if let TrackListMsg::PlayingNewTrack = msg {
                 stream.emit(NowPlayingMsg::LoadState);
