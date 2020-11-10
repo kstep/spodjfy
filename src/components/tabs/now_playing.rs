@@ -80,7 +80,7 @@ pub enum NowPlayingMsg {
     SeekTrack(u32),
     SetVolume(u8),
     SetShuffle(bool),
-    SetRepeatMode(bool),
+    ToggleRepeatMode,
     GoToTrack(Option<String>),
 }
 
@@ -270,15 +270,31 @@ impl Widget for NowPlayingTab {
                 }
                 self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
             }
-            SetRepeatMode(mode) => {
-                let mode = if mode {
-                    RepeatState::Context
-                } else {
-                    RepeatState::Off
+            ToggleRepeatMode => {
+                let mode = match self
+                    .model
+                    .state
+                    .as_ref()
+                    .map(|s| s.repeat_state)
+                    .unwrap_or(RepeatState::Off)
+                {
+                    RepeatState::Off => RepeatState::Context,
+                    RepeatState::Context => RepeatState::Track,
+                    RepeatState::Track => RepeatState::Off,
                 };
+
                 if let Some(state) = self.model.state.as_mut() {
                     state.repeat_state = mode;
                 }
+                self.repeat_btn.set_active(mode != RepeatState::Off);
+                self.repeat_btn.set_image(Some(&gtk::Image::from_icon_name(
+                    Some(if mode == RepeatState::Track {
+                        "media-playlist-repeat-song"
+                    } else {
+                        "media-playlist-repeat"
+                    }),
+                    gtk::IconSize::LargeToolbar,
+                )));
                 self.model.spotify.tell(SpotifyCmd::SetRepeatMode { mode });
             }
             GoToTrack(track_uri) => {
@@ -535,9 +551,18 @@ impl Widget for NowPlayingTab {
                     #[name="repeat_btn"]
                     gtk::ToggleButton {
                         tooltip_text: Some("Repeat mode"),
-                        image: Some(&gtk::Image::from_icon_name(Some("media-playlist-repeat"), gtk::IconSize::LargeToolbar)),
+                        image: Some(&gtk::Image::from_icon_name(
+                            self.model.state.as_ref()
+                                .map(|s| {
+                                    if s.repeat_state == RepeatState::Track {
+                                        "media-playlist-repeat-song"
+                                    } else {
+                                        "media-playlist-repeat"
+                                    }
+                                }),
+                            gtk::IconSize::LargeToolbar)),
                         active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
-                        toggled(btn) => NowPlayingMsg::SetRepeatMode(btn.get_active()),
+                        toggled(_) => NowPlayingMsg::ToggleRepeatMode,
                     },
                 },
 
