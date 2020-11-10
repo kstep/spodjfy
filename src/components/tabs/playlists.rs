@@ -163,6 +163,7 @@ impl Widget for PlaylistsTab {
                     }
                      */
                     gtk::IconView {
+                        item_width: THUMB_SIZE,
                         pixbuf_column: COL_PLAYLIST_THUMB as i32,
                         text_column: COL_PLAYLIST_NAME as i32,
                         model: Some(&self.model.store),

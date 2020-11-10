@@ -163,6 +163,7 @@ impl Widget for ArtistsTab {
                     }
                      */
                     gtk::IconView {
+                        item_width: THUMB_SIZE,
                         pixbuf_column: COL_ARTIST_THUMB as i32,
                         text_column: COL_ARTIST_NAME as i32,
                         model: Some(&self.model.store),

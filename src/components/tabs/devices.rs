@@ -223,6 +223,7 @@ impl Widget for DevicesTab {
             }
              */
             gtk::IconView {
+                item_width: ICON_SIZE,
                 pixbuf_column: COL_DEVICE_ICON as i32,
                 text_column: COL_DEVICE_NAME as i32,
                 model: Some(&self.model.store),

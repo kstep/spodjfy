@@ -164,6 +164,7 @@ impl Widget for ShowsTab {
                     }
                      */
                     gtk::IconView {
+                        item_width: THUMB_SIZE,
                         pixbuf_column: COL_SHOW_THUMB as i32,
                         text_column: COL_SHOW_NAME as i32,
                         model: Some(&self.model.store),

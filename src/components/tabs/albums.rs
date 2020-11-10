@@ -173,6 +173,7 @@ impl Widget for AlbumsTab {
                         pixbuf_column: COL_ALBUM_THUMB as i32,
                         text_column: COL_ALBUM_NAME as i32,
                         model: Some(&self.model.store),
+                        item_width: THUMB_SIZE,
 
                         item_activated(view, path) => AlbumsMsg::OpenAlbum(
                             view.get_model().and_then(|model| {
