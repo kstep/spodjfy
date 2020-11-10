@@ -7,6 +7,7 @@ use relm_derive::{widget, Msg};
 use serde_derive::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
 use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
@@ -83,28 +84,28 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
-                #now_playing_tab button.link#track_name_label,
-                #now_playing_tab label#context_name_label {
+                #media_controls button.link#track_name_label,
+                #media_controls label#context_name_label {
                     padding: 0;
                     font-weight: bold;
                 }
-                #now_playing_tab button.link#track_name_label {
+                #media_controls button.link#track_name_label {
                     font-size: 32px;
                 }
-                #now_playing_tab label#context_name_label {
+                media_controls label#context_name_label {
                     font-size: 24px;
                 }
 
-                #now_playing_tab label#track_album_label,
-                #now_playing_tab label#context_genres_label {
+                #media_controls label#track_album_label,
+                #media_controls label#context_genres_label {
                     font-style: italic;
                 }
 
-                #now_playing_tab buttonbox button {
+                #media_controls buttonbox button {
                     min-width: 30px;
                     min-height: 30px;
                 }
-                #now_playing_tab buttonbox button#play_btn {
+                #media_controls buttonbox button#play_btn {
                     border-radius: 15px;
                     min-height: 50px;
                     min-width: 80px;
@@ -193,79 +194,85 @@ impl Widget for Win {
                             property_width_request: 300,
                             vexpand: true,
                         },
-                        #[name="stack"]
-                        gtk::Stack {
-                            vexpand: true,
-                            hexpand: true,
-                            transition_type: gtk::StackTransitionType::SlideUpDown,
-
-                            #[name="now_playing_tab"]
-                            NowPlayingTab((self.model.spotify.clone(), self.model.settings.show_notifications)) {
-                               widget_name: "now_playing_tab",
-                               child: {
-                                   name: Some("now_playing_tab"),
-                                   title: Some("\u{25B6} Now playing")
-                               },
+                        gtk::Box(gtk::Orientation::Vertical, 1) {
+                            #[name="media_controls"]
+                            MediaControls((self.model.spotify.clone(), self.model.settings.show_notifications)) {
+                               widget_name: "media_controls",
                             },
 
-                            #[name="favorites_tab"]
-                            FavoritesTab(self.model.spotify.clone()) {
-                                widget_name: "favorites_tab",
-                                child: {
-                                    name: Some("favorites_tab"),
-                                    title: Some("\u{1F31F} Favorites"),
-                                }
-                            },
+                            #[name="stack"]
+                            gtk::Stack {
+                                vexpand: true,
+                                hexpand: true,
+                                transition_type: gtk::StackTransitionType::SlideUpDown,
 
-                            #[name="playlists_tab"]
-                            PlaylistsTab(self.model.spotify.clone()) {
-                                widget_name: "playlists_tab",
-                                child: {
-                                    name: Some("playlists_tab"),
-                                    title: Some("\u{1F4C1} Playlists"),
-                                }
-                            },
-
-                            #[name="artists_tab"]
-                            ArtistsTab(self.model.spotify.clone()) {
-                                widget_name: "artists_tab",
-                                child: {
-                                    name: Some("artists_tab"),
-                                    title: Some("\u{1F935} Artists"),
-                                }
-                            },
-
-                            #[name="albums_tab"]
-                            AlbumsTab(self.model.spotify.clone()) {
-                                widget_name: "albums_tab",
-                                child: {
-                                    name: Some("albums_tab"),
-                                    title: Some("\u{1F4BF} Albums"),
-                                }
-                            },
-
-                            #[name="devices_tab"]
-                            DevicesTab(self.model.spotify.clone()) {
-                                widget_name: "devices_tab",
-                                child: {
-                                    name: Some("devices_tab"),
-                                    title: Some("\u{1F39B} Devices"),
+                                #[name="now_playing_tab"]
+                                NowPlayingTab(self.model.spotify.clone()) {
+                                   widget_name: "now_playing_tab",
+                                   child: {
+                                       name: Some("now_playing_tab"),
+                                       title: Some("\u{25B6} Now playing")
+                                   },
                                 },
-                            },
 
-                            #[name="settings_tab"]
-                            SettingsTab((self.model.settings.clone(), self.model.spotify.clone())) {
-                                widget_name: "settings_tab",
-                                child: {
-                                    name: Some("settings_tab"),
-                                    title: Some("\u{2699} Settings"),
+                                #[name="favorites_tab"]
+                                FavoritesTab(self.model.spotify.clone()) {
+                                    widget_name: "favorites_tab",
+                                    child: {
+                                        name: Some("favorites_tab"),
+                                        title: Some("\u{1F31F} Favorites"),
+                                    }
                                 },
-                            },
 
-                            property_visible_child_name_notify(stack) => Msg::ChangeTab(stack.get_visible_child_name()),
-                        }
+                                #[name="playlists_tab"]
+                                PlaylistsTab(self.model.spotify.clone()) {
+                                    widget_name: "playlists_tab",
+                                    child: {
+                                        name: Some("playlists_tab"),
+                                        title: Some("\u{1F4C1} Playlists"),
+                                    }
+                                },
+
+                                #[name="artists_tab"]
+                                ArtistsTab(self.model.spotify.clone()) {
+                                    widget_name: "artists_tab",
+                                    child: {
+                                        name: Some("artists_tab"),
+                                        title: Some("\u{1F935} Artists"),
+                                    }
+                                },
+
+                                #[name="albums_tab"]
+                                AlbumsTab(self.model.spotify.clone()) {
+                                    widget_name: "albums_tab",
+                                    child: {
+                                        name: Some("albums_tab"),
+                                        title: Some("\u{1F4BF} Albums"),
+                                    }
+                                },
+
+                                #[name="devices_tab"]
+                                DevicesTab(self.model.spotify.clone()) {
+                                    widget_name: "devices_tab",
+                                    child: {
+                                        name: Some("devices_tab"),
+                                        title: Some("\u{1F39B} Devices"),
+                                    },
+                                },
+
+                                #[name="settings_tab"]
+                                SettingsTab((self.model.settings.clone(), self.model.spotify.clone())) {
+                                    widget_name: "settings_tab",
+                                    child: {
+                                        name: Some("settings_tab"),
+                                        title: Some("\u{2699} Settings"),
+                                    },
+                                },
+
+                                property_visible_child_name_notify(stack) => Msg::ChangeTab(stack.get_visible_child_name()),
+                            },
+                        },
                     },
-
                 },
             },
 
@@ -314,5 +321,17 @@ impl Widget for Win {
         });
 
         self.now_playing_tab.emit(NowPlayingMsg::ShowTab);
+
+        let now_playing_stream = self.now_playing_tab.stream().clone();
+
+        self.media_controls.stream().observe(move |msg| match msg {
+            MediaControlsMsg::LoadContext(kind, ref uri) => {
+                now_playing_stream.emit(NowPlayingMsg::LoadTracks(*kind, uri.clone()));
+            }
+            MediaControlsMsg::GoToTrack(Some(uri)) => {
+                now_playing_stream.emit(NowPlayingMsg::GoToTrack(uri.clone()));
+            }
+            _ => {}
+        })
     }
 }

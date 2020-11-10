@@ -1,5 +1,6 @@
 #![allow(clippy::redundant_field_names)]
 
+pub mod media_controls;
 pub mod notifier;
 pub mod spotify;
 pub mod tabs;
