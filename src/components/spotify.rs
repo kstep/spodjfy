@@ -11,6 +11,7 @@ use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::RepeatState;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -529,5 +530,11 @@ impl Spotify {
 
     async fn get_playlist(&self, uri: &str) -> ClientResult<FullPlaylist> {
         self.client.playlist(uri, None, None).await
+    }
+
+    pub fn set_redirect_uri<'a>(&mut self, url: impl Into<Cow<'a, str>>) {
+        if let Some(ref mut oauth) = self.client.oauth {
+            oauth.redirect_uri = url.into().into_owned();
+        }
     }
 }

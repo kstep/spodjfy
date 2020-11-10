@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+use futures_util::TryFutureExt;
 use relm::Widget;
 use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
@@ -41,7 +44,11 @@ async fn main() {
             let client = Arc::new(Mutex::new(
                 Spotify::new(client_id, client_secret, spotify_cache_path).await,
             ));
-            tokio::spawn(spodjfy::login_server::start(client.clone()));
+            tokio::spawn(
+                spodjfy::login_server::start(client.clone()).inspect_err(|error| {
+                    error!("login server error (no autologin is possible): {}", error);
+                }),
+            );
             Spotify::run(client, rx).await;
         });
     });

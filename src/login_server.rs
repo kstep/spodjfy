@@ -1,18 +1,39 @@
 use crate::components::spotify::Spotify;
 use std::io::{Error, ErrorKind};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 
 pub async fn start(spotify: Arc<Mutex<Spotify>>) -> Result<(), Error> {
-    let mut server = TcpListener::bind("127.0.0.1:8888").await?;
+    let (mut server, address) = bind_free_socket().await?;
+
+    let redirect_uri = format!("http://{}/callback", address);
+    info!("login server is listening at {}", redirect_uri);
+    spotify.lock().await.set_redirect_uri(redirect_uri);
 
     loop {
         let (stream, _) = server.accept().await?;
         let spt = spotify.clone();
         let _ = tokio::task::spawn(handle(stream, spt)).await;
     }
+}
+
+async fn bind_free_socket() -> Result<(TcpListener, SocketAddr), Error> {
+    const MIN_PORT: u16 = 8000;
+    const MAX_PORT: u16 = 8010;
+
+    let mut address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    for port in MIN_PORT..=MAX_PORT {
+        address.set_port(port);
+        match TcpListener::bind(address).await {
+            Ok(listener) => return Ok((listener, address)),
+            Err(error) if error.kind() == ErrorKind::AddrInUse => (),
+            Err(error) => return Err(error),
+        }
+    }
+    Err(Error::from(ErrorKind::AddrInUse))
 }
 
 async fn handle(mut stream: TcpStream, spotify: Arc<Mutex<Spotify>>) {
