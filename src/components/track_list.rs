@@ -1,5 +1,5 @@
-use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
-use crate::utils::ImageLoader;
+use crate::image_loader::ImageLoader;
+use crate::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
@@ -628,9 +628,9 @@ where
                         ],
                     );
 
-                    let image = track
-                        .images()
-                        .and_then(|images| crate::utils::find_best_thumb(images, THUMB_SIZE));
+                    let image = track.images().and_then(|images| {
+                        crate::image_loader::find_best_thumb(images, THUMB_SIZE)
+                    });
 
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos.clone()));

@@ -1,4 +1,4 @@
-use crate::components::spotify::Spotify;
+use crate::spotify::Spotify;
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;

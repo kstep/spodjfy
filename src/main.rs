@@ -2,8 +2,8 @@
 extern crate log;
 use futures_util::TryFutureExt;
 use relm::Widget;
-use spodjfy::components::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use spodjfy::components::win::{Params, Settings, Win};
+use spodjfy::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;

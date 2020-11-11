@@ -1,6 +1,6 @@
-use crate::components::spotify::{SpotifyCmd, SpotifyProxy};
 use crate::components::track_list::{TrackList, TrackListMsg};
-use crate::utils::ImageLoader;
+use crate::image_loader::ImageLoader;
+use crate::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{IconViewExt, TreeModelExt};
@@ -83,7 +83,7 @@ impl Widget for PlaylistsTab {
                         &[&playlist.name, &playlist.uri],
                     );
 
-                    let image = crate::utils::find_best_thumb(&playlist.images, THUMB_SIZE);
+                    let image = crate::image_loader::find_best_thumb(&playlist.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }

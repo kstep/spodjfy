@@ -1,5 +1,5 @@
-use crate::components::spotify::SpotifyProxy;
 use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::spotify::SpotifyProxy;
 use relm::Widget;
 use relm_derive::{widget, Msg};
 use rspotify::model::track::SavedTrack;
