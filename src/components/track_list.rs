@@ -1,5 +1,5 @@
 use crate::image_loader::ImageLoader;
-use crate::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;

@@ -1,5 +1,5 @@
 use crate::components::win::Settings;
-use crate::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gtk::{self, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, WidgetExt};
 use relm::Widget;
 use relm_derive::{widget, Msg};

@@ -16,7 +16,7 @@ use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
-use crate::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use rspotify::senum::Type;
 
 #[derive(Clone, Deserialize, Serialize)]

@@ -1,5 +1,5 @@
 use crate::components::track_list::TrackLike;
-use crate::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};

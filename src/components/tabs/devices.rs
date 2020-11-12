@@ -1,4 +1,4 @@
-use crate::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};

@@ -1,9 +1,8 @@
-#[macro_use]
-extern crate log;
-use futures_util::TryFutureExt;
+use futures::join;
 use relm::Widget;
 use spodjfy::components::win::{Params, Settings, Win};
-use spodjfy::spotify::{Spotify, SpotifyCmd, SpotifyProxy};
+use spodjfy::servers::login::LoginServer;
+use spodjfy::servers::spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -44,12 +43,11 @@ async fn main() {
             let client = Arc::new(Mutex::new(
                 Spotify::new(client_id, client_secret, spotify_cache_path).await,
             ));
-            tokio::spawn(
-                spodjfy::login_server::start(client.clone()).inspect_err(|error| {
-                    error!("login server error (no autologin is possible): {}", error);
-                }),
-            );
-            Spotify::run(client, rx).await;
+
+            let _ = join! {
+                LoginServer::new(client.clone()).spawn(),
+                SpotifyServer::new(client, rx).spawn(),
+            };
         });
     });
 
