@@ -351,7 +351,5 @@ impl Widget for Win {
             }
             _ => {}
         });
-
-        self.recent_tab.emit(RecentMsg::ShowTab);
     }
 }
