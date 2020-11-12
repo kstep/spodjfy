@@ -31,6 +31,6 @@ impl Widget for RecentTab {
 
     view! {
         #[name="recent_view"]
-        TrackList::<PlayHistory>(self.model.clone()),
+        TrackList::<PlayHistory, Vec<PlayHistory>>(self.model.clone()),
     }
 }

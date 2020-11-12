@@ -15,7 +15,7 @@ use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
-use rspotify::model::page::Page;
+use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullEpisode, Show, SimplifiedEpisode};
@@ -23,13 +23,80 @@ use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
 use std::sync::Arc;
 
+pub trait TrackPage<T> {
+    type Offset;
+    fn items(&self) -> &[T];
+    fn total(&self) -> u32 {
+        self.items().len() as u32
+    }
+    fn init_offset() -> Self::Offset;
+    fn num_offset(&self) -> u32 {
+        0
+    }
+    fn next_offset(&self) -> Option<Self::Offset>;
+}
+
+impl<T> TrackPage<T> for Vec<T> {
+    type Offset = ();
+    fn items(&self) -> &[T] {
+        &self
+    }
+    fn init_offset() -> Self::Offset {
+        ()
+    }
+    fn next_offset(&self) -> Option<Self::Offset> {
+        None
+    }
+}
+
+impl<T> TrackPage<T> for Page<T> {
+    type Offset = u32;
+
+    fn items(&self) -> &[T] {
+        &self.items
+    }
+    fn total(&self) -> u32 {
+        self.total
+    }
+    fn num_offset(&self) -> u32 {
+        self.offset
+    }
+
+    fn init_offset() -> Self::Offset {
+        0
+    }
+    fn next_offset(&self) -> Option<Self::Offset> {
+        if self.next.is_some() {
+            Some(self.offset + self.limit)
+        } else {
+            None
+        }
+    }
+}
+
+impl<T> TrackPage<T> for CursorBasedPage<T> {
+    type Offset = String;
+    fn items(&self) -> &[T] {
+        &self.items
+    }
+    fn total(&self) -> u32 {
+        self.total.unwrap_or(0)
+    }
+    fn init_offset() -> Self::Offset {
+        String::new()
+    }
+    fn next_offset(&self) -> Option<Self::Offset> {
+        self.next.clone()
+    }
+}
+
 pub trait TrackContainer: 'static {
     type Track: TrackLike;
 }
 
-pub trait ControlSpotifyContext {
+pub trait ControlSpotifyContext<T: TrackLike, P: TrackPage<T> = Page<T>> {
     const PAGE_LIMIT: u32;
-    fn load_tracks_page(&self, offset: u32);
+    fn load_tracks_page(&self, offset: P::Offset);
     fn play_tracks(&self, uris: Vec<String>);
 }
 
@@ -350,12 +417,12 @@ impl_track_like_for_playing_item! {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<T: TrackLike> {
+pub enum TrackListMsg<T: TrackLike, P: TrackPage<T>> {
     Clear,
     Reset(T::ParentId, bool),
     Reload,
-    LoadPage(u32, u32),
-    NewPage(Page<T>, u32),
+    LoadPage(P::Offset, u32),
+    NewPage(P, u32),
 
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -386,8 +453,8 @@ const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 const COL_TRACK_TIMELINE: u32 = 11;
 
-pub struct TrackListModel<T: TrackLike> {
-    stream: EventStream<TrackListMsg<T>>,
+pub struct TrackListModel<T: TrackLike, P: TrackPage<T>> {
+    stream: EventStream<TrackListMsg<T, P>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
@@ -397,8 +464,8 @@ pub struct TrackListModel<T: TrackLike> {
     epoch: u32,
 }
 
-pub struct TrackList<T: TrackLike> {
-    model: TrackListModel<T>,
+pub struct TrackList<T: TrackLike, P: TrackPage<T> = Page<T>> {
+    model: TrackListModel<T, P>,
     root: gtk::Box,
     tracks_view: gtk::TreeView,
     context_menu: gtk::Menu,
@@ -410,10 +477,12 @@ impl TrackContainer for () {
     type Track = SavedTrack;
 }
 
-impl ControlSpotifyContext for TrackList<PlayHistory> {
+impl ControlSpotifyContext<PlayHistory, Vec<PlayHistory>>
+    for TrackList<PlayHistory, Vec<PlayHistory>>
+{
     const PAGE_LIMIT: u32 = 50;
 
-    fn load_tracks_page(&self, _offset: u32) {
+    fn load_tracks_page(&self, _offset: ()) {
         let epoch = self.model.epoch;
 
         self.model.spotify.ask(
@@ -422,21 +491,7 @@ impl ControlSpotifyContext for TrackList<PlayHistory> {
                 tx,
                 limit: Self::PAGE_LIMIT,
             },
-            move |items| {
-                let total = items.len() as u32;
-                TrackListMsg::NewPage(
-                    Page {
-                        href: String::new(),
-                        items,
-                        offset: 0,
-                        limit: Self::PAGE_LIMIT,
-                        next: None,
-                        previous: None,
-                        total,
-                    },
-                    epoch,
-                )
-            },
+            move |items| TrackListMsg::NewPage(items, epoch),
         );
     }
 
@@ -445,7 +500,7 @@ impl ControlSpotifyContext for TrackList<PlayHistory> {
     }
 }
 
-impl ControlSpotifyContext for TrackList<SavedTrack> {
+impl ControlSpotifyContext<SavedTrack> for TrackList<SavedTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -470,7 +525,7 @@ impl TrackContainer for SimplifiedPlaylist {
     type Track = PlaylistTrack;
 }
 
-impl ControlSpotifyContext for TrackList<PlaylistTrack> {
+impl ControlSpotifyContext<PlaylistTrack> for TrackList<PlaylistTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -516,7 +571,7 @@ impl TrackContainer for Show {
     type Track = SimplifiedEpisode;
 }
 
-impl ControlSpotifyContext for TrackList<SimplifiedEpisode> {
+impl ControlSpotifyContext<SimplifiedEpisode> for TrackList<SimplifiedEpisode> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -546,7 +601,7 @@ impl ControlSpotifyContext for TrackList<SimplifiedEpisode> {
     }
 }
 
-impl ControlSpotifyContext for TrackList<SimplifiedTrack> {
+impl ControlSpotifyContext<SimplifiedTrack> for TrackList<SimplifiedTrack> {
     const PAGE_LIMIT: u32 = 10;
 
     fn load_tracks_page(&self, offset: u32) {
@@ -580,7 +635,7 @@ impl TrackContainer for FullPlaylist {
     type Track = PlaylistTrack;
 }
 
-impl<T: TrackLike> TrackList<T> {
+impl<T: TrackLike, P: TrackPage<T>> TrackList<T, P> {
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_duration = 0;
@@ -594,18 +649,19 @@ impl<T: TrackLike> TrackList<T> {
         self.progress_bar.pulse();
         self.model
             .stream
-            .emit(TrackListMsg::LoadPage(0, self.model.epoch))
+            .emit(TrackListMsg::LoadPage(P::init_offset(), self.model.epoch))
     }
 }
 
-impl<T> Update for TrackList<T>
+impl<T, P> Update for TrackList<T, P>
 where
     T: TrackLike + 'static,
-    TrackList<T>: ControlSpotifyContext,
+    P: TrackPage<T> + 'static,
+    TrackList<T, P>: ControlSpotifyContext<T, P>,
 {
-    type Model = TrackListModel<T>;
+    type Model = TrackListModel<T, P>;
     type ModelParam = Arc<SpotifyProxy>;
-    type Msg = TrackListMsg<T>;
+    type Msg = TrackListMsg<T, P>;
 
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> Self::Model {
         let store = gtk::ListStore::new(&[
@@ -661,11 +717,11 @@ where
             NewPage(page, epoch) if epoch == self.model.epoch => {
                 let stream = &self.model.stream;
                 let store = &self.model.store;
-                let tracks = page.items;
-                let offset = page.offset;
+                let tracks = page.items();
+                let offset = page.num_offset();
 
                 self.progress_bar
-                    .set_fraction((page.offset as f64 + tracks.len() as f64) / page.total as f64);
+                    .set_fraction((offset as f64 + tracks.len() as f64) / page.total() as f64);
 
                 let mut uris = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
@@ -715,10 +771,10 @@ where
 
                 self.model.total_duration += page_duration;
 
-                if page.next.is_some() {
-                    stream.emit(LoadPage(offset + Self::PAGE_LIMIT, self.model.epoch));
+                if let Some(next_offset) = page.next_offset() {
+                    stream.emit(LoadPage(next_offset, self.model.epoch));
                 } else {
-                    self.model.total_tracks = page.total;
+                    self.model.total_tracks = page.total();
 
                     let status_ctx = self.status_bar.get_context_id("totals");
                     self.progress_bar.set_visible(false);
@@ -830,10 +886,11 @@ where
     }
 }
 
-impl<T> Widget for TrackList<T>
+impl<T, P> Widget for TrackList<T, P>
 where
     T: TrackLike + 'static,
-    TrackList<T>: ControlSpotifyContext,
+    P: TrackPage<T> + 'static,
+    TrackList<T, P>: ControlSpotifyContext<T, P>,
 {
     type Root = gtk::Box;
 

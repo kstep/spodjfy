@@ -9,12 +9,12 @@ use std::sync::Arc;
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
-use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
+use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
