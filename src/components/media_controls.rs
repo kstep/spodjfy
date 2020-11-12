@@ -598,9 +598,7 @@ impl Widget for MediaControls {
                         widget_name: "play_btn",
                         tooltip_text: Some("Play"),
                         image: Some(&gtk::Image::from_icon_name(Some("media-playback-start"), gtk::IconSize::LargeToolbar)),
-                        child: {
-                            non_homogeneous: true,
-                        },
+                        child: { non_homogeneous: true },
                         clicked(_) => MediaControlsMsg::Play,
                     },
                     #[name="next_track_btn"]
@@ -612,6 +610,7 @@ impl Widget for MediaControls {
 
                     #[name="shuffle_btn"]
                     gtk::ToggleButton {
+                        child: { non_homogeneous: true },
                         tooltip_text: Some("Shuffle"),
                         image: Some(&gtk::Image::from_icon_name(Some("media-playlist-shuffle"), gtk::IconSize::LargeToolbar)),
                         active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
@@ -619,6 +618,7 @@ impl Widget for MediaControls {
                     },
                     #[name="repeat_btn"]
                     gtk::ToggleButton {
+                        child: { non_homogeneous: true },
                         tooltip_text: Some("Repeat mode"),
                         image: Some(&gtk::Image::from_icon_name(
                             self.model.state.as_ref()
@@ -628,7 +628,7 @@ impl Widget for MediaControls {
                                     } else {
                                         "media-playlist-repeat"
                                     }
-                                }),
+                                }).or_else(|| Some("media-playlist-repeat")),
                             gtk::IconSize::LargeToolbar)),
                         active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
                         toggled(_) => MediaControlsMsg::ToggleRepeatMode,

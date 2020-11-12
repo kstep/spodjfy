@@ -317,20 +317,17 @@ impl Widget for Win {
                 },
                 Unauthorized => {
                     notifier.emit(NotifierMsg::Notify {
-                        title: "Error!".to_owned(),
+                        title: "<b>Error!</b>".to_owned(),
                         body: "Authorization error. Check credentials in <Settings> and click <Authorize> to fix".to_owned(),
                         timeout_ms: 5000
                     });
                     stream.emit(Msg::GoToSettings);
                 },
-                _ => (),
-                /*
                 err => notifier.emit(NotifierMsg::Notify {
-                    title: "Error!".to_owned(),
+                    title: "<b>Error!</b>".to_owned(),
                     body: err.to_string(),
                     timeout_ms: 5000
                 }),
-                 */
             }
         });
 

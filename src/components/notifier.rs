@@ -36,7 +36,7 @@ impl Widget for Notifier {
                 timeout_ms,
             } => {
                 self.stop_timer();
-                self.title.set_text(&title);
+                self.title.set_markup(&title);
                 self.body.set_text(&body);
                 self.revealer.set_reveal_child(true);
 
