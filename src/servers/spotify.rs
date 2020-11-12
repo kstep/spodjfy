@@ -9,6 +9,7 @@ use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
+use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{SavedTrack, SimplifiedTrack};
@@ -207,6 +208,10 @@ pub enum SpotifyCmd {
         tx: ResultSender<FullShow>,
         uri: String,
     },
+    GetRecentTracks {
+        tx: ResultSender<Vec<PlayHistory>>,
+        limit: u32,
+    },
 }
 
 pub struct Spotify {
@@ -396,6 +401,10 @@ impl SpotifyServer {
                     let reply = self.client.lock().await.get_show(&uri).await;
                     tx.send(reply)?;
                 }
+                GetRecentTracks { tx, limit } => {
+                    let reply = self.client.lock().await.get_recent_tracks(limit).await;
+                    tx.send(reply)?;
+                }
             }
         }
     }
@@ -407,6 +416,13 @@ impl Spotify {
             client: Self::create_client(id, secret, cache_path.clone()).await,
             cache_path,
         }
+    }
+
+    async fn get_recent_tracks(&self, limit: u32) -> ClientResult<Vec<PlayHistory>> {
+        self.client
+            .current_user_recently_played(limit)
+            .await
+            .map(|page| page.items)
     }
 
     async fn get_my_devices(&self) -> ClientResult<Vec<Device>> {

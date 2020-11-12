@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
+use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
@@ -144,6 +145,9 @@ impl Widget for Win {
                 self.stack.set_visible_child(self.settings_tab.widget());
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
+                Some("recent_tab") => {
+                    self.recent_tab.emit(RecentMsg::ShowTab);
+                }
                 Some("settings_tab") => {
                     self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
@@ -206,6 +210,15 @@ impl Widget for Win {
                                 vexpand: true,
                                 hexpand: true,
                                 transition_type: gtk::StackTransitionType::SlideUpDown,
+
+                                #[name="recent_tab"]
+                                RecentTab(self.model.spotify.clone()) {
+                                    widget_name: "recent_tab",
+                                    child: {
+                                        name: Some("recent_tab"),
+                                        title: Some("\u{23F3} Recently played"),
+                                    }
+                                },
 
                                 #[name="favorites_tab"]
                                 FavoritesTab(self.model.spotify.clone()) {
@@ -339,6 +352,6 @@ impl Widget for Win {
             _ => {}
         });
 
-        //self.favorites_tab.emit(FavoritesMsg::ShowTab);
+        self.recent_tab.emit(RecentMsg::ShowTab);
     }
 }

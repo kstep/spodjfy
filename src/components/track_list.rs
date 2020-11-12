@@ -16,6 +16,7 @@ use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
 use rspotify::model::page::Page;
+use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullEpisode, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
@@ -50,6 +51,42 @@ pub trait TrackLike {
 
     fn unavailable_columns() -> &'static [u32] {
         &[]
+    }
+}
+
+impl TrackLike for PlayHistory {
+    type ParentId = ();
+
+    fn id(&self) -> &str {
+        self.track.id()
+    }
+
+    fn uri(&self) -> &str {
+        self.track.uri()
+    }
+
+    fn name(&self) -> &str {
+        self.track.name()
+    }
+
+    fn artists(&self) -> &[SimplifiedArtist] {
+        self.track.artists()
+    }
+
+    fn number(&self) -> u32 {
+        self.track.number()
+    }
+
+    fn album(&self) -> Option<&SimplifiedAlbum> {
+        self.track.album()
+    }
+
+    fn is_playable(&self) -> bool {
+        self.track.is_playable()
+    }
+
+    fn duration(&self) -> u32 {
+        self.track.duration()
     }
 }
 
@@ -371,6 +408,41 @@ pub struct TrackList<T: TrackLike> {
 
 impl TrackContainer for () {
     type Track = SavedTrack;
+}
+
+impl ControlSpotifyContext for TrackList<PlayHistory> {
+    const PAGE_LIMIT: u32 = 50;
+
+    fn load_tracks_page(&self, _offset: u32) {
+        let epoch = self.model.epoch;
+
+        self.model.spotify.ask(
+            self.model.stream.clone(),
+            move |tx| SpotifyCmd::GetRecentTracks {
+                tx,
+                limit: Self::PAGE_LIMIT,
+            },
+            move |items| {
+                let total = items.len() as u32;
+                TrackListMsg::NewPage(
+                    Page {
+                        href: String::new(),
+                        items,
+                        offset: 0,
+                        limit: Self::PAGE_LIMIT,
+                        next: None,
+                        previous: None,
+                        total,
+                    },
+                    epoch,
+                )
+            },
+        );
+    }
+
+    fn play_tracks(&self, uris: Vec<String>) {
+        self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
+    }
 }
 
 impl ControlSpotifyContext for TrackList<SavedTrack> {
