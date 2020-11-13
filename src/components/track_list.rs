@@ -4,7 +4,7 @@ use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{
-    CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, ProgressBarExt, StatusbarExt,
+    ButtonExt, CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, ProgressBarExt, StatusbarExt,
     TreeModelExt, TreeViewColumn, TreeViewExt,
 };
 use itertools::Itertools;
@@ -471,6 +471,7 @@ pub struct TrackList<T: TrackLike, P: TrackPage<T> = Page<T>> {
     context_menu: gtk::Menu,
     status_bar: gtk::Statusbar,
     progress_bar: gtk::ProgressBar,
+    refresh_btn: gtk::Button,
 }
 
 impl TrackContainer for () {
@@ -674,6 +675,7 @@ impl<T: TrackLike, P: TrackPage<T>> TrackList<T, P> {
 
     fn start_load(&mut self) {
         self.model.epoch += 1;
+        self.refresh_btn.set_visible(false);
         self.progress_bar.set_fraction(0.0);
         self.progress_bar.set_visible(true);
         self.progress_bar.pulse();
@@ -808,6 +810,7 @@ where
 
                     let status_ctx = self.status_bar.get_context_id("totals");
                     self.progress_bar.set_visible(false);
+                    self.refresh_btn.set_visible(true);
                     self.status_bar.remove_all(status_ctx);
                     self.status_bar.push(
                         status_ctx,
@@ -1139,6 +1142,7 @@ where
         root.add(&scroller);
 
         let status_bar = gtk::Statusbar::new();
+
         let progress_bar = gtk::ProgressBarBuilder::new()
             .valign(gtk::Align::Center)
             .width_request(200)
@@ -1146,6 +1150,13 @@ where
             .show_text(true)
             .build();
         status_bar.pack_end(&progress_bar, false, true, 0);
+
+        let refresh_btn =
+            gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
+        let stream = relm.stream().clone();
+        refresh_btn.connect_clicked(move |_| stream.emit(TrackListMsg::Reload));
+        status_bar.pack_start(&refresh_btn, false, false, 0);
+
         root.add(&status_bar);
 
         let context_menu = gtk::Menu::new();
@@ -1171,6 +1182,7 @@ where
             context_menu,
             status_bar,
             progress_bar,
+            refresh_btn,
         }
     }
 }
