@@ -1,5 +1,6 @@
-use crate::components::paged_loader::{PageLike, RowLike};
-use crate::image_loader::ImageLoader;
+use crate::loaders::image::ImageLoader;
+use crate::loaders::paged::{PageLike, RowLike};
+use crate::loaders::track::*;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use glib::StaticType;
@@ -8,383 +9,23 @@ use gtk::{
     ButtonExt, CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, ProgressBarExt, StatusbarExt,
     TreeModelExt, TreeViewColumn, TreeViewExt,
 };
-use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
-use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
-use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
-use rspotify::model::image::Image;
-use rspotify::model::page::Page;
-use rspotify::model::playing::PlayHistory;
-use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
-use rspotify::model::show::{FullEpisode, Show, SimplifiedEpisode};
-use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
-use rspotify::model::PlayingItem;
 use std::sync::Arc;
 
-pub trait TrackContainer: 'static {
-    type Track: TrackLike;
-}
-
-pub trait ControlSpotifyContext<T: TrackLike, P: PageLike<T> = Page<T>> {
-    const PAGE_LIMIT: u32;
-    fn load_tracks_page(&self, offset: P::Offset);
+pub trait ControlSpotifyContext {
     fn play_tracks(&self, uris: Vec<String>);
 }
 
-pub trait TrackLike {
-    type ParentId;
-
-    fn id(&self) -> &str;
-    fn uri(&self) -> &str;
-    fn name(&self) -> &str;
-    fn artists(&self) -> &[SimplifiedArtist];
-    fn number(&self) -> u32;
-    fn album(&self) -> Option<&SimplifiedAlbum>;
-    fn is_playable(&self) -> bool;
-    fn duration(&self) -> u32;
-
-    fn images(&self) -> Option<&Vec<Image>> {
-        self.album().map(|album| &album.images)
-    }
-
-    fn unavailable_columns() -> &'static [u32] {
-        &[]
-    }
-}
-
-impl<T: TrackLike> RowLike for T {
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        store.insert_with_values(
-            None,
-            &[
-                COL_TRACK_ID,
-                COL_TRACK_NAME,
-                COL_TRACK_ARTISTS,
-                COL_TRACK_ALBUM,
-                COL_TRACK_CANT_PLAY,
-                COL_TRACK_DURATION,
-                COL_TRACK_DURATION_MS,
-                COL_TRACK_URI,
-            ],
-            &[
-                &self.id(),
-                &self.name(),
-                &self.artists().iter().map(|artist| &artist.name).join(", "),
-                &self.album().map(|album| &*album.name),
-                &!self.is_playable(),
-                &crate::utils::humanize_time(self.duration()),
-                &self.duration(),
-                &self.uri(),
-            ],
-        )
-    }
-}
-
-impl TrackLike for PlayHistory {
-    type ParentId = ();
-
-    fn id(&self) -> &str {
-        self.track.id()
-    }
-
-    fn uri(&self) -> &str {
-        self.track.uri()
-    }
-
-    fn name(&self) -> &str {
-        self.track.name()
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.artists()
-    }
-
-    fn number(&self) -> u32 {
-        self.track.number()
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.album()
-    }
-
-    fn is_playable(&self) -> bool {
-        self.track.is_playable()
-    }
-
-    fn duration(&self) -> u32 {
-        self.track.duration()
-    }
-}
-
-impl TrackLike for PlaylistTrack {
-    type ParentId = String;
-
-    fn id(&self) -> &str {
-        self.track.as_ref().map(FullTrack::id).unwrap_or("")
-    }
-
-    fn uri(&self) -> &str {
-        self.track.as_ref().map(FullTrack::uri).unwrap_or("")
-    }
-
-    fn name(&self) -> &str {
-        self.track.as_ref().map(FullTrack::name).unwrap_or("")
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.as_ref().map(FullTrack::artists).unwrap_or(&[])
-    }
-
-    fn number(&self) -> u32 {
-        self.track.as_ref().map(FullTrack::number).unwrap_or(0)
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.as_ref().and_then(FullTrack::album)
-    }
-
-    fn is_playable(&self) -> bool {
-        self.track
-            .as_ref()
-            .map(FullTrack::is_playable)
-            .unwrap_or(false)
-    }
-
-    fn duration(&self) -> u32 {
-        self.track.as_ref().map(FullTrack::duration).unwrap_or(0)
-    }
-}
-
-impl TrackLike for FullTrack {
-    type ParentId = ();
-
-    fn id(&self) -> &str {
-        self.id.as_deref().unwrap_or("")
-    }
-
-    fn uri(&self) -> &str {
-        &self.uri
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
-
-    fn number(&self) -> u32 {
-        self.track_number
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        Some(&self.album)
-    }
-
-    fn is_playable(&self) -> bool {
-        self.is_playable.unwrap_or(true)
-    }
-
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-}
-
-impl TrackLike for SimplifiedTrack {
-    type ParentId = String;
-
-    fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ALBUM, COL_TRACK_THUMB]
-    }
-
-    fn id(&self) -> &str {
-        self.id.as_deref().unwrap_or("")
-    }
-
-    fn uri(&self) -> &str {
-        &self.uri
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
-
-    fn number(&self) -> u32 {
-        self.track_number
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
-    fn is_playable(&self) -> bool {
-        true
-    }
-
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-}
-
-impl TrackLike for SavedTrack {
-    type ParentId = String;
-
-    fn id(&self) -> &str {
-        self.track.id()
-    }
-
-    fn uri(&self) -> &str {
-        self.track.uri()
-    }
-
-    fn name(&self) -> &str {
-        self.track.name()
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.artists()
-    }
-
-    fn number(&self) -> u32 {
-        self.track.number()
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.album()
-    }
-
-    fn is_playable(&self) -> bool {
-        self.track.is_playable()
-    }
-
-    fn duration(&self) -> u32 {
-        self.track.duration()
-    }
-}
-
-impl TrackLike for FullEpisode {
-    type ParentId = ();
-
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn uri(&self) -> &str {
-        &self.uri
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &[]
-    }
-
-    fn number(&self) -> u32 {
-        0
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
-    fn is_playable(&self) -> bool {
-        self.is_playable
-    }
-
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-
-    fn images(&self) -> Option<&Vec<Image>> {
-        Some(&self.images)
-    }
-
-    fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
-    }
-}
-
-impl TrackLike for SimplifiedEpisode {
-    type ParentId = String;
-
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn uri(&self) -> &str {
-        &self.uri
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &[]
-    }
-
-    fn number(&self) -> u32 {
-        0
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
-    fn is_playable(&self) -> bool {
-        self.is_playable
-    }
-
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-
-    fn images(&self) -> Option<&Vec<Image>> {
-        Some(&self.images)
-    }
-
-    fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_BPM]
-    }
-}
-
-macro_rules! impl_track_like_for_playing_item {
-    ($($method:ident -> $tpe:ty),+) => {
-        impl TrackLike for PlayingItem {
-            type ParentId = ();
-            $(fn $method(&self) -> $tpe {
-                match self {
-                    PlayingItem::Track(track) => track.$method(),
-                    PlayingItem::Episode(episode) => episode.$method(),
-                }
-            })+
-        }
-    }
-}
-impl_track_like_for_playing_item! {
-    id -> &str, uri -> &str, name -> &str,
-    artists -> &[SimplifiedArtist], number -> u32,
-    album -> Option<&SimplifiedAlbum>, is_playable -> bool,
-    duration -> u32, images -> Option<&Vec<Image>>
-}
-
 #[derive(Msg)]
-pub enum TrackListMsg<T: TrackLike, P: PageLike<T>> {
+pub enum TrackListMsg<Loader: TracksLoader> {
     Clear,
-    Reset(T::ParentId, bool),
+    Reset(Loader::ParentId, bool),
     Reload,
-    LoadPage(P::Offset, u32),
-    NewPage(P, u32),
+    LoadPage(<Loader::Page as PageLike<Loader::Track>>::Offset, usize),
+    NewPage(Loader::Page, usize),
 
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -402,32 +43,18 @@ pub enum TrackListMsg<T: TrackLike, P: PageLike<T>> {
 
 const THUMB_SIZE: i32 = 32;
 
-const COL_TRACK_ID: u32 = 0;
-const COL_TRACK_THUMB: u32 = 1;
-const COL_TRACK_NAME: u32 = 2;
-const COL_TRACK_ARTISTS: u32 = 3;
-const COL_TRACK_NUMBER: u32 = 4;
-const COL_TRACK_ALBUM: u32 = 5;
-const COL_TRACK_CANT_PLAY: u32 = 6;
-const COL_TRACK_DURATION: u32 = 7;
-const COL_TRACK_DURATION_MS: u32 = 8;
-const COL_TRACK_URI: u32 = 9;
-const COL_TRACK_BPM: u32 = 10;
-const COL_TRACK_TIMELINE: u32 = 11;
-
-pub struct TrackListModel<T: TrackLike, P: PageLike<T>> {
-    stream: EventStream<TrackListMsg<T, P>>,
+pub struct TrackListModel<Loader: TracksLoader> {
+    stream: EventStream<TrackListMsg<Loader>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     image_loader: ImageLoader,
-    parent_id: Option<T::ParentId>,
+    tracks_loader: Option<Loader>,
     total_tracks: u32,
     total_duration: u32,
-    epoch: u32,
 }
 
-pub struct TrackList<T: TrackLike, P: PageLike<T> = Page<T>> {
-    model: TrackListModel<T, P>,
+pub struct TrackList<Loader: TracksLoader> {
+    model: TrackListModel<Loader>,
     root: gtk::Box,
     tracks_view: gtk::TreeView,
     context_menu: gtk::Menu,
@@ -436,31 +63,7 @@ pub struct TrackList<T: TrackLike, P: PageLike<T> = Page<T>> {
     refresh_btn: gtk::Button,
 }
 
-impl TrackContainer for () {
-    type Track = SavedTrack;
-}
-
-impl ControlSpotifyContext<PlayHistory, Vec<PlayHistory>>
-    for TrackList<PlayHistory, Vec<PlayHistory>>
-{
-    const PAGE_LIMIT: u32 = 50;
-
-    fn load_tracks_page(&self, _offset: ()) {
-        let epoch = self.model.epoch;
-
-        self.model
-            .spotify
-            .ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetRecentTracks {
-                    tx,
-                    limit: Self::PAGE_LIMIT,
-                },
-                move |items| TrackListMsg::NewPage(items, epoch),
-            )
-            .unwrap();
-    }
-
+impl ControlSpotifyContext for TrackList<RecentLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
         self.model
             .spotify
@@ -469,25 +72,7 @@ impl ControlSpotifyContext<PlayHistory, Vec<PlayHistory>>
     }
 }
 
-impl ControlSpotifyContext<SavedTrack> for TrackList<SavedTrack> {
-    const PAGE_LIMIT: u32 = 10;
-
-    fn load_tracks_page(&self, offset: u32) {
-        let epoch = self.model.epoch;
-        self.model
-            .spotify
-            .ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetMyTracks {
-                    tx,
-                    limit: Self::PAGE_LIMIT,
-                    offset,
-                },
-                move |reply| TrackListMsg::NewPage(reply, epoch),
-            )
-            .unwrap();
-    }
-
+impl ControlSpotifyContext for TrackList<SavedLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
         self.model
             .spotify
@@ -496,39 +81,13 @@ impl ControlSpotifyContext<SavedTrack> for TrackList<SavedTrack> {
     }
 }
 
-impl TrackContainer for SimplifiedPlaylist {
-    type Track = PlaylistTrack;
-}
-
-impl ControlSpotifyContext<PlaylistTrack> for TrackList<PlaylistTrack> {
-    const PAGE_LIMIT: u32 = 10;
-
-    fn load_tracks_page(&self, offset: u32) {
-        if let Some(ref parent_id) = self.model.parent_id {
-            let parent_id = parent_id.clone();
-            let epoch = self.model.epoch;
-            self.model
-                .spotify
-                .ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetPlaylistTracks {
-                        tx,
-                        uri: parent_id,
-                        limit: Self::PAGE_LIMIT,
-                        offset,
-                    },
-                    move |reply| TrackListMsg::NewPage(reply, epoch),
-                )
-                .unwrap();
-        }
-    }
-
+impl ControlSpotifyContext for TrackList<PlaylistLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref parent_id) = self.model.parent_id {
+        if let Some(ref loader) = self.model.tracks_loader {
             self.model
                 .spotify
                 .tell(SpotifyCmd::PlayContext {
-                    uri: parent_id.clone(),
+                    uri: loader.parent_id(),
                     start_uri: uris.first().cloned(),
                 })
                 .unwrap();
@@ -536,51 +95,13 @@ impl ControlSpotifyContext<PlaylistTrack> for TrackList<PlaylistTrack> {
     }
 }
 
-impl TrackContainer for SimplifiedAlbum {
-    type Track = SimplifiedTrack;
-}
-
-impl TrackContainer for FullAlbum {
-    type Track = SimplifiedTrack;
-}
-
-impl TrackContainer for SavedAlbum {
-    type Track = SimplifiedTrack;
-}
-
-impl TrackContainer for Show {
-    type Track = SimplifiedEpisode;
-}
-
-impl ControlSpotifyContext<SimplifiedEpisode> for TrackList<SimplifiedEpisode> {
-    const PAGE_LIMIT: u32 = 10;
-
-    fn load_tracks_page(&self, offset: u32) {
-        if let Some(ref parent_id) = self.model.parent_id {
-            let parent_id = parent_id.clone();
-            let epoch = self.model.epoch;
-            self.model
-                .spotify
-                .ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetShowEpisodes {
-                        tx,
-                        uri: parent_id,
-                        limit: Self::PAGE_LIMIT,
-                        offset,
-                    },
-                    move |reply| TrackListMsg::NewPage(reply, epoch),
-                )
-                .unwrap();
-        }
-    }
-
+impl ControlSpotifyContext for TrackList<ShowLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref parent_id) = self.model.parent_id {
+        if let Some(ref loader) = self.model.tracks_loader {
             self.model
                 .spotify
                 .tell(SpotifyCmd::PlayContext {
-                    uri: parent_id.clone(),
+                    uri: loader.parent_id(),
                     start_uri: uris.first().cloned(),
                 })
                 .unwrap();
@@ -588,35 +109,13 @@ impl ControlSpotifyContext<SimplifiedEpisode> for TrackList<SimplifiedEpisode> {
     }
 }
 
-impl ControlSpotifyContext<SimplifiedTrack> for TrackList<SimplifiedTrack> {
-    const PAGE_LIMIT: u32 = 10;
-
-    fn load_tracks_page(&self, offset: u32) {
-        if let Some(ref parent_id) = self.model.parent_id {
-            let parent_id = parent_id.clone();
-            let epoch = self.model.epoch;
-            self.model
-                .spotify
-                .ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetAlbumTracks {
-                        tx,
-                        uri: parent_id,
-                        limit: Self::PAGE_LIMIT,
-                        offset,
-                    },
-                    move |reply| TrackListMsg::NewPage(reply, epoch),
-                )
-                .unwrap();
-        }
-    }
-
+impl ControlSpotifyContext for TrackList<AlbumLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref parent_id) = self.model.parent_id {
+        if let Some(ref loader) = self.model.tracks_loader {
             self.model
                 .spotify
                 .tell(SpotifyCmd::PlayContext {
-                    uri: parent_id.clone(),
+                    uri: loader.parent_id(),
                     start_uri: uris.first().cloned(),
                 })
                 .unwrap();
@@ -624,11 +123,7 @@ impl ControlSpotifyContext<SimplifiedTrack> for TrackList<SimplifiedTrack> {
     }
 }
 
-impl TrackContainer for FullPlaylist {
-    type Track = PlaylistTrack;
-}
-
-impl<T: TrackLike, P: PageLike<T>> TrackList<T, P> {
+impl<Loader: TracksLoader> TrackList<Loader> {
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_duration = 0;
@@ -636,26 +131,43 @@ impl<T: TrackLike, P: PageLike<T>> TrackList<T, P> {
     }
 
     fn start_load(&mut self) {
-        self.model.epoch += 1;
-        self.refresh_btn.set_visible(false);
-        self.progress_bar.set_fraction(0.0);
-        self.progress_bar.set_visible(true);
-        self.progress_bar.pulse();
-        self.model
-            .stream
-            .emit(TrackListMsg::LoadPage(P::init_offset(), self.model.epoch))
+        if let Some(ref mut loader) = self.model.tracks_loader {
+            *loader = Loader::new(loader.parent_id());
+            let epoch = loader.uuid();
+            self.refresh_btn.set_visible(false);
+            self.progress_bar.set_fraction(0.0);
+            self.progress_bar.set_visible(true);
+            self.progress_bar.pulse();
+            self.model
+                .stream
+                .emit(TrackListMsg::LoadPage(Loader::Page::init_offset(), epoch));
+        }
+    }
+
+    fn load_tracks_page(&self, offset: <Loader::Page as PageLike<Loader::Track>>::Offset) {
+        if let Some(ref loader) = self.model.tracks_loader {
+            let epoch = loader.uuid();
+            let loader = loader.clone();
+            self.model
+                .spotify
+                .ask(
+                    self.model.stream.clone(),
+                    move |tx| loader.load_tracks_page(tx, offset),
+                    move |reply| TrackListMsg::NewPage(reply, epoch),
+                )
+                .unwrap();
+        }
     }
 }
 
-impl<T, P> Update for TrackList<T, P>
+impl<Loader> Update for TrackList<Loader>
 where
-    T: TrackLike + 'static,
-    P: PageLike<T> + 'static,
-    TrackList<T, P>: ControlSpotifyContext<T, P>,
+    Loader: TracksLoader,
+    TrackList<Loader>: ControlSpotifyContext,
 {
-    type Model = TrackListModel<T, P>;
+    type Model = TrackListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
-    type Msg = TrackListMsg<T, P>;
+    type Msg = TrackListMsg<Loader>;
 
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> Self::Model {
         let store = gtk::ListStore::new(&[
@@ -680,10 +192,9 @@ where
             spotify,
             store,
             image_loader: ImageLoader::new_with_resize(THUMB_SIZE),
-            parent_id: None,
+            tracks_loader: None,
             total_duration: 0,
             total_tracks: 0,
-            epoch: 0,
         }
     }
 
@@ -694,7 +205,7 @@ where
                 self.clear_store();
             }
             Reset(parent_id, reload) => {
-                self.model.parent_id.replace(parent_id);
+                self.model.tracks_loader = Some(Loader::new(parent_id));
                 self.clear_store();
                 if reload {
                     self.start_load()
@@ -704,11 +215,28 @@ where
                 self.clear_store();
                 self.start_load();
             }
-            LoadPage(offset, epoch) if epoch == self.model.epoch => {
-                self.load_tracks_page(offset);
+            LoadPage(offset, epoch) => {
+                if epoch
+                    == self
+                        .model
+                        .tracks_loader
+                        .as_ref()
+                        .map_or(0, |ldr| ldr.uuid())
+                {
+                    self.load_tracks_page(offset);
+                }
             }
-            LoadPage(_, _) => {}
-            NewPage(page, epoch) if epoch == self.model.epoch => {
+            NewPage(page, epoch) => {
+                if epoch
+                    != self
+                        .model
+                        .tracks_loader
+                        .as_ref()
+                        .map_or(0, |ldr| ldr.uuid())
+                {
+                    return;
+                }
+
                 let stream = &self.model.stream;
                 let store = &self.model.store;
                 let tracks = page.items();
@@ -721,7 +249,7 @@ where
                 let mut iters = Vec::with_capacity(tracks.len());
 
                 let mut page_duration = 0;
-                for (idx, track) in tracks.into_iter().enumerate() {
+                for (idx, track) in tracks.iter().enumerate() {
                     let pos = track.append_to_store(store);
                     store.set(
                         &pos,
@@ -733,7 +261,7 @@ where
                     );
 
                     let image = track.images().and_then(|images| {
-                        crate::image_loader::find_best_thumb(images, THUMB_SIZE)
+                        crate::loaders::image::find_best_thumb(images, THUMB_SIZE)
                     });
 
                     if let Some(url) = image {
@@ -748,7 +276,7 @@ where
                 self.model.total_duration += page_duration;
 
                 if let Some(next_offset) = page.next_offset() {
-                    stream.emit(LoadPage(next_offset, self.model.epoch));
+                    stream.emit(LoadPage(next_offset, epoch));
                 } else {
                     self.model.total_tracks = page.total();
 
@@ -766,11 +294,10 @@ where
                     );
                 }
 
-                if !<T as TrackLike>::unavailable_columns().contains(&COL_TRACK_BPM) {
+                if !Loader::Track::unavailable_columns().contains(&COL_TRACK_BPM) {
                     stream.emit(LoadTracksInfo(uris, iters));
                 }
             }
-            NewPage(_, _) => {}
             LoadTracksInfo(uris, iters) => {
                 self.model
                     .spotify
@@ -866,11 +393,10 @@ where
     }
 }
 
-impl<T, P> Widget for TrackList<T, P>
+impl<Loader> Widget for TrackList<Loader>
 where
-    T: TrackLike + 'static,
-    P: PageLike<T> + 'static,
-    TrackList<T, P>: ControlSpotifyContext<T, P>,
+    Loader: TracksLoader,
+    TrackList<Loader>: ControlSpotifyContext,
 {
     type Root = gtk::Box;
 
@@ -899,7 +425,7 @@ where
             .reorderable(true)
             .expand(true);
 
-        let unavailable_columns = <T as TrackLike>::unavailable_columns();
+        let unavailable_columns = Loader::Track::unavailable_columns();
 
         if !unavailable_columns.contains(&COL_TRACK_NUMBER) {
             tracks_view.append_column(&{

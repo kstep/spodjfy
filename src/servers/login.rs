@@ -110,10 +110,8 @@ impl LoginServer {
                 })
                 .filter(|s| {
                     !s.is_empty()
-                        && s.chars().all(|c| match c {
-                            '0'..='9' | 'a'..='z' | 'A'..='Z' | '-' | '_' => true,
-                            _ => false,
-                        })
+                        && s.chars()
+                            .all(|c| matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '-' | '_'))
                 })
                 .map(|s| s.to_owned());
 

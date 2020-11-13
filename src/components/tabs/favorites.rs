@@ -1,8 +1,8 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::loaders::track::SavedLoader;
 use crate::servers::spotify::SpotifyProxy;
 use relm::Widget;
 use relm_derive::{widget, Msg};
-use rspotify::model::track::SavedTrack;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -24,7 +24,7 @@ impl Widget for FavoritesTab {
     fn update(&mut self, event: FavoritesMsg) {
         match event {
             FavoritesMsg::ShowTab => {
-                self.tracks.emit(TrackListMsg::Reload);
+                self.tracks.emit(TrackListMsg::Reset((), true));
             }
             FavoritesMsg::GoToTrack(uri) => {
                 self.tracks.emit(TrackListMsg::GoToTrack(uri));
@@ -34,6 +34,6 @@ impl Widget for FavoritesTab {
 
     view! {
         #[name="tracks"]
-        TrackList::<SavedTrack>(self.model.spotify.clone())
+        TrackList::<SavedLoader>(self.model.spotify.clone())
     }
 }

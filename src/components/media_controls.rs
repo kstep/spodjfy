@@ -1,4 +1,4 @@
-use crate::components::track_list::TrackLike;
+use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
@@ -226,7 +226,7 @@ impl Widget for MediaControls {
                 if let Some(item) = state.as_ref().as_ref().and_then(|s| s.item.as_ref()) {
                     let (cover_url, duration_ms, track_uri) = match item {
                         PlayingItem::Track(track) => (
-                            crate::image_loader::find_best_thumb(
+                            crate::loaders::image::find_best_thumb(
                                 track.album.images.iter(),
                                 TRACK_COVER_SIZE,
                             ),
@@ -234,7 +234,7 @@ impl Widget for MediaControls {
                             &*track.uri,
                         ),
                         PlayingItem::Episode(episode) => (
-                            crate::image_loader::find_best_thumb(
+                            crate::loaders::image::find_best_thumb(
                                 episode.images.iter(),
                                 TRACK_COVER_SIZE,
                             ),
@@ -285,7 +285,7 @@ impl Widget for MediaControls {
                 self.model.state = *state;
             }
             LoadCover(url, is_for_track) => {
-                let pixbuf = crate::image_loader::pixbuf_from_url(
+                let pixbuf = crate::loaders::image::pixbuf_from_url(
                     &url,
                     if is_for_track {
                         TRACK_COVER_SIZE
@@ -389,60 +389,57 @@ impl Widget for MediaControls {
             LoadContext(kind, uri) => {
                 let stream = &self.model.stream;
 
-                {
-                    let uri = uri.clone();
-                    match kind {
-                        Type::Playlist => {
-                            self.model
-                                .spotify
-                                .ask(
-                                    stream.clone(),
-                                    |tx| SpotifyCmd::GetPlaylist { tx, uri },
-                                    |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
-                                )
-                                .unwrap();
-                        }
-                        Type::Album => {
-                            self.model
-                                .spotify
-                                .ask(
-                                    stream.clone(),
-                                    |tx| SpotifyCmd::GetAlbum { tx, uri },
-                                    |reply| NewContext(Box::new(PlayContext::Album(reply))),
-                                )
-                                .unwrap();
-                        }
-                        Type::Artist => {
-                            self.model
-                                .spotify
-                                .ask(
-                                    stream.clone(),
-                                    |tx| SpotifyCmd::GetArtist { tx, uri },
-                                    |reply| NewContext(Box::new(PlayContext::Artist(reply))),
-                                )
-                                .unwrap();
-                        }
-                        Type::Show => {
-                            self.model
-                                .spotify
-                                .ask(
-                                    stream.clone(),
-                                    |tx| SpotifyCmd::GetShow { tx, uri },
-                                    |reply| NewContext(Box::new(PlayContext::Show(reply))),
-                                )
-                                .unwrap();
-                        }
-                        _ => {
-                            self.model.context = None;
-                            self.model.context_cover = None;
-                        }
-                    };
-                }
+                match kind {
+                    Type::Playlist => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetPlaylist { tx, uri },
+                                |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
+                            )
+                            .unwrap();
+                    }
+                    Type::Album => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetAlbum { tx, uri },
+                                |reply| NewContext(Box::new(PlayContext::Album(reply))),
+                            )
+                            .unwrap();
+                    }
+                    Type::Artist => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetArtist { tx, uri },
+                                |reply| NewContext(Box::new(PlayContext::Artist(reply))),
+                            )
+                            .unwrap();
+                    }
+                    Type::Show => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetShow { tx, uri },
+                                |reply| NewContext(Box::new(PlayContext::Show(reply))),
+                            )
+                            .unwrap();
+                    }
+                    _ => {
+                        self.model.context = None;
+                        self.model.context_cover = None;
+                    }
+                };
             }
             NewContext(context) => {
                 let images = context.images();
                 if let Some(cover_url) =
-                    crate::image_loader::find_best_thumb(images, CONTEXT_COVER_SIZE)
+                    crate::loaders::image::find_best_thumb(images, CONTEXT_COVER_SIZE)
                 {
                     self.model
                         .stream

@@ -1,5 +1,6 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
-use crate::image_loader::ImageLoader;
+use crate::loaders::image::ImageLoader;
+use crate::loaders::track::PlaylistLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -8,7 +9,7 @@ use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
-use rspotify::model::playlist::{PlaylistTrack, SimplifiedPlaylist};
+use rspotify::model::playlist::SimplifiedPlaylist;
 use std::sync::Arc;
 
 const THUMB_SIZE: i32 = 256;
@@ -86,7 +87,8 @@ impl Widget for PlaylistsTab {
                         &[&playlist.name, &playlist.uri],
                     );
 
-                    let image = crate::image_loader::find_best_thumb(&playlist.images, THUMB_SIZE);
+                    let image =
+                        crate::loaders::image::find_best_thumb(&playlist.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
@@ -134,15 +136,15 @@ impl Widget for PlaylistsTab {
                 ));
             }
             OpenPlaylist(Some((uri, name))) => {
-                self.playlist_view.emit(TrackListMsg::Reset(uri, true));
+                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
 
-                let playlist_widget = self.playlist_view.widget();
+                let playlist_widget = self.tracks_view.widget();
                 self.stack.set_child_title(playlist_widget, Some(&name));
                 self.stack.set_visible_child(playlist_widget);
             }
             OpenPlaylist(None) => {}
             GoToTrack(uri) => {
-                self.playlist_view.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
             }
         }
     }
@@ -179,8 +181,8 @@ impl Widget for PlaylistsTab {
                             })),
                     }
                 },
-                #[name="playlist_view"]
-                TrackList::<PlaylistTrack>(self.model.spotify.clone()),
+                #[name="tracks_view"]
+                TrackList::<PlaylistLoader>(self.model.spotify.clone()),
             },
         }
     }

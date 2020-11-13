@@ -1,5 +1,6 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
-use crate::image_loader::ImageLoader;
+use crate::loaders::image::ImageLoader;
+use crate::loaders::track::AlbumLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -9,7 +10,6 @@ use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SavedAlbum;
 use rspotify::model::page::Page;
-use rspotify::model::track::SimplifiedTrack;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -94,7 +94,7 @@ impl Widget for AlbumsTab {
                     );
 
                     let image =
-                        crate::image_loader::find_best_thumb(&album.album.images, THUMB_SIZE);
+                        crate::loaders::image::find_best_thumb(&album.album.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
@@ -141,15 +141,15 @@ impl Widget for AlbumsTab {
                 ));
             }
             OpenAlbum(Some((uri, name))) => {
-                self.album_view.emit(TrackListMsg::Reset(uri, true));
+                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
 
-                let album_widget = self.album_view.widget();
+                let album_widget = self.tracks_view.widget();
                 self.stack.set_child_title(album_widget, Some(&name));
                 self.stack.set_visible_child(album_widget);
             }
             OpenAlbum(None) => {}
             GoToTrack(uri) => {
-                self.album_view.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
             }
         }
     }
@@ -187,8 +187,8 @@ impl Widget for AlbumsTab {
                             })),
                     }
                 },
-                #[name="album_view"]
-                TrackList::<SimplifiedTrack>(self.model.spotify.clone()),
+                #[name="tracks_view"]
+                TrackList::<AlbumLoader>(self.model.spotify.clone()),
             }
         }
     }

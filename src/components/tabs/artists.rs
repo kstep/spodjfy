@@ -1,5 +1,6 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
-use crate::image_loader::ImageLoader;
+use crate::loaders::image::ImageLoader;
+use crate::loaders::track::AlbumLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -10,7 +11,6 @@ use relm_derive::{widget, Msg};
 use rspotify::model::album::SimplifiedAlbum;
 use rspotify::model::artist::FullArtist;
 use rspotify::model::page::{CursorBasedPage, Page};
-use rspotify::model::track::SimplifiedTrack;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -100,7 +100,7 @@ impl Widget for ArtistsTab {
                         &[&artist.name, &artist.uri],
                     );
 
-                    let image = crate::image_loader::find_best_thumb(&artist.images, THUMB_SIZE);
+                    let image = crate::loaders::image::find_best_thumb(&artist.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos, false));
                     }
@@ -200,7 +200,7 @@ impl Widget for ArtistsTab {
                         &[&album.name, &album.uri],
                     );
 
-                    let image = crate::image_loader::find_best_thumb(&album.images, THUMB_SIZE);
+                    let image = crate::loaders::image::find_best_thumb(&album.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos, true));
                     }
@@ -273,7 +273,7 @@ impl Widget for ArtistsTab {
                 },
 
                 #[name="tracks_view"]
-                TrackList::<SimplifiedTrack>(self.model.spotify.clone()),
+                TrackList::<AlbumLoader>(self.model.spotify.clone()),
             }
         }
     }

@@ -21,9 +21,7 @@ impl<T> PageLike<T> for Vec<T> {
     fn items(&self) -> &[T] {
         &self
     }
-    fn init_offset() -> Self::Offset {
-        ()
-    }
+    fn init_offset() -> Self::Offset {}
 }
 
 impl<T> PageLike<T> for Page<T> {

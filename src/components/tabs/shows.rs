@@ -1,5 +1,6 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
-use crate::image_loader::ImageLoader;
+use crate::loaders::image::ImageLoader;
+use crate::loaders::track::ShowLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -8,7 +9,7 @@ use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::page::Page;
-use rspotify::model::show::{Show, SimplifiedEpisode};
+use rspotify::model::show::Show;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -87,7 +88,8 @@ impl Widget for ShowsTab {
                         &[&show.show.name, &show.show.uri],
                     );
 
-                    let image = crate::image_loader::find_best_thumb(&show.show.images, THUMB_SIZE);
+                    let image =
+                        crate::loaders::image::find_best_thumb(&show.show.images, THUMB_SIZE);
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
@@ -134,15 +136,15 @@ impl Widget for ShowsTab {
                 ));
             }
             OpenShow(Some((uri, name))) => {
-                self.show_view.emit(TrackListMsg::Reset(uri, true));
+                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
 
-                let show_widget = self.show_view.widget();
+                let show_widget = self.tracks_view.widget();
                 self.stack.set_child_title(show_widget, Some(&name));
                 self.stack.set_visible_child(show_widget);
             }
             OpenShow(None) => {}
             GoToTrack(uri) => {
-                self.show_view.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
             }
         }
     }
@@ -180,8 +182,8 @@ impl Widget for ShowsTab {
                             })),
                     }
                 },
-                #[name="show_view"]
-                TrackList::<SimplifiedEpisode>(self.model.spotify.clone()),
+                #[name="tracks_view"]
+                TrackList::<ShowLoader>(self.model.spotify.clone()),
             }
         }
     }

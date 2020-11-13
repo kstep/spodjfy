@@ -3,8 +3,10 @@ use gio::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+type JobQueue = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
+
 pub struct ImageLoader {
-    queue: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
+    queue: JobQueue,
     cache: HashMap<String, Pixbuf>,
     resize: i32,
 }

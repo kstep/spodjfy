@@ -2,7 +2,6 @@
 
 pub mod media_controls;
 pub mod notifier;
-pub mod paged_loader;
 pub mod tabs;
 pub mod track_list;
 pub mod win;

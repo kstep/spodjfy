@@ -1,9 +1,9 @@
 use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::loaders::track::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
 use glib::IsA;
-use relm::{EventStream, Relm, Widget};
+use relm::Widget;
 use relm_derive::{widget, Msg};
-use rspotify::model::playing::PlayHistory;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -14,16 +14,12 @@ pub enum RecentMsg {
 
 pub struct RecentModel {
     spotify: Arc<SpotifyProxy>,
-    stream: EventStream<RecentMsg>,
 }
 
 #[widget]
 impl Widget for RecentTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> RecentModel {
-        RecentModel {
-            spotify,
-            stream: relm.stream().clone(),
-        }
+    fn model(spotify: Arc<SpotifyProxy>) -> RecentModel {
+        RecentModel { spotify }
     }
 
     fn update(&mut self, event: RecentMsg) {
@@ -40,10 +36,10 @@ impl Widget for RecentTab {
 
     view! {
         #[name="recent_view"]
-        TrackList::<PlayHistory, Vec<PlayHistory>>(self.model.spotify.clone()),
+        TrackList::<RecentLoader>(self.model.spotify.clone()),
     }
 
     fn on_add<W: IsA<gtk::Widget> + IsA<glib::Object>>(&self, _parent: W) {
-        // self.model.stream.emit(RecentMsg::ShowTab);
+        self.recent_view.emit(TrackListMsg::Reset((), true));
     }
 }
