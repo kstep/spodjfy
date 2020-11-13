@@ -235,6 +235,13 @@ pub struct Spotify {
 pub enum SpotifyError {
     Recv,
     Send,
+    Timeout,
+}
+
+impl From<tokio::time::Elapsed> for SpotifyError {
+    fn from(_err: tokio::time::Elapsed) -> SpotifyError {
+        SpotifyError::Timeout
+    }
 }
 
 impl<T> From<std::sync::mpsc::SendError<T>> for SpotifyError {
@@ -255,6 +262,8 @@ pub struct SpotifyServer {
 }
 
 impl SpotifyServer {
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn new(client: Arc<Mutex<Spotify>>, channel: Receiver<SpotifyCmd>) -> SpotifyServer {
         SpotifyServer { client, channel }
     }
@@ -266,161 +275,165 @@ impl SpotifyServer {
     }
 
     pub async fn run(self) -> Result<(), SpotifyError> {
-        use SpotifyCmd::*;
-
         loop {
             let msg = self.channel.recv()?;
-            match msg {
-                SetupClient { tx, id, secret } => {
-                    let url = self.client.lock().await.setup_client(id, secret).await;
-                    tx.send(url)?;
-                }
-                StartPlayback => {
-                    let _ = self.client.lock().await.start_playback().await;
-                }
-                SeekTrack { pos } => {
-                    let _ = self.client.lock().await.seek_track(pos).await;
-                }
-                PausePlayback => {
-                    let _ = self.client.lock().await.pause_playback().await;
-                }
-                PlayNextTrack => {
-                    let _ = self.client.lock().await.play_next_track().await;
-                }
-                PlayPrevTrack => {
-                    let _ = self.client.lock().await.play_prev_track().await;
-                }
-                GetPlaybackState { tx } => {
-                    let state = self.client.lock().await.get_playback_state().await;
-                    tx.send(state)?;
-                }
-                GetAlbumTracks {
-                    tx,
-                    limit,
-                    offset,
-                    uri,
-                } => {
-                    let tracks = self
-                        .client
-                        .lock()
-                        .await
-                        .get_album_tracks(&uri, offset, limit)
-                        .await;
-                    tx.send(tracks)?;
-                }
-                GetPlaylistTracks {
-                    tx,
-                    limit,
-                    offset,
-                    uri,
-                } => {
-                    let tracks = self
-                        .client
-                        .lock()
-                        .await
-                        .get_playlist_tracks(&uri, offset, limit)
-                        .await;
-                    tx.send(tracks)?;
-                }
-                GetAuthorizeUrl { tx } => {
-                    let url = self.client.lock().await.get_authorize_url();
-                    tx.send(url)?;
-                }
-                UseDevice { id } => {
-                    let _ = self.client.lock().await.use_device(id).await;
-                }
-                AuthorizeUser { tx, code } => {
-                    let reply = self.client.lock().await.authorize_user(code).await;
-                    tx.send(reply)?;
-                }
-                RefreshUserToken => {
-                    let result = self.client.lock().await.refresh_user_token().await;
-                    info!("refresh access token result: {:?}", result);
-                }
-                GetMyShows { tx, offset, limit } => {
-                    let result = self.client.lock().await.get_my_shows(offset, limit).await;
-                    tx.send(result)?;
-                }
-                GetShowEpisodes {
-                    tx,
-                    uri,
-                    offset,
-                    limit,
-                } => {
-                    let result = self
-                        .client
-                        .lock()
-                        .await
-                        .get_show_episodes(&uri, offset, limit)
-                        .await;
-                    tx.send(result)?;
-                }
-                GetMyArtists { tx, cursor, limit } => {
-                    let artists = self.client.lock().await.get_my_artists(cursor, limit).await;
-                    tx.send(artists)?;
-                }
-                GetMyAlbums { tx, offset, limit } => {
-                    let albums = self.client.lock().await.get_my_albums(offset, limit).await;
-                    tx.send(albums)?;
-                }
-                GetMyPlaylists { tx, offset, limit } => {
-                    let playlists = self
-                        .client
-                        .lock()
-                        .await
-                        .get_my_playlists(offset, limit)
-                        .await;
-                    tx.send(playlists)?;
-                }
-                GetMyTracks { tx, offset, limit } => {
-                    let tracks = self.client.lock().await.get_my_tracks(offset, limit).await;
-                    tx.send(tracks)?;
-                }
-                PlayTracks { uris } => {
-                    let _ = self.client.lock().await.play_tracks(uris).await;
-                }
-                PlayContext { uri, start_uri } => {
-                    let _ = self.client.lock().await.play_context(uri, start_uri).await;
-                }
-                GetTracksFeatures { tx, uris } => {
-                    let features = self.client.lock().await.get_tracks_features(uris).await;
-                    tx.send(features)?;
-                }
-                GetMyDevices { tx } => {
-                    let devices = self.client.lock().await.get_my_devices().await;
-                    tx.send(devices)?;
-                }
-                SetVolume { value } => {
-                    let _ = self.client.lock().await.set_volume(value).await;
-                }
-                SetShuffle { state } => {
-                    let _ = self.client.lock().await.set_shuffle(state).await;
-                }
-                SetRepeatMode { mode } => {
-                    let _ = self.client.lock().await.set_repeat_mode(mode).await;
-                }
-                GetAlbum { tx, uri } => {
-                    let reply = self.client.lock().await.get_album(&uri).await;
-                    tx.send(reply)?;
-                }
-                GetPlaylist { tx, uri } => {
-                    let reply = self.client.lock().await.get_playlist(&uri).await;
-                    tx.send(reply)?;
-                }
-                GetArtist { tx, uri } => {
-                    let reply = self.client.lock().await.get_artist(&uri).await;
-                    tx.send(reply)?;
-                }
-                GetShow { tx, uri } => {
-                    let reply = self.client.lock().await.get_show(&uri).await;
-                    tx.send(reply)?;
-                }
-                GetRecentTracks { tx, limit } => {
-                    let reply = self.client.lock().await.get_recent_tracks(limit).await;
-                    tx.send(reply)?;
-                }
+            tokio::time::timeout(
+                Self::REQUEST_TIMEOUT,
+                Self::handle(self.client.clone(), msg),
+            )
+            .unwrap_or_else(|_| {
+                error!("spotify request timeout");
+                Ok(())
+            })
+            .await?;
+        }
+    }
+
+    async fn handle(client: Arc<Mutex<Spotify>>, msg: SpotifyCmd) -> Result<(), SpotifyError> {
+        use SpotifyCmd::*;
+        match msg {
+            SetupClient { tx, id, secret } => {
+                let url = client.lock().await.setup_client(id, secret).await;
+                tx.send(url)?;
+            }
+            StartPlayback => {
+                let _ = client.lock().await.start_playback().await;
+            }
+            SeekTrack { pos } => {
+                let _ = client.lock().await.seek_track(pos).await;
+            }
+            PausePlayback => {
+                let _ = client.lock().await.pause_playback().await;
+            }
+            PlayNextTrack => {
+                let _ = client.lock().await.play_next_track().await;
+            }
+            PlayPrevTrack => {
+                let _ = client.lock().await.play_prev_track().await;
+            }
+            GetPlaybackState { tx } => {
+                let state = client.lock().await.get_playback_state().await;
+                tx.send(state)?;
+            }
+            GetAlbumTracks {
+                tx,
+                limit,
+                offset,
+                uri,
+            } => {
+                let tracks = client
+                    .lock()
+                    .await
+                    .get_album_tracks(&uri, offset, limit)
+                    .await;
+                tx.send(tracks)?;
+            }
+            GetPlaylistTracks {
+                tx,
+                limit,
+                offset,
+                uri,
+            } => {
+                let tracks = client
+                    .lock()
+                    .await
+                    .get_playlist_tracks(&uri, offset, limit)
+                    .await;
+                tx.send(tracks)?;
+            }
+            GetAuthorizeUrl { tx } => {
+                let url = client.lock().await.get_authorize_url();
+                tx.send(url)?;
+            }
+            UseDevice { id } => {
+                let _ = client.lock().await.use_device(id).await;
+            }
+            AuthorizeUser { tx, code } => {
+                let reply = client.lock().await.authorize_user(code).await;
+                tx.send(reply)?;
+            }
+            RefreshUserToken => {
+                let result = client.lock().await.refresh_user_token().await;
+                info!("refresh access token result: {:?}", result);
+            }
+            GetMyShows { tx, offset, limit } => {
+                let result = client.lock().await.get_my_shows(offset, limit).await;
+                tx.send(result)?;
+            }
+            GetShowEpisodes {
+                tx,
+                uri,
+                offset,
+                limit,
+            } => {
+                let result = client
+                    .lock()
+                    .await
+                    .get_show_episodes(&uri, offset, limit)
+                    .await;
+                tx.send(result)?;
+            }
+            GetMyArtists { tx, cursor, limit } => {
+                let artists = client.lock().await.get_my_artists(cursor, limit).await;
+                tx.send(artists)?;
+            }
+            GetMyAlbums { tx, offset, limit } => {
+                let albums = client.lock().await.get_my_albums(offset, limit).await;
+                tx.send(albums)?;
+            }
+            GetMyPlaylists { tx, offset, limit } => {
+                let playlists = client.lock().await.get_my_playlists(offset, limit).await;
+                tx.send(playlists)?;
+            }
+            GetMyTracks { tx, offset, limit } => {
+                let tracks = client.lock().await.get_my_tracks(offset, limit).await;
+                tx.send(tracks)?;
+            }
+            PlayTracks { uris } => {
+                let _ = client.lock().await.play_tracks(uris).await;
+            }
+            PlayContext { uri, start_uri } => {
+                let _ = client.lock().await.play_context(uri, start_uri).await;
+            }
+            GetTracksFeatures { tx, uris } => {
+                let features = client.lock().await.get_tracks_features(uris).await;
+                tx.send(features)?;
+            }
+            GetMyDevices { tx } => {
+                let devices = client.lock().await.get_my_devices().await;
+                tx.send(devices)?;
+            }
+            SetVolume { value } => {
+                let _ = client.lock().await.set_volume(value).await;
+            }
+            SetShuffle { state } => {
+                let _ = client.lock().await.set_shuffle(state).await;
+            }
+            SetRepeatMode { mode } => {
+                let _ = client.lock().await.set_repeat_mode(mode).await;
+            }
+            GetAlbum { tx, uri } => {
+                let reply = client.lock().await.get_album(&uri).await;
+                tx.send(reply)?;
+            }
+            GetPlaylist { tx, uri } => {
+                let reply = client.lock().await.get_playlist(&uri).await;
+                tx.send(reply)?;
+            }
+            GetArtist { tx, uri } => {
+                let reply = client.lock().await.get_artist(&uri).await;
+                tx.send(reply)?;
+            }
+            GetShow { tx, uri } => {
+                let reply = client.lock().await.get_show(&uri).await;
+                tx.send(reply)?;
+            }
+            GetRecentTracks { tx, limit } => {
+                let reply = client.lock().await.get_recent_tracks(limit).await;
+                tx.send(reply)?;
             }
         }
+        Ok(())
     }
 }
 
