@@ -1,3 +1,4 @@
+use crate::components::paged_loader::{PageLike, RowLike};
 use crate::image_loader::ImageLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
@@ -15,7 +16,7 @@ use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::SimplifiedArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::image::Image;
-use rspotify::model::page::{CursorBasedPage, Page};
+use rspotify::model::page::Page;
 use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullEpisode, Show, SimplifiedEpisode};
@@ -23,78 +24,11 @@ use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
 use std::sync::Arc;
 
-pub trait TrackPage<T> {
-    type Offset;
-    fn items(&self) -> &[T];
-    fn total(&self) -> u32 {
-        self.items().len() as u32
-    }
-    fn init_offset() -> Self::Offset;
-    fn num_offset(&self) -> u32 {
-        0
-    }
-    fn next_offset(&self) -> Option<Self::Offset>;
-}
-
-impl<T> TrackPage<T> for Vec<T> {
-    type Offset = ();
-    fn items(&self) -> &[T] {
-        &self
-    }
-    fn init_offset() -> Self::Offset {
-        ()
-    }
-    fn next_offset(&self) -> Option<Self::Offset> {
-        None
-    }
-}
-
-impl<T> TrackPage<T> for Page<T> {
-    type Offset = u32;
-
-    fn items(&self) -> &[T] {
-        &self.items
-    }
-    fn total(&self) -> u32 {
-        self.total
-    }
-    fn num_offset(&self) -> u32 {
-        self.offset
-    }
-
-    fn init_offset() -> Self::Offset {
-        0
-    }
-    fn next_offset(&self) -> Option<Self::Offset> {
-        if self.next.is_some() {
-            Some(self.offset + self.limit)
-        } else {
-            None
-        }
-    }
-}
-
-impl<T> TrackPage<T> for CursorBasedPage<T> {
-    type Offset = String;
-    fn items(&self) -> &[T] {
-        &self.items
-    }
-    fn total(&self) -> u32 {
-        self.total.unwrap_or(0)
-    }
-    fn init_offset() -> Self::Offset {
-        String::new()
-    }
-    fn next_offset(&self) -> Option<Self::Offset> {
-        self.next.clone()
-    }
-}
-
 pub trait TrackContainer: 'static {
     type Track: TrackLike;
 }
 
-pub trait ControlSpotifyContext<T: TrackLike, P: TrackPage<T> = Page<T>> {
+pub trait ControlSpotifyContext<T: TrackLike, P: PageLike<T> = Page<T>> {
     const PAGE_LIMIT: u32;
     fn load_tracks_page(&self, offset: P::Offset);
     fn play_tracks(&self, uris: Vec<String>);
@@ -118,6 +52,34 @@ pub trait TrackLike {
 
     fn unavailable_columns() -> &'static [u32] {
         &[]
+    }
+}
+
+impl<T: TrackLike> RowLike for T {
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        store.insert_with_values(
+            None,
+            &[
+                COL_TRACK_ID,
+                COL_TRACK_NAME,
+                COL_TRACK_ARTISTS,
+                COL_TRACK_ALBUM,
+                COL_TRACK_CANT_PLAY,
+                COL_TRACK_DURATION,
+                COL_TRACK_DURATION_MS,
+                COL_TRACK_URI,
+            ],
+            &[
+                &self.id(),
+                &self.name(),
+                &self.artists().iter().map(|artist| &artist.name).join(", "),
+                &self.album().map(|album| &*album.name),
+                &!self.is_playable(),
+                &crate::utils::humanize_time(self.duration()),
+                &self.duration(),
+                &self.uri(),
+            ],
+        )
     }
 }
 
@@ -417,7 +379,7 @@ impl_track_like_for_playing_item! {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<T: TrackLike, P: TrackPage<T>> {
+pub enum TrackListMsg<T: TrackLike, P: PageLike<T>> {
     Clear,
     Reset(T::ParentId, bool),
     Reload,
@@ -453,7 +415,7 @@ const COL_TRACK_URI: u32 = 9;
 const COL_TRACK_BPM: u32 = 10;
 const COL_TRACK_TIMELINE: u32 = 11;
 
-pub struct TrackListModel<T: TrackLike, P: TrackPage<T>> {
+pub struct TrackListModel<T: TrackLike, P: PageLike<T>> {
     stream: EventStream<TrackListMsg<T, P>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
@@ -464,7 +426,7 @@ pub struct TrackListModel<T: TrackLike, P: TrackPage<T>> {
     epoch: u32,
 }
 
-pub struct TrackList<T: TrackLike, P: TrackPage<T> = Page<T>> {
+pub struct TrackList<T: TrackLike, P: PageLike<T> = Page<T>> {
     model: TrackListModel<T, P>,
     root: gtk::Box,
     tracks_view: gtk::TreeView,
@@ -666,7 +628,7 @@ impl TrackContainer for FullPlaylist {
     type Track = PlaylistTrack;
 }
 
-impl<T: TrackLike, P: TrackPage<T>> TrackList<T, P> {
+impl<T: TrackLike, P: PageLike<T>> TrackList<T, P> {
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_duration = 0;
@@ -688,7 +650,7 @@ impl<T: TrackLike, P: TrackPage<T>> TrackList<T, P> {
 impl<T, P> Update for TrackList<T, P>
 where
     T: TrackLike + 'static,
-    P: TrackPage<T> + 'static,
+    P: PageLike<T> + 'static,
     TrackList<T, P>: ControlSpotifyContext<T, P>,
 {
     type Model = TrackListModel<T, P>;
@@ -760,30 +722,12 @@ where
 
                 let mut page_duration = 0;
                 for (idx, track) in tracks.into_iter().enumerate() {
-                    let pos = store.insert_with_values(
-                        None,
+                    let pos = track.append_to_store(store);
+                    store.set(
+                        &pos,
+                        &[COL_TRACK_NUMBER, COL_TRACK_TIMELINE],
                         &[
-                            COL_TRACK_ID,
-                            COL_TRACK_NAME,
-                            COL_TRACK_ARTISTS,
-                            COL_TRACK_NUMBER,
-                            COL_TRACK_ALBUM,
-                            COL_TRACK_CANT_PLAY,
-                            COL_TRACK_DURATION,
-                            COL_TRACK_DURATION_MS,
-                            COL_TRACK_URI,
-                            COL_TRACK_TIMELINE,
-                        ],
-                        &[
-                            &track.id(),
-                            &track.name(),
-                            &track.artists().iter().map(|artist| &artist.name).join(", "),
                             &(idx as u32 + offset + 1),
-                            &track.album().map(|album| &*album.name),
-                            &!track.is_playable(),
-                            &crate::utils::humanize_time(track.duration()),
-                            &track.duration(),
-                            &track.uri(),
                             &crate::utils::humanize_time(self.model.total_duration + page_duration),
                         ],
                     );
@@ -925,7 +869,7 @@ where
 impl<T, P> Widget for TrackList<T, P>
 where
     T: TrackLike + 'static,
-    P: TrackPage<T> + 'static,
+    P: PageLike<T> + 'static,
     TrackList<T, P>: ControlSpotifyContext<T, P>,
 {
     type Root = gtk::Box;

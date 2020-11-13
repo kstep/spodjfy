@@ -44,6 +44,6 @@ impl Widget for RecentTab {
     }
 
     fn on_add<W: IsA<gtk::Widget> + IsA<glib::Object>>(&self, _parent: W) {
-        self.model.stream.emit(RecentMsg::ShowTab);
+        // self.model.stream.emit(RecentMsg::ShowTab);
     }
 }
