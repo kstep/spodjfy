@@ -2,7 +2,7 @@ use crate::scopes::Scope::{self, *};
 use futures_util::TryFutureExt;
 use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
-use rspotify::model::album::{FullAlbum, SavedAlbum};
+use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::FullArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::context::CurrentlyPlaybackContext;
@@ -216,6 +216,12 @@ pub enum SpotifyCmd {
         tx: ResultSender<FullArtist>,
         uri: String,
     },
+    GetArtistAlbums {
+        tx: ResultSender<Page<SimplifiedAlbum>>,
+        uri: String,
+        offset: u32,
+        limit: u32,
+    },
     GetShow {
         tx: ResultSender<FullShow>,
         uri: String,
@@ -314,6 +320,19 @@ impl SpotifyServer {
             GetPlaybackState { tx } => {
                 let state = client.lock().await.get_playback_state().await;
                 tx.send(state)?;
+            }
+            GetArtistAlbums {
+                tx,
+                limit,
+                offset,
+                uri,
+            } => {
+                let reply = client
+                    .lock()
+                    .await
+                    .get_artist_albums(&uri, offset, limit)
+                    .await;
+                tx.send(reply)?;
             }
             GetAlbumTracks {
                 tx,
@@ -597,6 +616,17 @@ impl Spotify {
     ) -> ClientResult<Page<PlaylistTrack>> {
         self.client
             .playlist_tracks(uri, None, limit, offset, None)
+            .await
+    }
+
+    async fn get_artist_albums(
+        &self,
+        uri: &str,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedAlbum>> {
+        self.client
+            .artist_albums(uri, None, None, Some(limit), Some(offset))
             .await
     }
 
