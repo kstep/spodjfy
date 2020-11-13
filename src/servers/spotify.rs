@@ -16,7 +16,7 @@ use rspotify::model::track::{SavedTrack, SimplifiedTrack};
 use rspotify::senum::{AdditionalType, RepeatState};
 use std::borrow::Cow;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -44,20 +44,29 @@ impl SpotifyProxy {
         )
     }
 
-    async fn refresh_token_thread(spotify_tx: Sender<SpotifyCmd>) {
+    async fn refresh_token_thread(spotify_tx: Sender<SpotifyCmd>) -> Result<(), ()> {
         let mut refresh_token_timer =
             tokio::time::interval(Duration::from_secs(DEFAULT_REFRESH_TOKEN_TIMEOUT));
         loop {
             refresh_token_timer.tick().await;
             info!("refresh access token");
-            spotify_tx.send(SpotifyCmd::RefreshUserToken).unwrap();
+            spotify_tx
+                .send(SpotifyCmd::RefreshUserToken)
+                .map_err(|error| {
+                    error!("refresh token thread stopped: {:?}", error);
+                })?;
         }
     }
 
-    pub fn tell(&self, cmd: SpotifyCmd) {
-        self.spotify_tx.send(cmd).unwrap();
+    pub fn tell(&self, cmd: SpotifyCmd) -> Result<(), SendError<SpotifyCmd>> {
+        self.spotify_tx.send(cmd)
     }
-    pub fn ask<T, F, R, M>(&self, stream: relm::EventStream<M>, make_command: F, convert_output: R)
+    pub fn ask<T, F, R, M>(
+        &self,
+        stream: relm::EventStream<M>,
+        make_command: F,
+        convert_output: R,
+    ) -> Result<(), SendError<SpotifyCmd>>
     where
         F: FnOnce(ResultSender<T>) -> SpotifyCmd + 'static,
         R: Fn(T) -> M + 'static,
@@ -71,7 +80,7 @@ impl SpotifyProxy {
                 errors_stream.emit(err)
             }
         });
-        self.spotify_tx.send(make_command(tx)).unwrap();
+        self.spotify_tx.send(make_command(tx))
     }
 
     pub fn get_code_url_from_user() -> Option<String> {
@@ -104,10 +113,13 @@ pub type ResultSender<T> = relm::Sender<ClientResult<T>>;
 
 pub enum SpotifyCmd {
     SetupClient {
+        tx: ResultSender<String>,
         id: String,
         secret: String,
     },
-    OpenAuthorizeUrl,
+    GetAuthorizeUrl {
+        tx: ResultSender<String>,
+    },
     AuthorizeUser {
         tx: ResultSender<()>,
         code: String,
@@ -259,8 +271,9 @@ impl SpotifyServer {
         loop {
             let msg = self.channel.recv()?;
             match msg {
-                SetupClient { id, secret } => {
-                    self.client.lock().await.setup_client(id, secret).await
+                SetupClient { tx, id, secret } => {
+                    let url = self.client.lock().await.setup_client(id, secret).await;
+                    tx.send(url)?;
                 }
                 StartPlayback => {
                     let _ = self.client.lock().await.start_playback().await;
@@ -309,11 +322,12 @@ impl SpotifyServer {
                         .await;
                     tx.send(tracks)?;
                 }
-                OpenAuthorizeUrl => {
-                    self.client.lock().await.open_authorize_url();
+                GetAuthorizeUrl { tx } => {
+                    let url = self.client.lock().await.get_authorize_url();
+                    tx.send(url)?;
                 }
                 UseDevice { id } => {
-                    self.client.lock().await.use_device(id).await;
+                    let _ = self.client.lock().await.use_device(id).await;
                 }
                 AuthorizeUser { tx, code } => {
                     let reply = self.client.lock().await.authorize_user(code).await;
@@ -363,10 +377,10 @@ impl SpotifyServer {
                     tx.send(tracks)?;
                 }
                 PlayTracks { uris } => {
-                    self.client.lock().await.play_tracks(uris).await;
+                    let _ = self.client.lock().await.play_tracks(uris).await;
                 }
                 PlayContext { uri, start_uri } => {
-                    self.client.lock().await.play_context(uri, start_uri).await;
+                    let _ = self.client.lock().await.play_context(uri, start_uri).await;
                 }
                 GetTracksFeatures { tx, uris } => {
                     let features = self.client.lock().await.get_tracks_features(uris).await;
@@ -429,20 +443,18 @@ impl Spotify {
         self.client.device().await.map(|reply| reply.devices)
     }
 
-    async fn use_device(&self, id: String) {
-        let _ = self.client.transfer_playback(&id, false).await;
+    async fn use_device(&self, id: String) -> ClientResult<()> {
+        self.client.transfer_playback(&id, false).await
     }
 
-    async fn play_tracks(&self, uris: Vec<String>) {
-        let _ = self
-            .client
+    async fn play_tracks(&self, uris: Vec<String>) -> ClientResult<()> {
+        self.client
             .start_playback(None, None, Some(uris), None, None)
-            .await;
+            .await
     }
 
-    async fn play_context(&self, uri: String, start_uri: Option<String>) {
-        let _ = self
-            .client
+    async fn play_context(&self, uri: String, start_uri: Option<String>) -> ClientResult<()> {
+        self.client
             .start_playback(
                 None,
                 Some(uri),
@@ -450,7 +462,7 @@ impl Spotify {
                 start_uri.and_then(offset::for_uri),
                 None,
             )
-            .await;
+            .await
     }
 
     async fn get_tracks_features(&self, uris: Vec<String>) -> ClientResult<Vec<AudioFeatures>> {
@@ -477,8 +489,9 @@ impl Spotify {
         self.client.current_user_saved_albums(limit, offset).await
     }
 
-    async fn setup_client(&mut self, id: String, secret: String) {
+    async fn setup_client(&mut self, id: String, secret: String) -> ClientResult<String> {
         self.client = Self::create_client(id, secret, self.cache_path.clone()).await;
+        self.client.get_authorize_url(false)
     }
 
     async fn create_client(
@@ -525,17 +538,15 @@ impl Spotify {
             if let Some(code) = self.client.parse_response_code(&code) {
                 self.client.request_user_token(&code).await
             } else {
-                Err(ClientError::CLI("Invalid code URL".into()))
+                Err(ClientError::InvalidAuth("Invalid code URL".into()))
             }
         } else {
             self.client.request_user_token(&code).await
         }
     }
 
-    pub fn open_authorize_url(&self) {
-        if let Ok(url) = self.client.get_authorize_url(false) {
-            webbrowser::open(&url).unwrap();
-        }
+    pub fn get_authorize_url(&self) -> ClientResult<String> {
+        self.client.get_authorize_url(false)
     }
 
     async fn get_playback_state(&self) -> ClientResult<Option<CurrentlyPlaybackContext>> {
@@ -652,7 +663,7 @@ impl Spotify {
         if let Some(id) = Self::get_id(uri) {
             self.client.get_a_show(id.to_owned(), None).await
         } else {
-            Err(ClientError::CLI("Invalid show URI".into()))
+            Err(ClientError::Request("Invalid show URI".into()))
         }
     }
 
@@ -667,7 +678,7 @@ impl Spotify {
                 .get_shows_episodes(id.to_owned(), limit, offset, None)
                 .await
         } else {
-            Err(ClientError::CLI("Invalid show URI".into()))
+            Err(ClientError::Request("Invalid show URI".into()))
         }
     }
 

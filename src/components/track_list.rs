@@ -485,18 +485,24 @@ impl ControlSpotifyContext<PlayHistory, Vec<PlayHistory>>
     fn load_tracks_page(&self, _offset: ()) {
         let epoch = self.model.epoch;
 
-        self.model.spotify.ask(
-            self.model.stream.clone(),
-            move |tx| SpotifyCmd::GetRecentTracks {
-                tx,
-                limit: Self::PAGE_LIMIT,
-            },
-            move |items| TrackListMsg::NewPage(items, epoch),
-        );
+        self.model
+            .spotify
+            .ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetRecentTracks {
+                    tx,
+                    limit: Self::PAGE_LIMIT,
+                },
+                move |items| TrackListMsg::NewPage(items, epoch),
+            )
+            .unwrap();
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
-        self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
+        self.model
+            .spotify
+            .tell(SpotifyCmd::PlayTracks { uris })
+            .unwrap();
     }
 }
 
@@ -505,19 +511,25 @@ impl ControlSpotifyContext<SavedTrack> for TrackList<SavedTrack> {
 
     fn load_tracks_page(&self, offset: u32) {
         let epoch = self.model.epoch;
-        self.model.spotify.ask(
-            self.model.stream.clone(),
-            move |tx| SpotifyCmd::GetMyTracks {
-                tx,
-                limit: Self::PAGE_LIMIT,
-                offset,
-            },
-            move |reply| TrackListMsg::NewPage(reply, epoch),
-        );
+        self.model
+            .spotify
+            .ask(
+                self.model.stream.clone(),
+                move |tx| SpotifyCmd::GetMyTracks {
+                    tx,
+                    limit: Self::PAGE_LIMIT,
+                    offset,
+                },
+                move |reply| TrackListMsg::NewPage(reply, epoch),
+            )
+            .unwrap();
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
-        self.model.spotify.tell(SpotifyCmd::PlayTracks { uris });
+        self.model
+            .spotify
+            .tell(SpotifyCmd::PlayTracks { uris })
+            .unwrap();
     }
 }
 
@@ -532,25 +544,31 @@ impl ControlSpotifyContext<PlaylistTrack> for TrackList<PlaylistTrack> {
         if let Some(ref parent_id) = self.model.parent_id {
             let parent_id = parent_id.clone();
             let epoch = self.model.epoch;
-            self.model.spotify.ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetPlaylistTracks {
-                    tx,
-                    uri: parent_id,
-                    limit: Self::PAGE_LIMIT,
-                    offset,
-                },
-                move |reply| TrackListMsg::NewPage(reply, epoch),
-            );
+            self.model
+                .spotify
+                .ask(
+                    self.model.stream.clone(),
+                    move |tx| SpotifyCmd::GetPlaylistTracks {
+                        tx,
+                        uri: parent_id,
+                        limit: Self::PAGE_LIMIT,
+                        offset,
+                    },
+                    move |reply| TrackListMsg::NewPage(reply, epoch),
+                )
+                .unwrap();
         }
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
         if let Some(ref parent_id) = self.model.parent_id {
-            self.model.spotify.tell(SpotifyCmd::PlayContext {
-                uri: parent_id.clone(),
-                start_uri: uris.first().cloned(),
-            });
+            self.model
+                .spotify
+                .tell(SpotifyCmd::PlayContext {
+                    uri: parent_id.clone(),
+                    start_uri: uris.first().cloned(),
+                })
+                .unwrap();
         }
     }
 }
@@ -578,25 +596,31 @@ impl ControlSpotifyContext<SimplifiedEpisode> for TrackList<SimplifiedEpisode> {
         if let Some(ref parent_id) = self.model.parent_id {
             let parent_id = parent_id.clone();
             let epoch = self.model.epoch;
-            self.model.spotify.ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetShowEpisodes {
-                    tx,
-                    uri: parent_id,
-                    limit: Self::PAGE_LIMIT,
-                    offset,
-                },
-                move |reply| TrackListMsg::NewPage(reply, epoch),
-            );
+            self.model
+                .spotify
+                .ask(
+                    self.model.stream.clone(),
+                    move |tx| SpotifyCmd::GetShowEpisodes {
+                        tx,
+                        uri: parent_id,
+                        limit: Self::PAGE_LIMIT,
+                        offset,
+                    },
+                    move |reply| TrackListMsg::NewPage(reply, epoch),
+                )
+                .unwrap();
         }
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
         if let Some(ref parent_id) = self.model.parent_id {
-            self.model.spotify.tell(SpotifyCmd::PlayContext {
-                uri: parent_id.clone(),
-                start_uri: uris.first().cloned(),
-            });
+            self.model
+                .spotify
+                .tell(SpotifyCmd::PlayContext {
+                    uri: parent_id.clone(),
+                    start_uri: uris.first().cloned(),
+                })
+                .unwrap();
         }
     }
 }
@@ -608,25 +632,31 @@ impl ControlSpotifyContext<SimplifiedTrack> for TrackList<SimplifiedTrack> {
         if let Some(ref parent_id) = self.model.parent_id {
             let parent_id = parent_id.clone();
             let epoch = self.model.epoch;
-            self.model.spotify.ask(
-                self.model.stream.clone(),
-                move |tx| SpotifyCmd::GetAlbumTracks {
-                    tx,
-                    uri: parent_id,
-                    limit: Self::PAGE_LIMIT,
-                    offset,
-                },
-                move |reply| TrackListMsg::NewPage(reply, epoch),
-            );
+            self.model
+                .spotify
+                .ask(
+                    self.model.stream.clone(),
+                    move |tx| SpotifyCmd::GetAlbumTracks {
+                        tx,
+                        uri: parent_id,
+                        limit: Self::PAGE_LIMIT,
+                        offset,
+                    },
+                    move |reply| TrackListMsg::NewPage(reply, epoch),
+                )
+                .unwrap();
         }
     }
 
     fn play_tracks(&self, uris: Vec<String>) {
         if let Some(ref parent_id) = self.model.parent_id {
-            self.model.spotify.tell(SpotifyCmd::PlayContext {
-                uri: parent_id.clone(),
-                start_uri: uris.first().cloned(),
-            });
+            self.model
+                .spotify
+                .tell(SpotifyCmd::PlayContext {
+                    uri: parent_id.clone(),
+                    start_uri: uris.first().cloned(),
+                })
+                .unwrap();
         }
     }
 }
@@ -795,11 +825,14 @@ where
             }
             NewPage(_, _) => {}
             LoadTracksInfo(uris, iters) => {
-                self.model.spotify.ask(
-                    self.model.stream.clone(),
-                    |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
-                    move |feats| NewTracksInfo(feats, iters.clone()),
-                );
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
+                        move |feats| NewTracksInfo(feats, iters.clone()),
+                    )
+                    .unwrap();
             }
             NewTracksInfo(info, iters) => {
                 let store = &self.model.store;

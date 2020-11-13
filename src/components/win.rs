@@ -309,10 +309,10 @@ impl Widget for Win {
                 InvalidAuth(msg) => {
                     notifier.emit(NotifierMsg::Notify {
                         title: "Error!".to_owned(),
-                        body: format!("Authentication error: {}. Check credentials in <Settings> and click <Authorize> to fix", msg),
+                        body: format!("Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix", msg),
                         timeout_ms: 5000,
                     });
-                    spotify.tell(SpotifyCmd::RefreshUserToken);
+                    spotify.tell(SpotifyCmd::RefreshUserToken).unwrap();
                     stream.emit(Msg::GoToSettings);
                 },
                 Unauthorized => {

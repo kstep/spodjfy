@@ -1,7 +1,9 @@
 use crate::components::win::Settings;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
-use gtk::{self, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, WidgetExt};
-use relm::Widget;
+use gtk::{
+    self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, WidgetExt,
+};
+use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use std::io::Write;
 use std::sync::Arc;
@@ -9,39 +11,62 @@ use std::sync::Arc;
 #[derive(Msg)]
 pub enum SettingsMsg {
     ShowTab,
-    Authorize,
+    GetAuthorizeUrl,
+    SetAuthorizeUrl(String),
     Save,
 }
 
 pub struct SettingsModel {
+    stream: EventStream<SettingsMsg>,
     settings: Settings,
     spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for SettingsTab {
-    fn model((settings, spotify): (Settings, Arc<SpotifyProxy>)) -> SettingsModel {
-        SettingsModel { settings, spotify }
+    fn model(
+        relm: &Relm<Self>,
+        (settings, spotify): (Settings, Arc<SpotifyProxy>),
+    ) -> SettingsModel {
+        let stream = relm.stream().clone();
+        SettingsModel {
+            stream,
+            settings,
+            spotify,
+        }
     }
 
     fn update(&mut self, event: SettingsMsg) {
         use SettingsMsg::*;
         match event {
-            ShowTab => {}
-            Authorize => {
+            ShowTab => {
+                self.model.stream.emit(GetAuthorizeUrl);
+            }
+            GetAuthorizeUrl => {
                 let spotify: &SpotifyProxy = &self.model.spotify;
-                spotify.tell(SpotifyCmd::OpenAuthorizeUrl);
-                /*
-                if let Some(code) = SpotifyProxy::get_code_url_from_user() {
-                    spotify.tell(SpotifyCmd::AuthorizeUser { code });
-                }
-                 */
+                spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        |tx| SpotifyCmd::GetAuthorizeUrl { tx },
+                        SetAuthorizeUrl,
+                    )
+                    .unwrap();
+            }
+            SetAuthorizeUrl(url) => {
+                self.client_auth_url_btn.set_uri(&url);
+                self.client_auth_url_btn.set_visible(true);
             }
             Save => {
-                self.model.spotify.tell(SpotifyCmd::SetupClient {
-                    id: self.model.settings.client_id.clone(),
-                    secret: self.model.settings.client_secret.clone(),
-                });
+                let id = self.model.settings.client_id.clone();
+                let secret = self.model.settings.client_secret.clone();
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        |tx| SpotifyCmd::SetupClient { tx, id, secret },
+                        SetAuthorizeUrl,
+                    )
+                    .unwrap();
 
                 directories::ProjectDirs::from("me", "kstep", "spodjfy")
                     .and_then(|dirs| {
@@ -105,24 +130,25 @@ impl Widget for SettingsTab {
                     }
                 },
 
-                gtk::Box(gtk::Orientation::Horizontal, 5) {
+
+                gtk::ButtonBox(gtk::Orientation::Horizontal) {
+                    spacing: 5,
                     halign: gtk::Align::End,
                     cell: {
                         left_attach: 1,
-                        top_attach: 2,
+                        top_attach: 3,
+                    },
+
+                    #[name="client_auth_url_btn"]
+                    gtk::LinkButton {
+                        visible: false,
+                        label: "Open authorization URL",
+                        halign: gtk::Align::Start,
                     },
 
                     gtk::Button {
-                        hexpand: false,
                         label: "Save",
-
                         clicked(_) => SettingsMsg::Save,
-                    },
-                    gtk::Button {
-                        hexpand: false,
-                        label: "Authorize",
-
-                        clicked(_) => SettingsMsg::Authorize,
                     },
                 },
             },

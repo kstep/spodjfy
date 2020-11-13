@@ -60,15 +60,18 @@ impl Widget for ArtistsTab {
                 self.model.stream.emit(LoadPage(None))
             }
             LoadPage(cursor) => {
-                self.model.spotify.ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetMyArtists {
-                        tx,
-                        limit: PAGE_LIMIT,
-                        cursor,
-                    },
-                    NewPage,
-                );
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        move |tx| SpotifyCmd::GetMyArtists {
+                            tx,
+                            limit: PAGE_LIMIT,
+                            cursor,
+                        },
+                        NewPage,
+                    )
+                    .unwrap();
             }
             NewPage(page) => {
                 let stream = &self.model.stream;

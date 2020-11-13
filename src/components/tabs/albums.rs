@@ -65,15 +65,18 @@ impl Widget for AlbumsTab {
                 self.model.stream.emit(LoadPage(0))
             }
             LoadPage(offset) => {
-                self.model.spotify.ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetMyAlbums {
-                        tx,
-                        limit: PAGE_LIMIT,
-                        offset,
-                    },
-                    NewPage,
-                );
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        move |tx| SpotifyCmd::GetMyAlbums {
+                            tx,
+                            limit: PAGE_LIMIT,
+                            offset,
+                        },
+                        NewPage,
+                    )
+                    .unwrap();
             }
             NewPage(page) => {
                 let stream = &self.model.stream;

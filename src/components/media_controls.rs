@@ -157,11 +157,16 @@ impl Widget for MediaControls {
                 self.model.stream.emit(LoadDevices);
                 self.model.stream.emit(LoadState);
             }
-            LoadDevices => self.model.spotify.ask(
-                self.model.stream.clone(),
-                |tx| SpotifyCmd::GetMyDevices { tx },
-                NewDevices,
-            ),
+            LoadDevices => {
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        |tx| SpotifyCmd::GetMyDevices { tx },
+                        NewDevices,
+                    )
+                    .unwrap();
+            }
             NewDevices(devices) => {
                 let store = &self.model.devices;
                 store.clear();
@@ -174,17 +179,23 @@ impl Widget for MediaControls {
                     if let Some(state) = self.model.state.as_mut() {
                         if state.device.id != id {
                             state.device.id = id.clone();
-                            self.model.spotify.tell(SpotifyCmd::UseDevice { id });
+                            self.model
+                                .spotify
+                                .tell(SpotifyCmd::UseDevice { id })
+                                .unwrap();
                         }
                     }
                 }
             }
             LoadState => {
-                self.model.spotify.ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetPlaybackState { tx },
-                    |reply| NewState(Box::new(reply)),
-                );
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        move |tx| SpotifyCmd::GetPlaybackState { tx },
+                        |reply| NewState(Box::new(reply)),
+                    )
+                    .unwrap();
             }
             NewState(state) => {
                 let old_state: Option<&CurrentlyPlaybackContext> = self.model.state.as_ref();
@@ -292,7 +303,10 @@ impl Widget for MediaControls {
                 }
             }
             SeekTrack(pos) => {
-                self.model.spotify.tell(SpotifyCmd::SeekTrack { pos });
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::SeekTrack { pos })
+                    .unwrap();
 
                 if let Some(CurrentlyPlaybackContext {
                     progress_ms: Some(ref mut progress),
@@ -307,13 +321,19 @@ impl Widget for MediaControls {
                 if let Some(state) = self.model.state.as_mut() {
                     state.device.volume_percent = value as u32;
                 }
-                self.model.spotify.tell(SpotifyCmd::SetVolume { value });
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::SetVolume { value })
+                    .unwrap();
             }
             SetShuffle(state) => {
                 if let Some(st) = self.model.state.as_mut() {
                     st.shuffle_state = state;
                 }
-                self.model.spotify.tell(SpotifyCmd::SetShuffle { state });
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::SetShuffle { state })
+                    .unwrap();
             }
             ToggleRepeatMode => {
                 let mode = match self
@@ -340,25 +360,28 @@ impl Widget for MediaControls {
                     }),
                     gtk::IconSize::LargeToolbar,
                 )));
-                self.model.spotify.tell(SpotifyCmd::SetRepeatMode { mode });
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::SetRepeatMode { mode })
+                    .unwrap();
             }
             ShowInfo(state) => {
                 self.state_info.set_reveal_child(state);
             }
             Play => {
-                self.model.spotify.tell(SpotifyCmd::StartPlayback);
+                self.model.spotify.tell(SpotifyCmd::StartPlayback).unwrap();
                 self.model.stream.emit(LoadState);
             }
             Pause => {
-                self.model.spotify.tell(SpotifyCmd::PausePlayback);
+                self.model.spotify.tell(SpotifyCmd::PausePlayback).unwrap();
                 self.model.stream.emit(LoadState);
             }
             NextTrack => {
-                self.model.spotify.tell(SpotifyCmd::PlayNextTrack);
+                self.model.spotify.tell(SpotifyCmd::PlayNextTrack).unwrap();
                 self.model.stream.emit(LoadState);
             }
             PrevTrack => {
-                self.model.spotify.tell(SpotifyCmd::PlayPrevTrack);
+                self.model.spotify.tell(SpotifyCmd::PlayPrevTrack).unwrap();
                 self.model.stream.emit(LoadState);
             }
             LoadContext(kind, uri) => {
@@ -367,26 +390,46 @@ impl Widget for MediaControls {
                 {
                     let uri = uri.clone();
                     match kind {
-                        Type::Playlist => self.model.spotify.ask(
-                            stream.clone(),
-                            |tx| SpotifyCmd::GetPlaylist { tx, uri },
-                            |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
-                        ),
-                        Type::Album => self.model.spotify.ask(
-                            stream.clone(),
-                            |tx| SpotifyCmd::GetAlbum { tx, uri },
-                            |reply| NewContext(Box::new(PlayContext::Album(reply))),
-                        ),
-                        Type::Artist => self.model.spotify.ask(
-                            stream.clone(),
-                            |tx| SpotifyCmd::GetArtist { tx, uri },
-                            |reply| NewContext(Box::new(PlayContext::Artist(reply))),
-                        ),
-                        Type::Show => self.model.spotify.ask(
-                            stream.clone(),
-                            |tx| SpotifyCmd::GetShow { tx, uri },
-                            |reply| NewContext(Box::new(PlayContext::Show(reply))),
-                        ),
+                        Type::Playlist => {
+                            self.model
+                                .spotify
+                                .ask(
+                                    stream.clone(),
+                                    |tx| SpotifyCmd::GetPlaylist { tx, uri },
+                                    |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
+                                )
+                                .unwrap();
+                        }
+                        Type::Album => {
+                            self.model
+                                .spotify
+                                .ask(
+                                    stream.clone(),
+                                    |tx| SpotifyCmd::GetAlbum { tx, uri },
+                                    |reply| NewContext(Box::new(PlayContext::Album(reply))),
+                                )
+                                .unwrap();
+                        }
+                        Type::Artist => {
+                            self.model
+                                .spotify
+                                .ask(
+                                    stream.clone(),
+                                    |tx| SpotifyCmd::GetArtist { tx, uri },
+                                    |reply| NewContext(Box::new(PlayContext::Artist(reply))),
+                                )
+                                .unwrap();
+                        }
+                        Type::Show => {
+                            self.model
+                                .spotify
+                                .ask(
+                                    stream.clone(),
+                                    |tx| SpotifyCmd::GetShow { tx, uri },
+                                    |reply| NewContext(Box::new(PlayContext::Show(reply))),
+                                )
+                                .unwrap();
+                        }
                         _ => {
                             self.model.context = None;
                             self.model.context_cover = None;

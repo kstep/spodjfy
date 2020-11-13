@@ -63,11 +63,14 @@ impl Widget for DevicesTab {
                 self.model.stream.emit(LoadList);
             }
             LoadList => {
-                self.model.spotify.ask(
-                    self.model.stream.clone(),
-                    move |tx| SpotifyCmd::GetMyDevices { tx },
-                    NewList,
-                );
+                self.model
+                    .spotify
+                    .ask(
+                        self.model.stream.clone(),
+                        move |tx| SpotifyCmd::GetMyDevices { tx },
+                        NewList,
+                    )
+                    .unwrap();
             }
             NewList(devices) => {
                 let store = &self.model.store;
@@ -137,7 +140,10 @@ impl Widget for DevicesTab {
                         false
                     });
 
-                    self.model.spotify.tell(SpotifyCmd::UseDevice { id });
+                    self.model
+                        .spotify
+                        .tell(SpotifyCmd::UseDevice { id })
+                        .unwrap();
                 }
             }
         }
