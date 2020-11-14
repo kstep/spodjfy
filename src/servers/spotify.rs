@@ -1,6 +1,5 @@
 use crate::scopes::Scope::{self, *};
 use futures_util::TryFutureExt;
-use gtk::{BoxExt, DialogExt, EntryExt, GtkWindowExt, WidgetExt};
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::FullArtist;
@@ -82,31 +81,6 @@ impl SpotifyProxy {
             }
         });
         self.spotify_tx.send(make_command(tx))
-    }
-
-    pub fn get_code_url_from_user() -> Option<String> {
-        let dialog = gtk::MessageDialogBuilder::new()
-            .title("Authentication")
-            .text("Please enter the URL you were redirected to:")
-            .message_type(gtk::MessageType::Question)
-            .accept_focus(true)
-            .modal(true)
-            .sensitive(true)
-            .buttons(gtk::ButtonsType::OkCancel)
-            .build();
-
-        let message_box = dialog.get_content_area();
-        let url_entry = gtk::Entry::new();
-        message_box.pack_end(&url_entry, true, false, 0);
-        dialog.show_all();
-        let url = match dialog.run() {
-            gtk::ResponseType::Ok => Some(url_entry.get_text().into()),
-            gtk::ResponseType::Cancel => None,
-            _ => unreachable!(),
-        };
-        dialog.close();
-
-        url
     }
 }
 
