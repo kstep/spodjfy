@@ -4,6 +4,7 @@ use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::FullArtist;
 use rspotify::model::audio::AudioFeatures;
+use rspotify::model::category::Category;
 use rspotify::model::context::CurrentlyPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::offset;
@@ -219,6 +220,27 @@ pub enum SpotifyCmd {
     },
     GetQueueTracks {
         tx: ResultSender<Vec<FullTrack>>,
+    },
+    GetCategories {
+        tx: ResultSender<Page<Category>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetCategoryPlaylists {
+        tx: ResultSender<Page<SimplifiedPlaylist>>,
+        category_id: String,
+        offset: u32,
+        limit: u32,
+    },
+    GetFeaturedPlaylists {
+        tx: ResultSender<Page<SimplifiedPlaylist>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetNewReleases {
+        tx: ResultSender<Page<SimplifiedAlbum>>,
+        offset: u32,
+        limit: u32,
     },
 }
 
@@ -457,6 +479,35 @@ impl SpotifyServer {
             }
             RemoveMyTracks { uris } => {
                 let _ = client.lock().await.remove_my_tracks(&uris).await;
+            }
+            GetCategories { tx, offset, limit } => {
+                let reply = client.lock().await.get_categories(offset, limit).await;
+                tx.send(reply)?;
+            }
+            GetCategoryPlaylists {
+                tx,
+                category_id,
+                offset,
+                limit,
+            } => {
+                let reply = client
+                    .lock()
+                    .await
+                    .get_category_playlists(category_id, offset, limit)
+                    .await;
+                tx.send(reply)?;
+            }
+            GetFeaturedPlaylists { tx, offset, limit } => {
+                let reply = client
+                    .lock()
+                    .await
+                    .get_featured_playlists(offset, limit)
+                    .await;
+                tx.send(reply)?;
+            }
+            GetNewReleases { tx, offset, limit } => {
+                let reply = client.lock().await.get_new_releases(offset, limit).await;
+                tx.send(reply)?;
             }
         }
         Ok(())
@@ -783,6 +834,44 @@ impl Spotify {
 
     async fn remove_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
         self.client.current_user_saved_tracks_delete(uris).await
+    }
+
+    async fn get_categories(&self, offset: u32, limit: u32) -> ClientResult<Page<Category>> {
+        self.client
+            .categories(None, None, limit, offset)
+            .await
+            .map(|page| page.categories)
+    }
+
+    async fn get_category_playlists(
+        &self,
+        category_id: String,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        Err(ClientError::Request("unimplemented".into()))
+    }
+
+    async fn get_featured_playlists(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        self.client
+            .featured_playlists(None, None, None, limit, offset)
+            .await
+            .map(|page| page.playlists)
+    }
+
+    async fn get_new_releases(
+        &self,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedAlbum>> {
+        self.client
+            .new_releases(None, limit, offset)
+            .await
+            .map(|page| page.albums)
     }
 
     fn get_id(uri: &str) -> Option<&str> {

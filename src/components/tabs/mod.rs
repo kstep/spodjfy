@@ -1,7 +1,10 @@
 pub mod albums;
 pub mod artists;
+pub mod categories;
 pub mod devices;
 pub mod favorites;
+pub mod featured;
+pub mod new_releases;
 pub mod playlists;
 pub mod queue;
 pub mod recent;

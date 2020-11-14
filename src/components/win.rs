@@ -1,6 +1,6 @@
 use gtk::{
-    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, SettingsExt,
-    StackExt, StackSidebarExt, WidgetExt,
+    self, CssProviderExt, GtkWindowExt, Inhibit, LabelExt, OverlayExt, PanedExt, SearchBarExt,
+    SettingsExt, StackExt, StackSidebarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -11,8 +11,11 @@ use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
 use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
 use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
+use crate::components::tabs::categories::{CategoriesMsg, CategoriesTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
+use crate::components::tabs::featured::{FeaturedMsg, FeaturedTab};
+use crate::components::tabs::new_releases::{NewReleasesMsg, NewReleasesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::queue::{QueueMsg, QueueTab};
 use crate::components::tabs::recent::{RecentMsg, RecentTab};
@@ -173,6 +176,15 @@ impl Widget for Win {
                 Some("shows_tab") => {
                     self.shows_tab.emit(ShowsMsg::ShowTab);
                 }
+                Some("new_releases_tab") => {
+                    self.new_releases_tab.emit(NewReleasesMsg::ShowTab);
+                }
+                Some("featured_tab") => {
+                    self.featured_tab.emit(FeaturedMsg::ShowTab);
+                }
+                Some("categories_tab") => {
+                    self.categories_tab.emit(CategoriesMsg::ShowTab);
+                }
                 _ => {}
             },
         }
@@ -214,6 +226,16 @@ impl Widget for Win {
                                 vexpand: true,
                                 hexpand: true,
                                 transition_type: gtk::StackTransitionType::SlideUpDown,
+
+                                #[name="search_tab"]
+                                gtk::Label {
+                                    widget_name: "search_tab",
+                                    child: {
+                                        name: Some("search_tab"),
+                                        title: Some("\u{1F50D} Search")
+                                    },
+                                    text: "Search"
+                                },
 
                                 #[name="recent_tab"]
                                 RecentTab(self.model.spotify.clone()) {
@@ -274,7 +296,34 @@ impl Widget for Win {
                                     widget_name: "shows_tab",
                                     child: {
                                         name: Some("shows_tab"),
-                                        title: Some("\u{1F4FB} Shows"),
+                                        title: Some("\u{1F399} Shows"),
+                                    }
+                                },
+
+                                #[name="categories_tab"]
+                                CategoriesTab(self.model.spotify.clone()) {
+                                    widget_name: "categories_tab",
+                                    child: {
+                                        name: Some("categories_tab"),
+                                        title: Some("\u{1F4D2} Categories")
+                                    }
+                                },
+
+                                #[name="featured_tab"]
+                                FeaturedTab(self.model.spotify.clone()) {
+                                    widget_name: "featured_tab",
+                                    child: {
+                                        name: Some("featured_tab"),
+                                        title: Some("\u{1F525} Featured")
+                                    }
+                                },
+
+                                #[name="new_releases_tab"]
+                                NewReleasesTab(self.model.spotify.clone()) {
+                                    widget_name: "new_releases_tab",
+                                    child: {
+                                        name: Some("new_releases_tab"),
+                                        title: Some("\u{1F4C5} New releases")
                                     }
                                 },
 
