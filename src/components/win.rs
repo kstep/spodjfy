@@ -21,6 +21,7 @@ use crate::components::tabs::queue::{QueueMsg, QueueTab};
 use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
+use crate::components::tabs::top_tracks::{TopTracksMsg, TopTracksTab};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use rspotify::model::Type;
 
@@ -185,6 +186,9 @@ impl Widget for Win {
                 Some("categories_tab") => {
                     self.categories_tab.emit(CategoriesMsg::ShowTab);
                 }
+                Some("top_tracks_tab") => {
+                    self.top_tracks_tab.emit(TopTracksMsg::ShowTab);
+                }
                 _ => {}
             },
         }
@@ -297,6 +301,15 @@ impl Widget for Win {
                                     child: {
                                         name: Some("shows_tab"),
                                         title: Some("\u{1F399} Shows"),
+                                    }
+                                },
+
+                                #[name="top_tracks_tab"]
+                                TopTracksTab(self.model.spotify.clone()) {
+                                    widget_name: "top_tracks_tab",
+                                    child: {
+                                        name: Some("top_tracks_tab"),
+                                        title: Some("\u{1F3C5} Top tracks")
                                     }
                                 },
 

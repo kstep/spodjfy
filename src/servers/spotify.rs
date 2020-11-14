@@ -12,7 +12,7 @@ use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
-use rspotify::model::{offset, AdditionalType, RepeatState};
+use rspotify::model::{offset, AdditionalType, RepeatState, TimeRange};
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::ops::Deref;
@@ -241,6 +241,20 @@ pub enum SpotifyCmd {
         tx: ResultSender<Page<SimplifiedAlbum>>,
         offset: u32,
         limit: u32,
+    },
+    GetMyTopTracks {
+        tx: ResultSender<Page<FullTrack>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetMyTopArtists {
+        tx: ResultSender<Page<FullArtist>>,
+        offset: u32,
+        limit: u32,
+    },
+    GetArtistTopTracks {
+        tx: ResultSender<Vec<FullTrack>>,
+        uri: String,
     },
 }
 
@@ -507,6 +521,18 @@ impl SpotifyServer {
             }
             GetNewReleases { tx, offset, limit } => {
                 let reply = client.lock().await.get_new_releases(offset, limit).await;
+                tx.send(reply)?;
+            }
+            GetMyTopArtists { tx, offset, limit } => {
+                let reply = client.lock().await.get_my_top_artists(offset, limit).await;
+                tx.send(reply)?;
+            }
+            GetMyTopTracks { tx, offset, limit } => {
+                let reply = client.lock().await.get_my_top_tracks(offset, limit).await;
+                tx.send(reply)?;
+            }
+            GetArtistTopTracks { tx, uri } => {
+                let reply = client.lock().await.get_artist_top_tracks(&uri).await;
                 tx.send(reply)?;
             }
         }
@@ -879,6 +905,25 @@ impl Spotify {
             .new_releases(None, limit, offset)
             .await
             .map(|page| page.albums)
+    }
+
+    async fn get_my_top_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<FullTrack>> {
+        self.client
+            .current_user_top_tracks(limit, offset, TimeRange::MediumTerm)
+            .await
+    }
+
+    async fn get_my_top_artists(&self, offset: u32, limit: u32) -> ClientResult<Page<FullArtist>> {
+        self.client
+            .current_user_top_artists(limit, offset, TimeRange::MediumTerm)
+            .await
+    }
+
+    async fn get_artist_top_tracks(&self, uri: &str) -> ClientResult<Vec<FullTrack>> {
+        self.client
+            .artist_top_tracks(uri, None)
+            .await
+            .map(|reply| reply.tracks)
     }
 
     fn get_id(uri: &str) -> Option<&str> {

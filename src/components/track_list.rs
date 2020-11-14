@@ -79,6 +79,15 @@ impl ControlSpotifyContext for TrackList<QueueLoader> {
     }
 }
 
+impl ControlSpotifyContext for TrackList<MyTopTracksLoader> {
+    fn play_tracks(&self, uris: Vec<String>) {
+        self.model
+            .spotify
+            .tell(SpotifyCmd::PlayTracks { uris })
+            .unwrap();
+    }
+}
+
 impl ControlSpotifyContext for TrackList<RecentLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
         self.model

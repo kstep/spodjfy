@@ -156,6 +156,30 @@ impl TracksLoader for PlaylistLoader {
 }
 
 #[derive(Clone)]
+pub struct MyTopTracksLoader;
+
+impl TracksLoader for MyTopTracksLoader {
+    type ParentId = ();
+    type Track = FullTrack;
+    type Page = Page<Self::Track>;
+    const PAGE_LIMIT: u32 = 20;
+
+    fn new(_uri: Self::ParentId) -> Self {
+        MyTopTracksLoader
+    }
+
+    fn parent_id(&self) -> Self::ParentId {}
+
+    fn load_tracks_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+        SpotifyCmd::GetMyTopTracks {
+            tx,
+            offset,
+            limit: Self::PAGE_LIMIT,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct ShowLoader {
     uri: String,
 }
