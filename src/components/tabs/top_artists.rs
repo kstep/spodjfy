@@ -10,7 +10,7 @@ use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::SimplifiedAlbum;
 use rspotify::model::artist::FullArtist;
-use rspotify::model::page::{CursorBasedPage, Page};
+use rspotify::model::page::Page;
 use std::sync::Arc;
 
 #[derive(Msg)]

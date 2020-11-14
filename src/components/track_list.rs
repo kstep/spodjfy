@@ -15,8 +15,8 @@ use relm_derive::Msg;
 use rspotify::model::audio::AudioFeatures;
 use std::sync::Arc;
 
-pub trait ControlSpotifyContext {
-    fn play_tracks(&self, uris: Vec<String>);
+pub trait PlayContextCmd {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd;
 }
 
 #[derive(Msg)]
@@ -70,55 +70,17 @@ pub struct TrackList<Loader: TracksLoader> {
     refresh_btn: gtk::Button,
 }
 
-impl ControlSpotifyContext for TrackList<QueueLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        self.model
-            .spotify
-            .tell(SpotifyCmd::PlayTracks { uris })
-            .unwrap();
+impl PlayContextCmd for () {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayTracks { uris }
     }
 }
 
-impl ControlSpotifyContext for TrackList<MyTopTracksLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        self.model
-            .spotify
-            .tell(SpotifyCmd::PlayTracks { uris })
-            .unwrap();
-    }
-}
-
-impl ControlSpotifyContext for TrackList<RecentLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        self.model
-            .spotify
-            .tell(SpotifyCmd::PlayTracks { uris })
-            .unwrap();
-    }
-}
-
-impl ControlSpotifyContext for TrackList<SavedLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        self.model
-            .spotify
-            .tell(SpotifyCmd::PlayTracks { uris })
-            .unwrap();
-    }
-}
-
-impl<T> ControlSpotifyContext for TrackList<T>
-where
-    T: TracksLoader<ParentId = String>,
-{
-    fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref loader) = self.model.tracks_loader {
-            self.model
-                .spotify
-                .tell(SpotifyCmd::PlayContext {
-                    uri: loader.parent_id(),
-                    start_uri: uris.first().cloned(),
-                })
-                .unwrap();
+impl PlayContextCmd for String {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayContext {
+            uri: self,
+            start_uri: uris.first().cloned(),
         }
     }
 }
@@ -178,7 +140,7 @@ impl<Loader: TracksLoader> TrackList<Loader> {
 impl<Loader> Update for TrackList<Loader>
 where
     Loader: TracksLoader,
-    TrackList<Loader>: ControlSpotifyContext,
+    Loader::ParentId: PlayContextCmd,
 {
     type Model = TrackListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
@@ -406,8 +368,13 @@ where
             GoToChosenTrackAlbum => {}
             GoToChosenTrackArtist => {}
             PlayTracks(uris) => {
-                self.play_tracks(uris);
-                self.model.stream.emit(PlayingNewTrack);
+                if let Some(ref loader) = self.model.tracks_loader {
+                    self.model
+                        .spotify
+                        .tell(loader.parent_id().play_tracks_cmd(uris))
+                        .unwrap();
+                    self.model.stream.emit(PlayingNewTrack);
+                }
             }
             PlayingNewTrack => {}
             NewBpm(path, bpm) => {
@@ -423,7 +390,7 @@ where
 impl<Loader> Widget for TrackList<Loader>
 where
     Loader: TracksLoader,
-    TrackList<Loader>: ControlSpotifyContext,
+    Loader::ParentId: PlayContextCmd,
 {
     type Root = gtk::Box;
 
