@@ -169,11 +169,22 @@ pub trait TrackLike {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
-    fn artists(&self) -> &[SimplifiedArtist];
-    fn number(&self) -> u32;
-    fn album(&self) -> Option<&SimplifiedAlbum>;
-    fn is_playable(&self) -> bool;
+    fn artists(&self) -> &[SimplifiedArtist] {
+        &[]
+    }
+    fn number(&self) -> u32 {
+        0
+    }
+    fn album(&self) -> Option<&SimplifiedAlbum> {
+        None
+    }
+    fn is_playable(&self) -> bool {
+        true
+    }
     fn duration(&self) -> u32;
+    fn release_date(&self) -> Option<&str> {
+        self.album().and_then(|album| album.release_date.as_deref())
+    }
 
     fn images(&self) -> Option<&Vec<Image>> {
         self.album().map(|album| &album.images)
@@ -196,6 +207,7 @@ pub const COL_TRACK_DURATION_MS: u32 = 8;
 pub const COL_TRACK_URI: u32 = 9;
 pub const COL_TRACK_BPM: u32 = 10;
 pub const COL_TRACK_TIMELINE: u32 = 11;
+pub const COL_TRACK_RELEASE_DATE: u32 = 12;
 
 impl<T: TrackLike> RowLike for T {
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -210,6 +222,7 @@ impl<T: TrackLike> RowLike for T {
                 COL_TRACK_DURATION,
                 COL_TRACK_DURATION_MS,
                 COL_TRACK_URI,
+                COL_TRACK_RELEASE_DATE,
             ],
             &[
                 &self.id(),
@@ -220,6 +233,7 @@ impl<T: TrackLike> RowLike for T {
                 &crate::utils::humanize_time(self.duration()),
                 &self.duration(),
                 &self.uri(),
+                &self.release_date(),
             ],
         )
     }
@@ -256,6 +270,10 @@ impl TrackLike for PlayHistory {
 
     fn duration(&self) -> u32 {
         self.track.duration()
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.release_date()
     }
 }
 
@@ -294,6 +312,10 @@ impl TrackLike for PlaylistTrack {
     fn duration(&self) -> u32 {
         self.track.as_ref().map(FullTrack::duration).unwrap_or(0)
     }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.as_ref().and_then(FullTrack::release_date)
+    }
 }
 
 impl TrackLike for FullTrack {
@@ -328,6 +350,10 @@ impl TrackLike for FullTrack {
     fn duration(&self) -> u32 {
         self.duration_ms
     }
+
+    fn release_date(&self) -> Option<&str> {
+        self.album.release_date.as_deref()
+    }
 }
 
 impl TrackLike for SimplifiedTrack {
@@ -351,20 +377,12 @@ impl TrackLike for SimplifiedTrack {
         self.track_number
     }
 
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
-    fn is_playable(&self) -> bool {
-        true
-    }
-
     fn duration(&self) -> u32 {
         self.duration_ms
     }
 
     fn unavailable_columns() -> &'static [u32] {
-        &[COL_TRACK_ALBUM, COL_TRACK_THUMB]
+        &[COL_TRACK_ALBUM, COL_TRACK_THUMB, COL_TRACK_RELEASE_DATE]
     }
 }
 
@@ -400,6 +418,10 @@ impl TrackLike for SavedTrack {
     fn duration(&self) -> u32 {
         self.track.duration()
     }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.release_date()
+    }
 }
 
 impl TrackLike for FullEpisode {
@@ -415,24 +437,16 @@ impl TrackLike for FullEpisode {
         &self.name
     }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &[]
-    }
-
-    fn number(&self) -> u32 {
-        0
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
     fn is_playable(&self) -> bool {
         self.is_playable
     }
 
     fn duration(&self) -> u32 {
         self.duration_ms
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        Some(&self.release_date)
     }
 
     fn images(&self) -> Option<&Vec<Image>> {
@@ -457,24 +471,16 @@ impl TrackLike for SimplifiedEpisode {
         &self.name
     }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &[]
-    }
-
-    fn number(&self) -> u32 {
-        0
-    }
-
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-
     fn is_playable(&self) -> bool {
         self.is_playable
     }
 
     fn duration(&self) -> u32 {
         self.duration_ms
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        Some(&self.release_date)
     }
 
     fn images(&self) -> Option<&Vec<Image>> {
@@ -502,5 +508,6 @@ impl_track_like_for_playing_item! {
     id -> &str, uri -> &str, name -> &str,
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
-    duration -> u32, images -> Option<&Vec<Image>>
+    duration -> u32, images -> Option<&Vec<Image>>,
+    release_date -> Option<&str>
 }

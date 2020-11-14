@@ -183,6 +183,7 @@ where
             String::static_type(), // track uri
             f32::static_type(),    // bpm
             String::static_type(), // duration from start
+            String::static_type(), // release date
         ]);
 
         let stream = relm.stream().clone();
@@ -539,6 +540,23 @@ where
                 );
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_RELEASE_DATE) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                text_cell.set_alignment(1.0, 0.5);
+
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("Released")
+                    .sort_column_id(COL_TRACK_RELEASE_DATE as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_RELEASE_DATE as i32);
                 column
             });
         }
