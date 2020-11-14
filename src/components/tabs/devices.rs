@@ -4,9 +4,7 @@ use gtk::prelude::*;
 use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use rspotify::model::device::Device;
-use rspotify::senum::DeviceType;
-use rspotify::senum::DeviceType::*;
+use rspotify::model::{Device, DeviceType};
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -173,6 +171,7 @@ impl Widget for DevicesTab {
         tpe: DeviceType,
         is_active: bool,
     ) -> gdk_pixbuf::Pixbuf {
+        use DeviceType::*;
         let icon_name = match tpe {
             Tablet => "computer-apple-ipad-symbolic",
             Smartphone => "phone-apple-iphone-symbolic",

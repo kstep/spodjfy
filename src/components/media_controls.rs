@@ -9,14 +9,13 @@ use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::album::FullAlbum;
 use rspotify::model::artist::FullArtist;
-use rspotify::model::context::{Context, CurrentlyPlaybackContext};
+use rspotify::model::context::Context;
 use rspotify::model::device::Device;
 use rspotify::model::image::Image;
 use rspotify::model::playlist::FullPlaylist;
 use rspotify::model::show::{FullEpisode, FullShow};
 use rspotify::model::track::FullTrack;
-use rspotify::model::PlayingItem;
-use rspotify::senum::{RepeatState, Type};
+use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -78,7 +77,7 @@ impl PlayContext {
 pub enum MediaControlsMsg {
     Reload,
     LoadState,
-    NewState(Box<Option<CurrentlyPlaybackContext>>),
+    NewState(Box<Option<CurrentPlaybackContext>>),
     LoadDevices,
     NewDevices(Vec<Device>),
     UseDevice(Option<String>),
@@ -104,7 +103,7 @@ pub struct MediaControlsModel {
     stream: EventStream<MediaControlsMsg>,
     devices: gtk::ListStore,
     spotify: Arc<SpotifyProxy>,
-    state: Option<CurrentlyPlaybackContext>,
+    state: Option<CurrentPlaybackContext>,
     context: Option<PlayContext>,
     track_cover: Option<Pixbuf>,
     context_cover: Option<Pixbuf>,
@@ -200,20 +199,20 @@ impl Widget for MediaControls {
                     .unwrap();
             }
             NewState(state) => {
-                let old_state: Option<&CurrentlyPlaybackContext> = self.model.state.as_ref();
+                let old_state: Option<&CurrentPlaybackContext> = self.model.state.as_ref();
                 let old_track_uri = match old_state {
-                    Some(CurrentlyPlaybackContext {
+                    Some(CurrentPlaybackContext {
                         item: Some(PlayingItem::Track(FullTrack { uri: track_uri, .. })),
                         ..
                     })
-                    | Some(CurrentlyPlaybackContext {
+                    | Some(CurrentPlaybackContext {
                         item: Some(PlayingItem::Episode(FullEpisode { uri: track_uri, .. })),
                         ..
                     }) => track_uri.as_str(),
                     _ => "",
                 };
                 let old_context_uri = match old_state {
-                    Some(CurrentlyPlaybackContext {
+                    Some(CurrentPlaybackContext {
                         context:
                             Some(Context {
                                 uri: context_uri, ..
@@ -310,7 +309,7 @@ impl Widget for MediaControls {
                     .tell(SpotifyCmd::SeekTrack { pos })
                     .unwrap();
 
-                if let Some(CurrentlyPlaybackContext {
+                if let Some(CurrentPlaybackContext {
                     progress_ms: Some(ref mut progress),
                     ..
                 }) = self.model.state
@@ -448,7 +447,7 @@ impl Widget for MediaControls {
                 self.model.context = Some(*context);
             }
             Tick(timeout) => {
-                if let Some(CurrentlyPlaybackContext {
+                if let Some(CurrentPlaybackContext {
                     is_playing: true,
                     progress_ms: Some(ref mut progress),
                     ..

@@ -5,17 +5,17 @@ use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::FullArtist;
 use rspotify::model::audio::AudioFeatures;
 use rspotify::model::category::Category;
-use rspotify::model::context::CurrentlyPlaybackContext;
+use rspotify::model::context::CurrentPlaybackContext;
 use rspotify::model::device::Device;
-use rspotify::model::offset;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
-use rspotify::senum::{AdditionalType, RepeatState};
+use rspotify::model::{offset, AdditionalType, RepeatState};
 use std::borrow::Cow;
 use std::collections::VecDeque;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, SendError, Sender};
 use std::sync::Arc;
@@ -163,7 +163,7 @@ pub enum SpotifyCmd {
         mode: RepeatState,
     },
     GetPlaybackState {
-        tx: ResultSender<Option<CurrentlyPlaybackContext>>,
+        tx: ResultSender<Option<CurrentPlaybackContext>>,
     },
     GetPlaylistTracks {
         tx: ResultSender<Page<PlaylistTrack>>,
@@ -432,7 +432,7 @@ impl SpotifyServer {
                 let _ = client.lock().await.play_context(uri, start_uri).await;
             }
             GetTracksFeatures { tx, uris } => {
-                let features = client.lock().await.get_tracks_features(uris).await;
+                let features = client.lock().await.get_tracks_features(&uris).await;
                 tx.send(features)?;
             }
             GetMyDevices { tx } => {
@@ -560,16 +560,19 @@ impl Spotify {
             .await
     }
 
-    async fn get_tracks_features(&self, uris: Vec<String>) -> ClientResult<Vec<AudioFeatures>> {
+    async fn get_tracks_features(&self, uris: &[String]) -> ClientResult<Vec<AudioFeatures>> {
         if uris.is_empty() {
             return Ok(Vec::new());
         }
 
-        self.client.audios_features(&uris).await.map(|payload| {
-            payload
-                .map(|features| features.audio_features)
-                .unwrap_or_else(Vec::new)
-        })
+        self.client
+            .tracks_features(uris.iter().map(Deref::deref))
+            .await
+            .map(|payload| {
+                payload
+                    .map(|features| features.audio_features)
+                    .unwrap_or_else(Vec::new)
+            })
     }
 
     async fn get_my_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedTrack>> {
@@ -648,7 +651,7 @@ impl Spotify {
         self.client.get_authorize_url(false)
     }
 
-    async fn get_playback_state(&self) -> ClientResult<Option<CurrentlyPlaybackContext>> {
+    async fn get_playback_state(&self) -> ClientResult<Option<CurrentPlaybackContext>> {
         self.client
             .current_playback(
                 None,
@@ -829,11 +832,15 @@ impl Spotify {
     }
 
     async fn add_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
-        self.client.current_user_saved_tracks_add(uris).await
+        self.client
+            .current_user_saved_tracks_add(uris.iter().map(Deref::deref))
+            .await
     }
 
     async fn remove_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
-        self.client.current_user_saved_tracks_delete(uris).await
+        self.client
+            .current_user_saved_tracks_delete(uris.iter().map(Deref::deref))
+            .await
     }
 
     async fn get_categories(&self, offset: u32, limit: u32) -> ClientResult<Page<Category>> {

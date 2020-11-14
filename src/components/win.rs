@@ -22,7 +22,7 @@ use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
-use rspotify::senum::Type;
+use rspotify::model::Type;
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Settings {

@@ -8,7 +8,7 @@ use gtk::IconViewExt;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use rspotify::model::album::{SavedAlbum, SimplifiedAlbum};
+use rspotify::model::album::SimplifiedAlbum;
 use rspotify::model::page::Page;
 use std::sync::Arc;
 
