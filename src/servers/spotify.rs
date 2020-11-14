@@ -12,9 +12,10 @@ use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
-use rspotify::model::track::{SavedTrack, SimplifiedTrack};
+use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::senum::{AdditionalType, RepeatState};
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, SendError, Sender};
 use std::sync::Arc;
@@ -233,17 +234,24 @@ pub enum SpotifyCmd {
     EnqueueTracks {
         uris: Vec<String>,
     },
+    DequeueTracks {
+        uris: Vec<String>,
+    },
     AddMyTracks {
         uris: Vec<String>,
     },
     RemoveMyTracks {
         uris: Vec<String>,
     },
+    GetQueueTracks {
+        tx: ResultSender<Vec<FullTrack>>,
+    },
 }
 
 pub struct Spotify {
     cache_path: PathBuf,
     client: Client,
+    queue: VecDeque<String>,
 }
 
 #[derive(Debug)]
@@ -369,6 +377,10 @@ impl SpotifyServer {
                     .await;
                 tx.send(tracks)?;
             }
+            GetQueueTracks { tx } => {
+                let reply = client.lock().await.get_queue_tracks().await;
+                tx.send(reply)?;
+            }
             GetAuthorizeUrl { tx } => {
                 let url = client.lock().await.get_authorize_url();
                 tx.send(url)?;
@@ -463,6 +475,9 @@ impl SpotifyServer {
             EnqueueTracks { uris } => {
                 let _ = client.lock().await.enqueue_tracks(uris).await;
             }
+            DequeueTracks { uris } => {
+                let _ = client.lock().await.dequeue_tracks(&uris).await;
+            }
             AddMyTracks { uris } => {
                 let _ = client.lock().await.add_my_tracks(&uris).await;
             }
@@ -478,6 +493,7 @@ impl Spotify {
     pub async fn new(id: String, secret: String, cache_path: PathBuf) -> Self {
         Spotify {
             client: Self::create_client(id, secret, cache_path.clone()).await,
+            queue: VecDeque::new(),
             cache_path,
         }
     }
@@ -498,6 +514,10 @@ impl Spotify {
     }
 
     async fn play_tracks(&self, uris: Vec<String>) -> ClientResult<()> {
+        if uris.is_empty() {
+            return Ok(());
+        }
+
         self.client
             .start_playback(None, None, Some(uris), None, None)
             .await
@@ -516,6 +536,10 @@ impl Spotify {
     }
 
     async fn get_tracks_features(&self, uris: Vec<String>) -> ClientResult<Vec<AudioFeatures>> {
+        if uris.is_empty() {
+            return Ok(Vec::new());
+        }
+
         self.client.audios_features(&uris).await.map(|payload| {
             payload
                 .map(|features| features.audio_features)
@@ -743,13 +767,40 @@ impl Spotify {
         }
     }
 
-    async fn enqueue_tracks(&self, uris: Vec<String>) -> ClientResult<()> {
+    async fn dequeue_tracks(&mut self, uris: &[String]) -> ClientResult<()> {
+        self.queue.retain(|uri| !uris.contains(uri));
+        Ok(())
+    }
+
+    async fn enqueue_tracks(&mut self, uris: Vec<String>) -> ClientResult<()> {
+        if uris.is_empty() {
+            return Ok(());
+        }
+
         futures::future::try_join_all(
-            uris.into_iter()
-                .map(|uri| self.client.add_item_to_queue(uri, None)),
+            uris.iter()
+                .cloned()
+                .map(|uri| self.client.add_item_to_queue(uri.clone(), None)),
         )
-        .await
-        .map(|_| ())
+        .await?;
+        self.queue.extend(uris);
+        Ok(())
+    }
+
+    async fn get_queue_tracks(&self) -> ClientResult<Vec<FullTrack>> {
+        if self.queue.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let uris = self
+            .queue
+            .iter()
+            .map(|uri| uri.as_str())
+            .collect::<Vec<_>>();
+        self.client
+            .tracks(uris, None)
+            .await
+            .map(|reply| reply.tracks)
     }
 
     async fn add_my_tracks(&self, uris: &[String]) -> ClientResult<()> {

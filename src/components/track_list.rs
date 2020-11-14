@@ -70,6 +70,15 @@ pub struct TrackList<Loader: TracksLoader> {
     refresh_btn: gtk::Button,
 }
 
+impl ControlSpotifyContext for TrackList<QueueLoader> {
+    fn play_tracks(&self, uris: Vec<String>) {
+        self.model
+            .spotify
+            .tell(SpotifyCmd::PlayTracks { uris })
+            .unwrap();
+    }
+}
+
 impl ControlSpotifyContext for TrackList<RecentLoader> {
     fn play_tracks(&self, uris: Vec<String>) {
         self.model

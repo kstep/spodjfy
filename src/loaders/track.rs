@@ -75,6 +75,26 @@ impl TracksLoader for RecentLoader {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct QueueLoader;
+
+impl TracksLoader for QueueLoader {
+    type ParentId = ();
+    type Track = FullTrack;
+    type Page = Vec<Self::Track>;
+    const PAGE_LIMIT: u32 = 0;
+
+    fn new(_id: Self::ParentId) -> Self {
+        QueueLoader
+    }
+
+    fn parent_id(&self) -> Self::ParentId {}
+
+    fn load_tracks_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
+        SpotifyCmd::GetQueueTracks { tx }
+    }
+}
+
 #[derive(Clone)]
 pub struct AlbumLoader {
     uri: String,

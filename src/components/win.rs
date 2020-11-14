@@ -14,6 +14,7 @@ use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
 use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
+use crate::components::tabs::queue::{QueueMsg, QueueTab};
 use crate::components::tabs::recent::{RecentMsg, RecentTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
@@ -148,6 +149,9 @@ impl Widget for Win {
                 Some("recent_tab") => {
                     self.recent_tab.emit(RecentMsg::ShowTab);
                 }
+                Some("queue_tab") => {
+                    self.queue_tab.emit(QueueMsg::ShowTab);
+                }
                 Some("settings_tab") => {
                     self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
@@ -217,6 +221,15 @@ impl Widget for Win {
                                     child: {
                                         name: Some("recent_tab"),
                                         title: Some("\u{23F3} Recently played"),
+                                    }
+                                },
+
+                                #[name="queue_tab"]
+                                QueueTab(self.model.spotify.clone()) {
+                                    widget_name: "queue_tab",
+                                    child: {
+                                        name: Some("queue_tab"),
+                                        title: Some("\u{1F3B5} Queue"),
                                     }
                                 },
 
