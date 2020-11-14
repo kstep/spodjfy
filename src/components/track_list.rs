@@ -39,6 +39,13 @@ pub enum TrackListMsg<Loader: TracksLoader> {
     OpenContextMenu(gdk::EventButton),
 
     GoToTrack(String),
+    GoToChosenTrackAlbum,
+    GoToChosenTrackArtist,
+    EnqueueChosenTracks,
+    AddChosenTracks,
+    SaveChosenTracks,
+    RecommendTracks,
+    UnsaveChosenTracks,
 }
 
 const THUMB_SIZE: i32 = 32;
@@ -81,35 +88,10 @@ impl ControlSpotifyContext for TrackList<SavedLoader> {
     }
 }
 
-impl ControlSpotifyContext for TrackList<PlaylistLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref loader) = self.model.tracks_loader {
-            self.model
-                .spotify
-                .tell(SpotifyCmd::PlayContext {
-                    uri: loader.parent_id(),
-                    start_uri: uris.first().cloned(),
-                })
-                .unwrap();
-        }
-    }
-}
-
-impl ControlSpotifyContext for TrackList<ShowLoader> {
-    fn play_tracks(&self, uris: Vec<String>) {
-        if let Some(ref loader) = self.model.tracks_loader {
-            self.model
-                .spotify
-                .tell(SpotifyCmd::PlayContext {
-                    uri: loader.parent_id(),
-                    start_uri: uris.first().cloned(),
-                })
-                .unwrap();
-        }
-    }
-}
-
-impl ControlSpotifyContext for TrackList<AlbumLoader> {
+impl<T> ControlSpotifyContext for TrackList<T>
+where
+    T: TracksLoader<ParentId = String>,
+{
     fn play_tracks(&self, uris: Vec<String>) {
         if let Some(ref loader) = self.model.tracks_loader {
             self.model
@@ -157,6 +139,21 @@ impl<Loader: TracksLoader> TrackList<Loader> {
                 )
                 .unwrap();
         }
+    }
+
+    fn get_selected_tracks_uris(&self) -> Vec<String> {
+        let select = self.tracks_view.get_selection();
+        let (rows, model) = select.get_selected_rows();
+        rows.into_iter()
+            .filter_map(|path| model.get_iter(&path))
+            .filter_map(|pos| {
+                model
+                    .get_value(&pos, COL_TRACK_URI as i32)
+                    .get::<String>()
+                    .ok()
+                    .flatten()
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -362,23 +359,34 @@ where
                 self.context_menu.popup_at_pointer(Some(&event));
             }
             PlayChosenTracks => {
-                let tree = &self.tracks_view;
-                let select = tree.get_selection();
-                let (rows, model) = select.get_selected_rows();
-                let uris = rows
-                    .into_iter()
-                    .filter_map(|path| model.get_iter(&path))
-                    .filter_map(|pos| {
-                        model
-                            .get_value(&pos, COL_TRACK_URI as i32)
-                            .get::<String>()
-                            .ok()
-                            .flatten()
-                    })
-                    .collect::<Vec<_>>();
-
+                let uris = self.get_selected_tracks_uris();
                 self.model.stream.emit(PlayTracks(uris));
             }
+            EnqueueChosenTracks => {
+                let uris = self.get_selected_tracks_uris();
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::EnqueueTracks { uris })
+                    .unwrap();
+            }
+            AddChosenTracks => {}
+            SaveChosenTracks => {
+                let uris = self.get_selected_tracks_uris();
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::AddMyTracks { uris })
+                    .unwrap();
+            }
+            UnsaveChosenTracks => {
+                let uris = self.get_selected_tracks_uris();
+                self.model
+                    .spotify
+                    .tell(SpotifyCmd::RemoveMyTracks { uris })
+                    .unwrap();
+            }
+            RecommendTracks => {}
+            GoToChosenTrackAlbum => {}
+            GoToChosenTrackArtist => {}
             PlayTracks(uris) => {
                 self.play_tracks(uris);
                 self.model.stream.emit(PlayingNewTrack);
@@ -649,14 +657,36 @@ where
 
         let context_menu = gtk::Menu::new();
 
-        context_menu.append(&{
-            let item = gtk::MenuItem::with_label("Play now");
-            let stream = relm.stream().clone();
-            item.connect_activate(move |_| stream.emit(TrackListMsg::PlayChosenTracks));
-            item
-        });
+        macro_rules! menu {
+            ($menu:ident, $relm:ident, $($item:tt),+) => {
+                $($menu.append(&{
+                    menu!(@ $relm, $item)
+                });)+
+            };
+            (@ $relm:ident, ($title:literal => $msg:ident)) => {{
+                let item = gtk::MenuItem::with_label($title);
+                let stream = $relm.stream().clone();
+                item.connect_activate(move |_| stream.emit(TrackListMsg::$msg));
+                item
+            }};
+            (@ $relm:ident, (===)) => {
+                gtk::SeparatorMenuItem::new()
+            };
+        }
 
-        context_menu.append(&gtk::MenuItem::with_label("Remove from library"));
+        menu! {context_menu, relm,
+            ("Play now" => PlayChosenTracks),
+            ("Add to queue" => EnqueueChosenTracks),
+            ("Add to library" => SaveChosenTracks),
+            ("Add to playlist…" => AddChosenTracks),
+            (===),
+            ("Go to album" => GoToChosenTrackAlbum),
+            ("Go to artist" => GoToChosenTrackArtist),
+            ("Recommend similar" => RecommendTracks),
+            (===),
+            ("Remove from library" => UnsaveChosenTracks)
+            //("Remove from playlist" => RemoveChosenTracks)
+        };
 
         context_menu.show_all();
 

@@ -230,6 +230,15 @@ pub enum SpotifyCmd {
         tx: ResultSender<Vec<PlayHistory>>,
         limit: u32,
     },
+    EnqueueTracks {
+        uris: Vec<String>,
+    },
+    AddMyTracks {
+        uris: Vec<String>,
+    },
+    RemoveMyTracks {
+        uris: Vec<String>,
+    },
 }
 
 pub struct Spotify {
@@ -450,6 +459,15 @@ impl SpotifyServer {
             GetRecentTracks { tx, limit } => {
                 let reply = client.lock().await.get_recent_tracks(limit).await;
                 tx.send(reply)?;
+            }
+            EnqueueTracks { uris } => {
+                let _ = client.lock().await.enqueue_tracks(uris).await;
+            }
+            AddMyTracks { uris } => {
+                let _ = client.lock().await.add_my_tracks(&uris).await;
+            }
+            RemoveMyTracks { uris } => {
+                let _ = client.lock().await.remove_my_tracks(&uris).await;
             }
         }
         Ok(())
@@ -723,6 +741,23 @@ impl Spotify {
         } else {
             Err(ClientError::Request("Invalid show URI".into()))
         }
+    }
+
+    async fn enqueue_tracks(&self, uris: Vec<String>) -> ClientResult<()> {
+        futures::future::try_join_all(
+            uris.into_iter()
+                .map(|uri| self.client.add_item_to_queue(uri, None)),
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn add_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
+        self.client.current_user_saved_tracks_add(uris).await
+    }
+
+    async fn remove_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
+        self.client.current_user_saved_tracks_delete(uris).await
     }
 
     fn get_id(uri: &str) -> Option<&str> {
