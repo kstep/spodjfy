@@ -10,4 +10,5 @@ pub mod queue;
 pub mod recent;
 pub mod settings;
 pub mod shows;
+pub mod top_artists;
 pub mod top_tracks;
