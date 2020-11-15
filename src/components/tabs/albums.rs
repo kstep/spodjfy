@@ -2,9 +2,10 @@ use crate::components::track_list::{TrackList, TrackListMsg};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::track::AlbumLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
-use glib::StaticType;
+use glib::{Cast, StaticType};
 use gtk::prelude::*;
-use gtk::IconViewExt;
+use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
+use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -24,13 +25,18 @@ pub enum AlbumsMsg {
     GoToTrack(String),
 }
 
-const THUMB_SIZE: i32 = 256;
+const THUMB_SIZE: i32 = 48;
 const PAGE_LIMIT: u32 = 10;
 
 const COL_ALBUM_THUMB: u32 = 0;
-const COL_ALBUM_NAME: u32 = 1;
-const COL_ALBUM_RELEASE_DATE: u32 = 2;
-const COL_ALBUM_URI: u32 = 3;
+const COL_ALBUM_URI: u32 = 1;
+const COL_ALBUM_NAME: u32 = 2;
+const COL_ALBUM_RELEASE_DATE: u32 = 3;
+const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
+const COL_ALBUM_ARTISTS: u32 = 5;
+const COL_ALBUM_GENRES: u32 = 6;
+const COL_ALBUM_TYPE: u32 = 7;
+const COL_ALBUM_DURATION: u32 = 8;
 
 pub struct AlbumsModel {
     stream: EventStream<AlbumsMsg>,
@@ -43,10 +49,15 @@ pub struct AlbumsModel {
 impl Widget for AlbumsTab {
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> AlbumsModel {
         let store = gtk::ListStore::new(&[
-            gdk_pixbuf::Pixbuf::static_type(),
-            String::static_type(),
-            String::static_type(),
-            String::static_type(),
+            gdk_pixbuf::Pixbuf::static_type(), // thumb
+            String::static_type(),             // uri
+            String::static_type(),             // name
+            String::static_type(),             // release date
+            u32::static_type(),                // total tracks
+            String::static_type(),             // artists
+            String::static_type(),             // genres
+            u8::static_type(),                 // type
+            u32::static_type(),                // duration
         ]);
         let stream = relm.stream().clone();
         AlbumsModel {
@@ -85,11 +96,36 @@ impl Widget for AlbumsTab {
                 for album in albums {
                     let pos = store.insert_with_values(
                         None,
-                        &[COL_ALBUM_NAME, COL_ALBUM_RELEASE_DATE, COL_ALBUM_URI],
                         &[
+                            COL_ALBUM_URI,
+                            COL_ALBUM_NAME,
+                            COL_ALBUM_RELEASE_DATE,
+                            COL_ALBUM_TOTAL_TRACKS,
+                            COL_ALBUM_ARTISTS,
+                            COL_ALBUM_GENRES,
+                            COL_ALBUM_TYPE,
+                            COL_ALBUM_DURATION,
+                        ],
+                        &[
+                            &album.album.uri,
                             &album.album.name,
                             &album.album.release_date,
-                            &album.album.uri,
+                            &album.album.tracks.total,
+                            &album
+                                .album
+                                .artists
+                                .iter()
+                                .map(|artist| &artist.name)
+                                .join(", "),
+                            &album.album.genres.iter().join(", "),
+                            &(album.album.album_type as u8),
+                            &album
+                                .album
+                                .tracks
+                                .items
+                                .iter()
+                                .map(|track| track.duration_ms)
+                                .sum::<u32>(),
                         ],
                     );
 
@@ -117,21 +153,20 @@ impl Widget for AlbumsTab {
                 self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
             OpenChosenAlbum => {
-                let icon_view: &gtk::IconView = &self.albums_view;
-                let store: &gtk::ListStore = &self.model.store;
+                let select = self.albums_view.get_selection();
+                let (rows, model) = select.get_selected_rows();
+
                 self.model.stream.emit(OpenAlbum(
-                    icon_view
-                        .get_selected_items()
-                        .first()
-                        .and_then(|path| store.get_iter(path))
+                    rows.first()
+                        .and_then(|path| model.get_iter(path))
                         .and_then(|iter| {
-                            store
+                            model
                                 .get_value(&iter, COL_ALBUM_URI as i32)
                                 .get::<String>()
                                 .ok()
                                 .flatten()
                                 .zip(
-                                    store
+                                    model
                                         .get_value(&iter, COL_ALBUM_NAME as i32)
                                         .get::<String>()
                                         .ok()
@@ -168,18 +203,10 @@ impl Widget for AlbumsTab {
                     },
 
                     #[name="albums_view"]
-                    /*
                     gtk::TreeView {
-                        model: Some(&self.model.store)),
-                    }
-                     */
-                    gtk::IconView {
-                        pixbuf_column: COL_ALBUM_THUMB as i32,
-                        text_column: COL_ALBUM_NAME as i32,
                         model: Some(&self.model.store),
-                        item_width: THUMB_SIZE,
 
-                        item_activated(view, path) => AlbumsMsg::OpenAlbum(
+                        row_activated(view, path, _) => AlbumsMsg::OpenAlbum(
                             view.get_model().and_then(|model| {
                                 model.get_iter(path).and_then(|pos|
                                     model.get_value(&pos, COL_ALBUM_URI as i32).get::<String>().ok().flatten()
@@ -195,42 +222,139 @@ impl Widget for AlbumsTab {
 
     fn init_view(&mut self) {
         self.breadcrumb.set_stack(Some(&self.stack));
-        /*
-        let tree: &TreeView = &self.albums_view;
 
-        let text_cell = gtk::CellRendererText::new();
-        let image_cell = gtk::CellRendererPixbuf::new();
+        let tree: &gtk::TreeView = &self.albums_view;
+        let base_column = gtk::TreeViewColumnBuilder::new()
+            .expand(true)
+            .resizable(true)
+            .reorderable(true);
 
         tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .expand(true)
-                .build();
-            column.pack_start(&image_cell, true);
-            column.add_attribute(&image_cell, "pixbuf", 0);
-            column
+            let cell = gtk::CellRendererPixbuf::new();
+            let col = gtk::TreeViewColumn::new();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "pixbuf", COL_ALBUM_THUMB as i32);
+            col
         });
 
         tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
+            let cell = gtk::CellRendererText::new();
+            let col = base_column
+                .clone()
+                .sort_column_id(COL_ALBUM_TYPE as i32)
+                .expand(false)
+                .build();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_TYPE as i32);
+            gtk::TreeViewColumnExt::set_cell_data_func(
+                &col,
+                &cell,
+                Some(Box::new(move |_col, cell, model, pos| {
+                    if let (Some(cell), Ok(Some(value))) = (
+                        cell.downcast_ref::<gtk::CellRendererText>(),
+                        model.get_value(pos, COL_ALBUM_TYPE as i32).get::<u8>(),
+                    ) {
+                        cell.set_property_text(Some(match value {
+                            0 => "\u{1F4BF}", // album
+                            1 => "\u{1F3B5}", // single
+                            2 => "\u{1F468}", // appears on
+                            3 => "\u{1F4DA}", // compilation
+                            _ => "?",
+                        }));
+                    }
+                })),
+            );
+            col
+        });
+
+        tree.append_column(&{
+            let cell = gtk::CellRendererText::new();
+            let col = base_column
+                .clone()
                 .title("Title")
-                .expand(true)
-                .sort_column_id(1)
+                .sort_column_id(COL_ALBUM_NAME as i32)
                 .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 1);
-            column
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_NAME as i32);
+            col
         });
 
         tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .title("Release date")
-                .expand(true)
-                .sort_column_id(2)
+            let cell = gtk::CellRendererText::new();
+            cell.set_alignment(1.0, 0.5);
+            let col = base_column
+                .clone()
+                .title("Tracks")
+                .expand(false)
+                .sort_column_id(COL_ALBUM_TOTAL_TRACKS as i32)
                 .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 2);
-            column
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_TOTAL_TRACKS as i32);
+            col
         });
-         */
+
+        tree.append_column(&{
+            let cell = gtk::CellRendererText::new();
+            cell.set_alignment(1.0, 0.5);
+            let col = base_column
+                .clone()
+                .title("Duration")
+                .expand(false)
+                .sort_column_id(COL_ALBUM_DURATION as i32)
+                .build();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_DURATION as i32);
+            gtk::TreeViewColumnExt::set_cell_data_func(
+                &col,
+                &cell,
+                Some(Box::new(move |_col, cell, model, pos| {
+                    if let (Some(cell), Ok(Some(value))) = (
+                        cell.downcast_ref::<gtk::CellRendererText>(),
+                        model.get_value(pos, COL_ALBUM_DURATION as i32).get::<u32>(),
+                    ) {
+                        cell.set_property_text(Some(&crate::utils::humanize_time(value)));
+                    }
+                })),
+            );
+            col
+        });
+
+        tree.append_column(&{
+            let cell = gtk::CellRendererText::new();
+            cell.set_alignment(1.0, 0.5);
+            let col = base_column
+                .clone()
+                .title("Released")
+                .expand(false)
+                .sort_column_id(COL_ALBUM_RELEASE_DATE as i32)
+                .build();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_RELEASE_DATE as i32);
+            col
+        });
+
+        tree.append_column(&{
+            let cell = gtk::CellRendererText::new();
+            let col = base_column
+                .clone()
+                .title("Genres")
+                .sort_column_id(COL_ALBUM_GENRES as i32)
+                .build();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_GENRES as i32);
+            col
+        });
+
+        tree.append_column(&{
+            let cell = gtk::CellRendererText::new();
+            let col = base_column
+                .clone()
+                .title("Artists")
+                .sort_column_id(COL_ALBUM_ARTISTS as i32)
+                .build();
+            col.pack_start(&cell, true);
+            col.add_attribute(&cell, "text", COL_ALBUM_ARTISTS as i32);
+            col
+        });
     }
 }
