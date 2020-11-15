@@ -66,7 +66,7 @@ impl LoginServer {
                 info!("oauth code received");
                 match spotify.lock().await.authorize_user(code).await {
                     Ok(_) => {
-                        let _ = Self::respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 47\r\n\r\n<html><body><h1>Login successful!</h1></body>\r\n").await;
+                        let _ = Self::respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 79\r\n\r\n<html><body><h1>Login successful!</h1><script>window.close();</script></body>\r\n").await;
                     }
                     Err(error) => {
                         let message = format!(
