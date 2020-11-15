@@ -48,6 +48,9 @@ impl<Loader: AlbumsLoader> AlbumList<Loader> {
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_albums = 0;
+
+        let status_ctx = self.status_bar.get_context_id("totals");
+        self.status_bar.remove_all(status_ctx);
     }
 
     fn start_load(&mut self) {

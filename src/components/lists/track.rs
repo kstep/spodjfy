@@ -97,6 +97,9 @@ impl<Loader: TracksLoader> TrackList<Loader> {
         self.model.store.clear();
         self.model.total_duration = 0;
         self.model.total_tracks = 0;
+
+        let status_ctx = self.status_bar.get_context_id("totals");
+        self.status_bar.remove_all(status_ctx);
     }
 
     fn start_load(&mut self) {
