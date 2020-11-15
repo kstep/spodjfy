@@ -65,6 +65,10 @@ impl ImageLoader {
             }
         }
     }
+
+    pub fn size(&self) -> i32 {
+        self.resize
+    }
 }
 
 fn pixbuf_from_raw_bytes(data: &[u8], resize: i32) -> Result<Option<Pixbuf>, glib::Error> {
