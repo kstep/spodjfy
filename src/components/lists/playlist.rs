@@ -221,6 +221,20 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
             });
         }
 
+        if !unavailable_columns.contains(&COL_PLAYLIST_DESCRIPTION) {
+            playlists_view.append_column(&{
+                let cell = gtk::CellRendererText::new();
+                let col = base_column
+                    .clone()
+                    .title("Description")
+                    .sort_column_id(COL_PLAYLIST_DESCRIPTION as i32)
+                    .build();
+                col.pack_start(&cell, true);
+                col.add_attribute(&cell, "text", COL_PLAYLIST_DESCRIPTION as i32);
+                col
+            });
+        }
+
         if !unavailable_columns.contains(&COL_PLAYLIST_TOTAL_TRACKS) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
@@ -285,6 +299,7 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
             String::static_type(),             // name
             u32::static_type(),                // total tracks
             u32::static_type(),                // duration
+            String::static_type(),             // description
         ]);
 
         let playlists_view = Self::build_playlists_view(relm, &store);
@@ -348,12 +363,14 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
                             COL_PLAYLIST_NAME,
                             COL_PLAYLIST_TOTAL_TRACKS,
                             COL_PLAYLIST_DURATION,
+                            COL_PLAYLIST_DESCRIPTION,
                         ],
                         &[
                             &playlist.uri(),
                             &playlist.name(),
                             &playlist.total_tracks(),
                             &playlist.duration(),
+                            &playlist.description(),
                         ],
                     );
 

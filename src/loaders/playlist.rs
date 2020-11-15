@@ -7,11 +7,13 @@ pub const COL_PLAYLIST_URI: u32 = 1;
 pub const COL_PLAYLIST_NAME: u32 = 2;
 pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
 pub const COL_PLAYLIST_DURATION: u32 = 4;
+pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
 
 pub trait PlaylistLike {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
+    fn description(&self) -> &str;
 
     fn images(&self) -> &[Image];
     fn total_tracks(&self) -> u32 {
@@ -44,6 +46,10 @@ impl PlaylistLike for SimplifiedPlaylist {
         &self.name
     }
 
+    fn description(&self) -> &str {
+        ""
+    }
+
     fn images(&self) -> &[Image] {
         &self.images
     }
@@ -59,7 +65,7 @@ impl PlaylistLike for SimplifiedPlaylist {
     where
         Self: Sized,
     {
-        &[COL_PLAYLIST_DURATION]
+        &[COL_PLAYLIST_DURATION, COL_PLAYLIST_DESCRIPTION]
     }
 }
 
@@ -74,6 +80,10 @@ impl PlaylistLike for FullPlaylist {
 
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn description(&self) -> &str {
+        &self.description
     }
 
     fn images(&self) -> &[Image] {
