@@ -186,6 +186,7 @@ where
             f32::static_type(),    // bpm
             String::static_type(), // duration from start
             String::static_type(), // release date
+            String::static_type(), // description
         ]);
 
         let stream = relm.stream().clone();
@@ -475,6 +476,20 @@ where
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
                 column.add_attribute(&text_cell, "strikethrough", COL_TRACK_CANT_PLAY as i32);
+                column
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_TRACK_DESCRIPTION) {
+            tracks_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Description")
+                    .sort_column_id(COL_TRACK_DESCRIPTION as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_DESCRIPTION as i32);
                 column
             });
         }

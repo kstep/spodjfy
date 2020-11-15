@@ -551,6 +551,7 @@ impl Widget for MediaControls {
                     margin_start: 15,
                     #[name="track_cover_image"]
                     gtk::Image {
+                        valign: gtk::Align::Start,
                         from_pixbuf: self.model.track_cover.as_ref()
                     },
                     #[name="track_infobox"]
@@ -561,14 +562,8 @@ impl Widget for MediaControls {
                             widget_name: "track_name_label",
                             halign: gtk::Align::Start,
                             hexpand: true,
-                            label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                                PlayingItem::Track(track) => &*track.name,
-                                PlayingItem::Episode(episode) => &*episode.name,
-                            }).unwrap_or("<Nothing>"),
-                            uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                                PlayingItem::Track(track) => &*track.uri,
-                                PlayingItem::Episode(episode) => &*episode.uri,
-                            }).unwrap_or(""),
+                            label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
+                            uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
 
                             activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
                         },
@@ -588,6 +583,15 @@ impl Widget for MediaControls {
                                 PlayingItem::Track(track) => &*track.album.name,
                                 PlayingItem::Episode(episode) => &*episode.show.name,
                             }).unwrap_or("")
+                        },
+                        #[name="track_description_label"]
+                        gtk::Label {
+                            halign: gtk::Align::Start,
+                            line_wrap: true,
+                            text: self.model.state.as_ref()
+                                .and_then(|s| s.item.as_ref())
+                                .and_then(|it| it.description())
+                                .unwrap_or("")
                         },
                     },
                     #[name="context_cover_image"]

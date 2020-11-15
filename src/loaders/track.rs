@@ -373,6 +373,9 @@ pub trait TrackLike {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
+    fn description(&self) -> Option<&str> {
+        None
+    }
     fn artists(&self) -> &[SimplifiedArtist] {
         &[]
     }
@@ -415,6 +418,7 @@ pub const COL_TRACK_URI: u32 = 9;
 pub const COL_TRACK_BPM: u32 = 10;
 pub const COL_TRACK_TIMELINE: u32 = 11;
 pub const COL_TRACK_RELEASE_DATE: u32 = 12;
+pub const COL_TRACK_DESCRIPTION: u32 = 13;
 
 impl<T: TrackLike> RowLike for T {
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -430,6 +434,7 @@ impl<T: TrackLike> RowLike for T {
                 COL_TRACK_DURATION_MS,
                 COL_TRACK_URI,
                 COL_TRACK_RELEASE_DATE,
+                COL_TRACK_DESCRIPTION,
             ],
             &[
                 &self.id(),
@@ -441,6 +446,7 @@ impl<T: TrackLike> RowLike for T {
                 &self.duration(),
                 &self.uri(),
                 &self.release_date(),
+                &self.description(),
             ],
         )
     }
@@ -481,6 +487,13 @@ impl TrackLike for PlayHistory {
 
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
+    }
+
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
+        &[COL_TRACK_DESCRIPTION]
     }
 }
 
@@ -523,6 +536,13 @@ impl TrackLike for PlaylistTrack {
     fn release_date(&self) -> Option<&str> {
         self.track.as_ref().and_then(FullTrack::release_date)
     }
+
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
+        &[COL_TRACK_DESCRIPTION]
+    }
 }
 
 impl TrackLike for FullTrack {
@@ -561,6 +581,13 @@ impl TrackLike for FullTrack {
     fn release_date(&self) -> Option<&str> {
         self.album.release_date.as_deref()
     }
+
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
+        &[COL_TRACK_DESCRIPTION]
+    }
 }
 
 impl TrackLike for SimplifiedTrack {
@@ -592,7 +619,12 @@ impl TrackLike for SimplifiedTrack {
     where
         Self: Sized,
     {
-        &[COL_TRACK_ALBUM, COL_TRACK_THUMB, COL_TRACK_RELEASE_DATE]
+        &[
+            COL_TRACK_ALBUM,
+            COL_TRACK_THUMB,
+            COL_TRACK_RELEASE_DATE,
+            COL_TRACK_DESCRIPTION,
+        ]
     }
 }
 
@@ -632,6 +664,13 @@ impl TrackLike for SavedTrack {
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
     }
+
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
+        &[COL_TRACK_DESCRIPTION]
+    }
 }
 
 impl TrackLike for FullEpisode {
@@ -645,6 +684,10 @@ impl TrackLike for FullEpisode {
 
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn description(&self) -> Option<&str> {
+        Some(&self.description)
     }
 
     fn is_playable(&self) -> bool {
@@ -682,6 +725,10 @@ impl TrackLike for SimplifiedEpisode {
 
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn description(&self) -> Option<&str> {
+        Some(&self.description)
     }
 
     fn is_playable(&self) -> bool {
@@ -725,5 +772,5 @@ impl_track_like_for_playing_item! {
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
     duration -> u32, images -> Option<&Vec<Image>>,
-    release_date -> Option<&str>
+    release_date -> Option<&str>, description -> Option<&str>
 }
