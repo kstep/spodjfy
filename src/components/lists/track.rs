@@ -13,6 +13,7 @@ use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 use rspotify::model::audio::AudioFeatures;
+use serde_json::Map;
 use std::sync::Arc;
 
 pub trait PlayContextCmd {
@@ -71,6 +72,12 @@ pub struct TrackList<Loader: TracksLoader> {
 }
 
 impl PlayContextCmd for () {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayTracks { uris }
+    }
+}
+
+impl<K, V> PlayContextCmd for Map<K, V> {
     fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
         SpotifyCmd::PlayTracks { uris }
     }

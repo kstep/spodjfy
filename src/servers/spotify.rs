@@ -13,6 +13,7 @@ use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist}
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::{offset, AdditionalType, RepeatState, TimeRange};
+use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::ops::Deref;
@@ -255,6 +256,14 @@ pub enum SpotifyCmd {
     GetArtistTopTracks {
         tx: ResultSender<Vec<FullTrack>>,
         uri: String,
+    },
+    GetRecommendedTracks {
+        tx: ResultSender<Vec<SimplifiedTrack>>,
+        limit: u32,
+        seed_artists: Option<Vec<String>>,
+        seed_genres: Option<Vec<String>>,
+        seed_tracks: Option<Vec<String>>,
+        tunables: Map<String, Value>,
     },
 }
 
@@ -533,6 +542,21 @@ impl SpotifyServer {
             }
             GetArtistTopTracks { tx, uri } => {
                 let reply = client.lock().await.get_artist_top_tracks(&uri).await;
+                tx.send(reply)?;
+            }
+            GetRecommendedTracks {
+                tx,
+                seed_artists,
+                seed_genres,
+                seed_tracks,
+                tunables,
+                limit,
+            } => {
+                let reply = client
+                    .lock()
+                    .await
+                    .get_recommended_tracks(seed_genres, seed_artists, seed_tracks, tunables, limit)
+                    .await;
                 tx.send(reply)?;
             }
         }
@@ -924,6 +948,27 @@ impl Spotify {
             .artist_top_tracks(uri, None)
             .await
             .map(|reply| reply.tracks)
+    }
+
+    async fn get_recommended_tracks(
+        &self,
+        seed_genres: Option<Vec<String>>,
+        seed_artists: Option<Vec<String>>,
+        seed_tracks: Option<Vec<String>>,
+        tunables: Map<String, Value>,
+        limit: u32,
+    ) -> ClientResult<Vec<SimplifiedTrack>> {
+        self.client
+            .recommendations(
+                seed_artists,
+                seed_genres,
+                seed_tracks,
+                limit,
+                None,
+                &tunables,
+            )
+            .await
+            .map(|recommended| recommended.tracks)
     }
 
     fn get_id(uri: &str) -> Option<&str> {

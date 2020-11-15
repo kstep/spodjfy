@@ -19,6 +19,7 @@ use crate::components::tabs::new_releases::{NewReleasesMsg, NewReleasesTab};
 use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
 use crate::components::tabs::queue::{QueueMsg, QueueTab};
 use crate::components::tabs::recent::{RecentMsg, RecentTab};
+use crate::components::tabs::search::{SearchMsg, SearchTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
 use crate::components::tabs::top_artists::{TopArtistsMsg, TopArtistsTab};
@@ -193,6 +194,9 @@ impl Widget for Win {
                 Some("top_artists_tab") => {
                     self.top_artists_tab.emit(TopArtistsMsg::ShowTab);
                 }
+                Some("search_tab") => {
+                    self.search_tab.emit(SearchMsg::ShowTab);
+                }
                 _ => {}
             },
         }
@@ -236,13 +240,14 @@ impl Widget for Win {
                                 transition_type: gtk::StackTransitionType::SlideUpDown,
 
                                 #[name="search_tab"]
-                                gtk::Label {
+                                SearchTab(self.model.spotify.clone()) {
+                                //gtk::Label {
                                     widget_name: "search_tab",
                                     child: {
                                         name: Some("search_tab"),
                                         title: Some("\u{1F50D} Search")
                                     },
-                                    text: "Search"
+                                    //text: "Search"
                                 },
 
                                 #[name="recent_tab"]

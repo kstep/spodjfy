@@ -8,6 +8,7 @@ pub mod new_releases;
 pub mod playlists;
 pub mod queue;
 pub mod recent;
+pub mod search;
 pub mod settings;
 pub mod shows;
 pub mod top_artists;

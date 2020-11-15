@@ -12,6 +12,7 @@ use rspotify::model::playlist::PlaylistTrack;
 use rspotify::model::show::{FullEpisode, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
+use serde_json::{Map, Value};
 
 pub trait TracksLoader: Clone + 'static {
     type ParentId;
@@ -27,6 +28,165 @@ pub trait TracksLoader: Clone + 'static {
     ) -> SpotifyCmd;
     fn uuid(&self) -> usize {
         self as *const _ as *const () as usize
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Seed<Val: Copy> {
+    min: Option<Val>,
+    max: Option<Val>,
+    target: Option<Val>,
+}
+
+#[derive(Clone, Copy)]
+pub enum Mode {
+    Minor = 0,
+    Major = 1,
+}
+
+#[derive(Clone)]
+pub struct RecommendLoader {
+    seed_artists: Option<Vec<String>>,
+    seed_genres: Option<Vec<String>>,
+    seed_tracks: Option<Vec<String>>,
+    tunables: Map<String, Value>,
+    /*
+    accousticness: Option<Seed<f32>>,
+    dancability: Option<Seed<f32>>,
+    duration_ms: Option<Seed<u32>>,
+    energy: Option<Seed<f32>>,
+    instrumentalness: Option<Seed<f32>>,
+    key: Option<Seed<u8>>,
+    liveness: Option<Seed<f32>>,
+    loadness: Option<Seed<f32>>,
+    mode: Option<Mode>,
+    popularity: Option<Seed<u8>>,
+    speechness: Option<Seed<f32>>,
+    tempo: Option<Seed<f32>>,
+    time_signature: Option<Seed<u8>>,
+    valence: Option<Seed<f32>>,
+     */
+}
+
+impl RecommendLoader {
+    fn extract_vec_string(
+        params: &mut Map<String, Value>,
+        key: &str,
+        max_items: usize,
+    ) -> Option<Vec<String>> {
+        params.remove(key).and_then(|seed| match seed {
+            Value::Array(values) => Some(
+                values
+                    .into_iter()
+                    .take(max_items)
+                    .flat_map(|value| match value {
+                        Value::String(value) => Some(value),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+    }
+}
+
+impl TracksLoader for RecommendLoader {
+    type ParentId = Map<String, Value>;
+    type Track = SimplifiedTrack;
+    type Page = Vec<Self::Track>;
+    const PAGE_LIMIT: u32 = 100;
+
+    fn new(mut tunables: Self::ParentId) -> Self {
+        let seed_artists = Self::extract_vec_string(&mut tunables, "seed_artists", 5);
+        let seed_genres = Self::extract_vec_string(&mut tunables, "seed_genres", 5);
+        let seed_tracks = Self::extract_vec_string(&mut tunables, "seed_tracks", 5);
+        /*
+        tunables.retain(|key| {
+            matches!(
+                &*key,
+                "min_accousticness"
+                    | "max_acousticness"
+                    | "target_acousticness"
+                    | "min_danceability"
+                    | "max_danceability"
+                    | "target_danceability"
+                    | "min_duration_ms"
+                    | "max_duration_ms"
+                    | "target_duration_ms"
+                    | "min_energy"
+                    | "max_energy"
+                    | "target_energy"
+                    | "min_instrumentalness"
+                    | "max_instrumentalness"
+                    | "target_instrumentalness"
+                    | "min_key"
+                    | "max_key"
+                    | "target_key"
+                    | "min_liveness"
+                    | "max_liveness"
+                    | "target_liveness"
+                    | "min_loadness"
+                    | "max_loudness"
+                    | "target_loudness"
+                    | "min_mode"
+                    | "max_mode"
+                    | "target_mode"
+                    | "min_popularity"
+                    | "max_popularity"
+                    | "target_popularity"
+                    | "min_speechiness"
+                    | "max_speechiness"
+                    | "target_speechiness"
+                    | "min_tempo"
+                    | "max_tempo"
+                    | "target_tempo"
+                    | "max_time_signature"
+                    | "min_time_signature"
+                    | "target_time_signature"
+                    | "min_valence"
+                    | "max_valence"
+                    | "target_valence"
+            )
+        });
+         */
+
+        Self {
+            seed_artists,
+            seed_genres,
+            seed_tracks,
+            tunables,
+        }
+    }
+
+    fn parent_id(&self) -> Self::ParentId {
+        let mut params = self.tunables.clone();
+        if let Some(ref seed_artists) = self.seed_artists {
+            params.insert("seed_artists".into(), Value::from(seed_artists.clone()));
+        }
+        if let Some(ref seed_genres) = self.seed_genres {
+            params.insert("seed_genres".into(), Value::from(seed_genres.clone()));
+        }
+        if let Some(ref seed_tracks) = self.seed_tracks {
+            params.insert("seed_tracks".into(), Value::from(seed_tracks.clone()));
+        }
+        params
+    }
+
+    fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
+        let RecommendLoader {
+            seed_tracks,
+            seed_genres,
+            seed_artists,
+            tunables,
+        } = self;
+        SpotifyCmd::GetRecommendedTracks {
+            tx,
+            seed_tracks,
+            seed_genres,
+            seed_artists,
+            tunables,
+            limit: Self::PAGE_LIMIT,
+        }
     }
 }
 
