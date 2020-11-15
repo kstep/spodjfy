@@ -156,10 +156,13 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
                             .get::<u32>(),
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
-                        cell.set_property_markup(Some(&format!(
-                            "{} by {}\n<i>Tracks: {}</i>",
-                            name, publisher, tracks
-                        )));
+                        let info = if tracks > 0 {
+                            format!("{} by {}\n<i>Tracks: {}</i>", name, publisher, tracks)
+                        } else {
+                            format!("{} by {}", name, publisher)
+                        };
+
+                        cell.set_property_markup(Some(&info));
                     }
                 })),
             );
