@@ -1,6 +1,6 @@
 use gtk::{
-    self, CssProviderExt, GtkWindowExt, Inhibit, LabelExt, OverlayExt, PanedExt, SearchBarExt,
-    SettingsExt, StackExt, StackSidebarExt, WidgetExt,
+    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, SettingsExt,
+    StackExt, StackSidebarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};

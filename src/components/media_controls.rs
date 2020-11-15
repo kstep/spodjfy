@@ -1,3 +1,4 @@
+use crate::loaders::paged::PageLike;
 use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
@@ -36,6 +37,46 @@ impl PlayContext {
         }
     }
 
+    fn duration(&self) -> Option<u32> {
+        match self {
+            PlayContext::Album(ctx) => {
+                if ctx.tracks.next.is_none() {
+                    Some(ctx.tracks.items.iter().map(|track| track.duration_ms).sum())
+                } else {
+                    None
+                }
+            }
+            PlayContext::Artist(_) => None,
+            PlayContext::Playlist(ctx) => {
+                if ctx.tracks.next.is_none() {
+                    Some(
+                        ctx.tracks
+                            .items
+                            .iter()
+                            .filter_map(|track| track.track.as_ref())
+                            .map(|track| track.duration_ms)
+                            .sum(),
+                    )
+                } else {
+                    None
+                }
+            }
+            PlayContext::Show(ctx) => {
+                if ctx.episodes.next.is_none() {
+                    Some(
+                        ctx.episodes
+                            .items
+                            .iter()
+                            .map(|episode| episode.duration_ms)
+                            .sum(),
+                    )
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     fn genres(&self) -> Option<&Vec<String>> {
         match self {
             PlayContext::Album(ctx) => Some(&ctx.genres),
@@ -69,6 +110,15 @@ impl PlayContext {
             PlayContext::Artist(_) => Type::Artist,
             PlayContext::Playlist(_) => Type::Playlist,
             PlayContext::Show(_) => Type::Show,
+        }
+    }
+
+    fn description(&self) -> &str {
+        match self {
+            PlayContext::Album(_) => "",
+            PlayContext::Artist(_) => "",
+            PlayContext::Playlist(ctx) => &ctx.description,
+            PlayContext::Show(ctx) => &ctx.description,
         }
     }
 }
@@ -174,10 +224,6 @@ impl Widget for MediaControls {
                 }
             }
             UseDevice(device_id) => {
-                println!(
-                    "!!!!!!!!!!!!!!!!!!!!!!!! USE DEVICE: {:?}, {:?}",
-                    device_id, self.model.state
-                );
                 if let Some(id) = device_id {
                     if let Some(state) = self.model.state.as_mut() {
                         state.device.id = id.clone();
@@ -533,18 +579,14 @@ impl Widget for MediaControls {
                         halign: gtk::Align::End,
 
                         gtk::Box(gtk::Orientation::Horizontal, 5) {
-                            gtk::Image {
-                                from_pixbuf: gtk::IconTheme::new()
-                                    .load_icon(match self.model.context {
-                                        Some(PlayContext::Album(_)) => "media-optical",
-                                        Some(PlayContext::Playlist(_)) => "folder-music",
-                                        Some(PlayContext::Artist(_)) => "emblem-music",
-                                        Some(PlayContext::Show(_)) => "folder",
-                                        None => "emblem-music",
-                                    }, 24, gtk::IconLookupFlags::empty())
-                                    .ok()
-                                    .flatten()
-                                    .as_ref(),
+                            gtk::Label {
+                                text: match self.model.context {
+                                        Some(PlayContext::Album(_)) => "\u{1F4BF}",
+                                        Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
+                                        Some(PlayContext::Artist(_)) => "\u{1F935}",
+                                        Some(PlayContext::Show(_)) => "\u{1F399}",
+                                        None => "\u{1F3B5}",
+                                    }
                             },
                             #[name="context_name_label"]
                             gtk::Label {
@@ -553,18 +595,27 @@ impl Widget for MediaControls {
                                 property_width_request: 200,
                                 halign: gtk::Align::Start,
                                 text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
-
                             },
                         },
                         #[name="context_tracks_number_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
                             text: self.model.context.as_ref()
-                                .map(|c| match c.tracks_number() {
-                                    0 => String::new(),
-                                    n => format!("Tracks: {}", n),
+                                .map(|c| match (c.tracks_number(), c.duration()) {
+                                    (0, None) => String::new(),
+                                    (0, Some(d)) => format!("Duration: {}", crate::utils::humanize_time(d)),
+                                    (n, None) => format!("Tracks: {}", n),
+                                    (n, Some(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
                                 })
                                 .as_deref()
+                                .unwrap_or("")
+                        },
+                        #[name="context_description_label"]
+                        gtk::Label {
+                            halign: gtk::Align::Start,
+                            line_wrap: true,
+                            text: self.model.context.as_ref()
+                                .map(|c| c.description())
                                 .unwrap_or("")
                         },
                         #[name="context_genres_label"]
