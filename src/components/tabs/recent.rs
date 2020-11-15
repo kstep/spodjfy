@@ -1,4 +1,4 @@
-use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::track::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
 use glib::IsA;

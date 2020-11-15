@@ -11,7 +11,7 @@ pub trait AlbumsLoader: Clone + 'static {
     const PAGE_LIMIT: u32;
     fn new(id: Self::ParentId) -> Self;
     fn parent_id(&self) -> Self::ParentId;
-    fn load_tracks_page(
+    fn load_page(
         self,
         tx: ResultSender<Self::Page>,
         offset: <<Self as AlbumsLoader>::Page as PageLike<Self::Album>>::Offset,
@@ -35,7 +35,7 @@ impl AlbumsLoader for SavedLoader {
 
     fn parent_id(&self) -> Self::ParentId {}
 
-    fn load_tracks_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyAlbums {
             tx,
             offset,
@@ -58,7 +58,7 @@ impl AlbumsLoader for NewReleasesLoader {
 
     fn parent_id(&self) -> Self::ParentId {}
 
-    fn load_tracks_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetNewReleases {
             tx,
             offset,
@@ -85,7 +85,7 @@ impl AlbumsLoader for ArtistLoader {
         self.uri.clone()
     }
 
-    fn load_tracks_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetArtistAlbums {
             tx,
             offset,

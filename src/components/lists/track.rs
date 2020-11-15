@@ -129,7 +129,7 @@ impl<Loader: TracksLoader> TrackList<Loader> {
                 .spotify
                 .ask(
                     self.model.stream.clone(),
-                    move |tx| loader.load_tracks_page(tx, offset),
+                    move |tx| loader.load_page(tx, offset),
                     move |reply| TrackListMsg::NewPage(reply, epoch),
                 )
                 .unwrap();

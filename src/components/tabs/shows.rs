@@ -1,4 +1,4 @@
-use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::track::ShowLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};

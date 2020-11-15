@@ -1,5 +1,5 @@
-use crate::components::album_list::{AlbumList, AlbumListMsg};
-use crate::components::track_list::{TrackList, TrackListMsg};
+use crate::components::lists::album::{AlbumList, AlbumListMsg};
+use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::album::ArtistLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::track::AlbumLoader;
