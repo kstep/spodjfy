@@ -570,6 +570,7 @@ impl Widget for MediaControls {
                         #[name="track_artists_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
+                            selectable: true,
                             text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
                                 PlayingItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
                                 PlayingItem::Episode(episode) => episode.show.publisher.clone(),
@@ -578,6 +579,7 @@ impl Widget for MediaControls {
                         #[name="track_album_label"]
                         gtk::Label {
                             widget_name: "track_album_label",
+                            selectable: true,
                             halign: gtk::Align::Start,
                             text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
                                 PlayingItem::Track(track) => &*track.album.name,
@@ -587,6 +589,7 @@ impl Widget for MediaControls {
                         #[name="track_description_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
+                            selectable: true,
                             line_wrap: true,
                             text: self.model.state.as_ref()
                                 .and_then(|s| s.item.as_ref())
@@ -617,6 +620,7 @@ impl Widget for MediaControls {
                             #[name="context_name_label"]
                             gtk::Label {
                                 widget_name: "context_name_label",
+                                selectable: true,
                                 line_wrap: true,
                                 property_width_request: 200,
                                 halign: gtk::Align::Start,
@@ -626,6 +630,7 @@ impl Widget for MediaControls {
                         #[name="context_artists_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
+                            selectable: true,
                             text: self.model.context.as_ref()
                                 .and_then(|ctx| ctx.artists())
                                 .as_deref()
@@ -634,6 +639,7 @@ impl Widget for MediaControls {
                         #[name="context_tracks_number_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
+                            selectable: true,
                             text: self.model.context.as_ref()
                                 .map(|c| match (c.tracks_number(), c.duration()) {
                                     (0, None) => String::new(),
@@ -648,6 +654,7 @@ impl Widget for MediaControls {
                         gtk::Label {
                             halign: gtk::Align::Start,
                             line_wrap: true,
+                            selectable: true,
                             text: self.model.context.as_ref()
                                 .map(|c| c.description())
                                 .unwrap_or("")
@@ -655,6 +662,7 @@ impl Widget for MediaControls {
                         #[name="context_genres_label"]
                         gtk::Label {
                             halign: gtk::Align::Start,
+                            selectable: true,
                             text: self.model.context.as_ref()
                                 .and_then(|c| c.genres())
                                 .map(|gs| gs.iter().join(", "))
