@@ -1,4 +1,3 @@
-use crate::loaders::paged::PageLike;
 use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
