@@ -16,6 +16,8 @@ use rspotify::model::playlist::FullPlaylist;
 use rspotify::model::show::{FullEpisode, FullShow};
 use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
+use std::borrow::Cow;
+use std::ops::Deref;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -33,6 +35,27 @@ impl PlayContext {
             PlayContext::Artist(ctx) => &*ctx.name,
             PlayContext::Playlist(ctx) => &*ctx.name,
             PlayContext::Show(ctx) => &*ctx.name,
+        }
+    }
+
+    fn artists(&self) -> Option<Cow<str>> {
+        match self {
+            PlayContext::Album(ctx) => Some(
+                ctx.artists
+                    .iter()
+                    .map(|artist| &artist.name)
+                    .join(", ")
+                    .into(),
+            ),
+            PlayContext::Artist(_) => None,
+            PlayContext::Playlist(ctx) => Some(
+                ctx.owner
+                    .display_name
+                    .as_deref()
+                    .unwrap_or(&ctx.owner.id)
+                    .into(),
+            ),
+            PlayContext::Show(ctx) => Some(ctx.publisher.deref().into()),
         }
     }
 
@@ -584,7 +607,7 @@ impl Widget for MediaControls {
                                         Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
                                         Some(PlayContext::Artist(_)) => "\u{1F935}",
                                         Some(PlayContext::Show(_)) => "\u{1F399}",
-                                        None => "\u{1F3B5}",
+                                        None => "",
                                     }
                             },
                             #[name="context_name_label"]
@@ -595,6 +618,14 @@ impl Widget for MediaControls {
                                 halign: gtk::Align::Start,
                                 text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
                             },
+                        },
+                        #[name="context_artists_label"]
+                        gtk::Label {
+                            halign: gtk::Align::Start,
+                            text: self.model.context.as_ref()
+                                .and_then(|ctx| ctx.artists())
+                                .as_deref()
+                                .unwrap_or("")
                         },
                         #[name="context_tracks_number_label"]
                         gtk::Label {

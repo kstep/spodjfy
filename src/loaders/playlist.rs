@@ -10,12 +10,14 @@ pub const COL_PLAYLIST_NAME: u32 = 2;
 pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
 pub const COL_PLAYLIST_DURATION: u32 = 4;
 pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
+pub const COL_PLAYLIST_PUBLISHER: u32 = 6;
 
 pub trait PlaylistLike {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
     fn description(&self) -> &str;
+    fn publisher(&self) -> &str;
 
     fn images(&self) -> &[Image];
     fn total_tracks(&self) -> u32 {
@@ -52,6 +54,10 @@ impl PlaylistLike for SimplifiedPlaylist {
         ""
     }
 
+    fn publisher(&self) -> &str {
+        self.owner.display_name.as_deref().unwrap_or(&self.owner.id)
+    }
+
     fn images(&self) -> &[Image] {
         &self.images
     }
@@ -86,6 +92,10 @@ impl PlaylistLike for FullPlaylist {
 
     fn description(&self) -> &str {
         &self.description
+    }
+
+    fn publisher(&self) -> &str {
+        self.owner.display_name.as_deref().unwrap_or(&self.owner.id)
     }
 
     fn images(&self) -> &[Image] {
@@ -127,6 +137,10 @@ impl PlaylistLike for FullShow {
         &self.description
     }
 
+    fn publisher(&self) -> &str {
+        &self.publisher
+    }
+
     fn images(&self) -> &[Image] {
         &self.images
     }
@@ -165,6 +179,10 @@ impl PlaylistLike for SimplifiedShow {
         &self.description
     }
 
+    fn publisher(&self) -> &str {
+        &self.publisher
+    }
+
     fn images(&self) -> &[Image] {
         &self.images
     }
@@ -192,6 +210,10 @@ impl PlaylistLike for Show {
 
     fn description(&self) -> &str {
         self.show.description()
+    }
+
+    fn publisher(&self) -> &str {
+        self.show.publisher()
     }
 
     fn images(&self) -> &[Image] {

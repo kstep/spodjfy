@@ -146,16 +146,19 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
             playlists_view.set_cell_data_func(
                 cell,
                 Some(Box::new(move |_layout, cell, model, pos| {
-                    if let (Ok(Some(name)), Ok(Some(tracks)), Some(cell)) = (
+                    if let (Ok(Some(name)), Ok(Some(publisher)), Ok(Some(tracks)), Some(cell)) = (
                         model.get_value(pos, COL_PLAYLIST_NAME as i32).get::<&str>(),
+                        model
+                            .get_value(pos, COL_PLAYLIST_PUBLISHER as i32)
+                            .get::<&str>(),
                         model
                             .get_value(pos, COL_PLAYLIST_TOTAL_TRACKS as i32)
                             .get::<u32>(),
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
                         cell.set_property_markup(Some(&format!(
-                            "{}\n<i>Tracks: {}</i>",
-                            name, tracks
+                            "{} by {}\n<i>Tracks: {}</i>",
+                            name, publisher, tracks
                         )));
                     }
                 })),
@@ -219,6 +222,20 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
                     .build();
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_PLAYLIST_NAME as i32);
+                col
+            });
+        }
+
+        if !unavailable_columns.contains(&COL_PLAYLIST_PUBLISHER) {
+            playlists_view.append_column(&{
+                let cell = gtk::CellRendererText::new();
+                let col = base_column
+                    .clone()
+                    .title("Publisher")
+                    .sort_column_id(COL_PLAYLIST_PUBLISHER as i32)
+                    .build();
+                col.pack_start(&cell, true);
+                col.add_attribute(&cell, "text", COL_PLAYLIST_PUBLISHER as i32);
                 col
             });
         }
@@ -302,6 +319,7 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
             u32::static_type(),                // total tracks
             u32::static_type(),                // duration
             String::static_type(),             // description
+            String::static_type(),             // publisher
         ]);
 
         let playlists_view = Self::build_playlists_view(relm, &store);
@@ -366,6 +384,7 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
                             COL_PLAYLIST_TOTAL_TRACKS,
                             COL_PLAYLIST_DURATION,
                             COL_PLAYLIST_DESCRIPTION,
+                            COL_PLAYLIST_PUBLISHER,
                         ],
                         &[
                             &playlist.uri(),
@@ -373,6 +392,7 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
                             &playlist.total_tracks(),
                             &playlist.duration(),
                             &playlist.description(),
+                            &playlist.publisher(),
                         ],
                     );
 
