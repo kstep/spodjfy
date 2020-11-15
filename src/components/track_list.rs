@@ -106,6 +106,21 @@ impl<Loader: TracksLoader> TrackList<Loader> {
         }
     }
 
+    fn finish_load(&self) {
+        let status_ctx = self.status_bar.get_context_id("totals");
+        self.progress_bar.set_visible(false);
+        self.refresh_btn.set_visible(true);
+        self.status_bar.remove_all(status_ctx);
+        self.status_bar.push(
+            status_ctx,
+            &format!(
+                "Total tracks: {}, total duration: {}",
+                self.model.total_tracks,
+                crate::utils::humanize_time(self.model.total_duration)
+            ),
+        );
+    }
+
     fn load_tracks_page(&self, offset: <Loader::Page as PageLike<Loader::Track>>::Offset) {
         if let Some(ref loader) = self.model.tracks_loader {
             let epoch = loader.uuid();
@@ -257,19 +272,7 @@ where
                     stream.emit(LoadPage(next_offset, epoch));
                 } else {
                     self.model.total_tracks = page.total();
-
-                    let status_ctx = self.status_bar.get_context_id("totals");
-                    self.progress_bar.set_visible(false);
-                    self.refresh_btn.set_visible(true);
-                    self.status_bar.remove_all(status_ctx);
-                    self.status_bar.push(
-                        status_ctx,
-                        &format!(
-                            "Total tracks: {}, total duration: {}",
-                            self.model.total_tracks,
-                            crate::utils::humanize_time(self.model.total_duration)
-                        ),
-                    );
+                    self.finish_load();
                 }
 
                 if !Loader::Track::unavailable_columns().contains(&COL_TRACK_BPM) {

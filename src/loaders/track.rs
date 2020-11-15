@@ -234,7 +234,10 @@ pub trait TrackLike {
         self.album().map(|album| &album.images)
     }
 
-    fn unavailable_columns() -> &'static [u32] {
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
         &[]
     }
 }
@@ -425,7 +428,10 @@ impl TrackLike for SimplifiedTrack {
         self.duration_ms
     }
 
-    fn unavailable_columns() -> &'static [u32] {
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
         &[COL_TRACK_ALBUM, COL_TRACK_THUMB, COL_TRACK_RELEASE_DATE]
     }
 }
@@ -497,7 +503,10 @@ impl TrackLike for FullEpisode {
         Some(&self.images)
     }
 
-    fn unavailable_columns() -> &'static [u32] {
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
         &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
     }
 }
@@ -531,7 +540,10 @@ impl TrackLike for SimplifiedEpisode {
         Some(&self.images)
     }
 
-    fn unavailable_columns() -> &'static [u32] {
+    fn unavailable_columns() -> &'static [u32]
+    where
+        Self: Sized,
+    {
         &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_BPM]
     }
 }
