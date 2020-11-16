@@ -516,7 +516,7 @@ impl SpotifyServer {
                 let reply = client
                     .lock()
                     .await
-                    .get_category_playlists(category_id, offset, limit)
+                    .get_category_playlists(&category_id, offset, limit)
                     .await;
                 tx.send(reply)?;
             }
@@ -902,11 +902,14 @@ impl Spotify {
 
     async fn get_category_playlists(
         &self,
-        category_id: String,
+        category_id: &str,
         offset: u32,
         limit: u32,
     ) -> ClientResult<Page<SimplifiedPlaylist>> {
-        Err(ClientError::Request("unimplemented".into()))
+        self.client
+            .category_playlists(category_id, None, limit, offset)
+            .await
+            .map(|reply| reply.playlists)
     }
 
     async fn get_featured_playlists(

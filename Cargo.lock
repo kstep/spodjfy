@@ -1567,7 +1567,7 @@ dependencies = [
 [[package]]
 name = "rspotify"
 version = "0.10.0"
-source = "git+https://github.com/ramsayleung/rspotify?rev=423982d6cc465cf7d0666c91bd5608ee3da153ae#423982d6cc465cf7d0666c91bd5608ee3da153ae"
+source = "git+https://github.com/kstep/rspotify?rev=3cf178189f9bec7527b864101c1b0ea114aea85d#3cf178189f9bec7527b864101c1b0ea114aea85d"
 dependencies = [
  "async-trait",
  "base64 0.13.0",

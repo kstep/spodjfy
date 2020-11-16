@@ -674,7 +674,7 @@ impl Widget for MediaControls {
             },
             gtk::Box(gtk::Orientation::Horizontal, 10) {
                 #[name="track_seek_bar"]
-                gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 300000.0, 1000.0, 1000.0, 1000.0))) {
+                gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 0.0, 1000.0, 1000.0, 1000.0))) {
                     margin_start: 10,
                     hexpand: true,
                     valign: gtk::Align::Center,

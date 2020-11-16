@@ -313,3 +313,31 @@ impl PlaylistsLoader for ShowsLoader {
         }
     }
 }
+
+#[derive(Clone)]
+pub struct CategoryLoader {
+    id: String,
+}
+impl PlaylistsLoader for CategoryLoader {
+    type ParentId = String;
+    type Playlist = SimplifiedPlaylist;
+    type Page = Page<Self::Playlist>;
+    const PAGE_LIMIT: u32 = 20;
+
+    fn new(id: Self::ParentId) -> Self {
+        CategoryLoader { id }
+    }
+
+    fn parent_id(&self) -> Self::ParentId {
+        self.id.clone()
+    }
+
+    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+        SpotifyCmd::GetCategoryPlaylists {
+            tx,
+            category_id: self.parent_id(),
+            offset,
+            limit: Self::PAGE_LIMIT,
+        }
+    }
+}

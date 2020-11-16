@@ -1,5 +1,7 @@
+use crate::components::lists::playlist::{PlaylistList, PlaylistListMsg};
 use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::image::ImageLoader;
+use crate::loaders::playlist::CategoryLoader;
 use crate::loaders::track::PlaylistLoader;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
@@ -19,8 +21,8 @@ pub enum CategoriesMsg {
     NewPage(Page<Category>),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
-    OpenChosenCategory,
     OpenCategory(Option<(String, String)>),
+    OpenPlaylist(String, String),
     GoToTrack(String),
 }
 
@@ -110,42 +112,21 @@ impl Widget for CategoriesTab {
             NewThumb(thumb, pos) => {
                 self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
-            OpenChosenCategory => {
-                /*
-                let icon_view: &gtk::IconView = &self.categories_view;
-                let store: &gtk::ListStore = &self.model.store;
-                self.model.stream.emit(OpenCategory(
-                    icon_view
-                        .get_selected_items()
-                        .first()
-                        .and_then(|path| store.get_iter(path))
-                        .and_then(|iter| {
-                            store
-                                .get_value(&iter, COL_CATEGORY_URI as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten()
-                                .zip(
-                                    store
-                                        .get_value(&iter, COL_CATEGORY_NAME as i32)
-                                        .get::<String>()
-                                        .ok()
-                                        .flatten(),
-                                )
-                        }),
-                ));
-                 */
-            }
             OpenCategory(Some((id, name))) => {
-                /*
-                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
+                self.playlists_view.emit(PlaylistListMsg::Reset(id, true));
 
-                let category_widget = self.tracks_view.widget();
-                self.stack.set_child_title(category_widget, Some(&name));
-                self.stack.set_visible_child(category_widget);
-                 */
+                let playlists_tab = self.playlists_view.widget();
+                self.stack.set_child_title(playlists_tab, Some(&name));
+                self.stack.set_visible_child(playlists_tab);
             }
             OpenCategory(None) => {}
+            OpenPlaylist(uri, name) => {
+                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
+
+                let tracks_tab = self.tracks_view.widget();
+                self.stack.set_child_title(tracks_tab, Some(&name));
+                self.stack.set_visible_child(tracks_tab);
+            }
             GoToTrack(uri) => {
                 self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
             }
@@ -153,84 +134,52 @@ impl Widget for CategoriesTab {
     }
 
     view! {
-            gtk::Box(gtk::Orientation::Vertical, 1) {
-                #[name="breadcrumb"]
-                gtk::StackSwitcher {},
+        gtk::Box(gtk::Orientation::Vertical, 1) {
+            #[name="breadcrumb"]
+            gtk::StackSwitcher {},
 
-                #[name="stack"]
-                gtk::Stack {
-                    vexpand: true,
-                    gtk::ScrolledWindow {
-                        child: {
-                            title: Some("Categories"),
-                        },
-
-                        #[name="categories_view"]
-                        /*
-                        gtk::TreeView {
-                            model: Some(&self.model.store)),
-                        }
-                         */
-                        gtk::IconView {
-                            item_width: ICON_SIZE,
-                            pixbuf_column: COL_CATEGORY_ICON as i32,
-                            text_column: COL_CATEGORY_NAME as i32,
-                            model: Some(&self.model.store),
-
-    /*
-                            item_activated(view, path) => CategoriesMsg::OpenCategory(
-                                view.get_model().and_then(|model| {
-                                    model.get_iter(path).and_then(|pos|
-                                        model.get_value(&pos, COL_CATEGORY_URI as i32).get::<String>().ok().flatten()
-                                            .zip(model.get_value(&pos, COL_CATEGORY_NAME as i32).get::<String>().ok().flatten()))
-                                })),
-     */
-                        }
+            #[name="stack"]
+            gtk::Stack {
+                vexpand: true,
+                gtk::ScrolledWindow {
+                    child: {
+                        title: Some("Categories"),
                     },
-                    #[name="tracks_view"]
-                    TrackList::<PlaylistLoader>(self.model.spotify.clone()),
-                }
+
+                    #[name="categories_view"]
+                    gtk::IconView {
+                        item_width: ICON_SIZE,
+                        pixbuf_column: COL_CATEGORY_ICON as i32,
+                        text_column: COL_CATEGORY_NAME as i32,
+                        model: Some(&self.model.store),
+
+                        item_activated(view, path) => CategoriesMsg::OpenCategory(
+                            view.get_model().and_then(|model| {
+                                model.get_iter(path).and_then(|pos|
+                                    model.get_value(&pos, COL_CATEGORY_ID as i32).get::<String>().ok().flatten()
+                                        .zip(model.get_value(&pos, COL_CATEGORY_NAME as i32).get::<String>().ok().flatten()))
+                            })),
+                    }
+                },
+
+                #[name="playlists_view"]
+                PlaylistList::<CategoryLoader>(self.model.spotify.clone()),
+
+                #[name="tracks_view"]
+                TrackList::<PlaylistLoader>(self.model.spotify.clone()),
             }
         }
+    }
 
     fn init_view(&mut self) {
         self.breadcrumb.set_stack(Some(&self.stack));
-        /*
-        let tree: &TreeView = &self.categories_view;
 
-        let text_cell = gtk::CellRendererText::new();
-        let image_cell = gtk::CellRendererPixbuf::new();
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .expand(true)
-                .build();
-            column.pack_start(&image_cell, true);
-            column.add_attribute(&image_cell, "pixbuf", 0);
-            column
-        });
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .title("Title")
-                .expand(true)
-                .sort_column_id(1)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 1);
-            column
-        });
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .title("Release date")
-                .expand(true)
-                .sort_column_id(2)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 2);
-            column
-        });
-         */
+        let stream = self.model.stream.clone();
+        self.playlists_view.stream().observe(move |msg| match msg {
+            PlaylistListMsg::OpenPlaylist(uri, name) => {
+                stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
+            }
+            _ => {}
+        })
     }
 }
