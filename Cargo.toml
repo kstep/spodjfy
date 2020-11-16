@@ -10,7 +10,7 @@ edition = "2018"
 rspotify = { git = "https://github.com/kstep/rspotify", rev = "3cf178189f9bec7527b864101c1b0ea114aea85d" }
 relm = "0.20.0"
 relm-derive = "0.20.0"
-gtk = { version = "0.9.2", features = ["v3_22"] }
+gtk = { version = "0.9.2", features = ["v3_22_29"] }
 glib = "0.10.3"
 gdk = "0.13.2"
 serde = "1.0.117"
