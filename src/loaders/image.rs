@@ -1,11 +1,15 @@
+use crate::config::Config;
 use gdk_pixbuf::{Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
 use std::collections::HashMap;
+use std::io::{ErrorKind, Read, Write};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 type JobQueue = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 
 pub struct ImageLoader {
+    cache_dir: PathBuf,
     queue: JobQueue,
     cache: HashMap<String, Pixbuf>,
     resize: i32,
@@ -26,7 +30,38 @@ impl ImageLoader {
             cache: HashMap::new(),
             queue: Arc::new(Mutex::new(Vec::new())),
             resize,
+            cache_dir: Config::new().thumb_cache_dir(),
         }
+    }
+
+    fn cache_file_path(&self, url: &str) -> Option<PathBuf> {
+        let uuid = url.split('/').last()?;
+        if uuid.contains(|ch| !matches!(ch, '0'..='9' | 'a'..='f')) {
+            return None;
+        }
+        let dir_name = self.cache_dir.join(&uuid[0..1]).join(&uuid[1..3]);
+        if !dir_name.exists() {
+            std::fs::create_dir_all(&dir_name).ok()?;
+        }
+
+        Some(dir_name.join(&uuid))
+    }
+
+    fn save_to_file(&self, url: &str, data: &[u8]) -> Result<(), std::io::Error> {
+        let mut cache_file = std::fs::File::create(
+            self.cache_file_path(url)
+                .ok_or_else(|| std::io::Error::from(ErrorKind::NotFound))?,
+        )?;
+        cache_file.write_all(data)?;
+        cache_file.flush()?;
+        Ok(())
+    }
+
+    fn load_from_file(&mut self, url: &str) -> Option<Pixbuf> {
+        let mut cache_file = std::fs::File::open(self.cache_file_path(url)?).ok()?;
+        let mut buf = Vec::with_capacity(1024);
+        cache_file.read_to_end(&mut buf).ok()?;
+        pixbuf_from_raw_bytes(&buf, self.resize).ok()?
     }
 
     pub fn load_from_url<F>(&mut self, url: &str, callback: F)
@@ -37,6 +72,11 @@ impl ImageLoader {
 
         if let Some(pixbuf) = self.cache.get(url) {
             return callback(Ok(Some(pixbuf.clone())));
+        }
+
+        if let Some(pixbuf) = self.load_from_file(url) {
+            self.cache.insert(url.to_owned(), pixbuf.clone());
+            return callback(Ok(Some(pixbuf)));
         }
 
         let queue = self.queue.clone();
@@ -59,6 +99,7 @@ impl ImageLoader {
         let mut queue = self.queue.lock().unwrap();
         if !queue.is_empty() {
             for (url, data) in queue.drain(..) {
+                let _ = self.save_to_file(&url, &data);
                 if let Ok(Some(pb)) = pixbuf_from_raw_bytes(&data, self.resize) {
                     self.cache.insert(url, pb);
                 }

@@ -1,11 +1,10 @@
-use crate::components::win::Settings;
+use crate::config::{Config, Settings};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gtk::{
     self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, WidgetExt,
 };
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::io::Write;
 use std::sync::Arc;
 
 #[derive(Msg)]
@@ -68,16 +67,9 @@ impl Widget for SettingsTab {
                     )
                     .unwrap();
 
-                directories::ProjectDirs::from("me", "kstep", "spodjfy")
-                    .and_then(|dirs| {
-                        std::fs::File::create(dirs.config_dir().join("settings.toml")).ok()
-                    })
-                    .and_then(|mut conf_file| {
-                        toml::to_vec(&self.model.settings)
-                            .ok()
-                            .and_then(|data| conf_file.write_all(&data).ok())
-                    })
-                    .expect("Error saving settings");
+                Config::new()
+                    .save_settings(&self.model.settings)
+                    .expect("error saving settings");
             }
         }
     }

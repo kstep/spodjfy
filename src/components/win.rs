@@ -4,7 +4,6 @@ use gtk::{
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
-use serde_derive::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
@@ -24,26 +23,9 @@ use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
 use crate::components::tabs::top_artists::{TopArtistsMsg, TopArtistsTab};
 use crate::components::tabs::top_tracks::{TopTracksMsg, TopTracksTab};
+use crate::config::Settings;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use rspotify::model::Type;
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct Settings {
-    pub client_id: String,
-    pub client_secret: String,
-    #[serde(default)]
-    pub show_notifications: bool,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            client_id: String::new(),
-            client_secret: String::new(),
-            show_notifications: true,
-        }
-    }
-}
 
 pub struct State {
     pub settings: Settings,

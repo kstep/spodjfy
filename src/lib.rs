@@ -2,6 +2,7 @@
 extern crate log;
 
 pub mod components;
+pub mod config;
 pub mod loaders;
 pub mod scopes;
 pub mod servers;
