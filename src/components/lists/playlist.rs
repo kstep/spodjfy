@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 const TREE_THUMB_SIZE: i32 = 48;
 const ICON_THUMB_SIZE: i32 = 128;
+const ICON_ITEM_SIZE: i32 = (ICON_THUMB_SIZE as f32 * 2.25) as i32;
 
 #[derive(Msg)]
 pub enum PlaylistListMsg<Loader: PlaylistsLoader> {
@@ -136,7 +137,7 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
             .pixbuf_column(COL_PLAYLIST_THUMB as i32)
             .item_orientation(gtk::Orientation::Horizontal)
             .item_padding(10)
-            .item_width(256)
+            .item_width(ICON_ITEM_SIZE)
             .build();
 
         let cells = playlists_view.get_cells();
