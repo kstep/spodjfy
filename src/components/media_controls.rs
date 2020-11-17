@@ -591,6 +591,7 @@ impl Widget for MediaControls {
                             halign: gtk::Align::Start,
                             selectable: true,
                             line_wrap: true,
+                            xalign: 0.0,
                             text: self.model.state.as_ref()
                                 .and_then(|s| s.item.as_ref())
                                 .and_then(|it| it.description())
@@ -622,6 +623,7 @@ impl Widget for MediaControls {
                                 widget_name: "context_name_label",
                                 selectable: true,
                                 line_wrap: true,
+                                xalign: 0.0,
                                 property_width_request: 200,
                                 halign: gtk::Align::Start,
                                 text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
@@ -655,6 +657,7 @@ impl Widget for MediaControls {
                             halign: gtk::Align::Start,
                             line_wrap: true,
                             selectable: true,
+                            xalign: 0.0,
                             text: self.model.context.as_ref()
                                 .map(|c| c.description())
                                 .unwrap_or("")

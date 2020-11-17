@@ -75,6 +75,7 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
+                /*
                 infobar.info > revealer > box {
                     background-color: #90caf9;
                 }
@@ -87,6 +88,7 @@ impl Widget for Win {
                 infobar.error > revealer > box {
                     background-color: #ef9a9a;
                 }
+                */
 
                 #media_controls button.link#track_name_label,
                 #media_controls label#context_name_label {
@@ -373,7 +375,9 @@ impl Widget for Win {
 
     fn init_view(&mut self) {
         self.sidebar.set_stack(&self.stack);
-        self.overlay.add_overlay(self.model.notifier.widget());
+        let notifier = self.model.notifier.widget();
+        self.overlay.add_overlay(notifier);
+        self.overlay.set_overlay_pass_through(notifier, true);
 
         let stream = self.model.stream.clone();
         let notifier = self.model.notifier.stream().clone();

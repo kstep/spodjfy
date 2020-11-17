@@ -1,5 +1,5 @@
 use glib::Continue;
-use gtk::{ContainerExt, InfoBarExt, LabelExt, WidgetExt};
+use gtk::{BoxExt, ContainerExt, ImageExt, InfoBarExt, LabelExt, WidgetExt};
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 
@@ -15,6 +15,7 @@ pub enum NotifierMsg {
 
 pub struct Notifier {
     infobar: gtk::InfoBar,
+    icon: gtk::Image,
     message: gtk::Label,
 
     stream: EventStream<NotifierMsg>,
@@ -35,6 +36,16 @@ impl Notifier {
     }
 
     fn show(&self, message: &str, message_type: gtk::MessageType) {
+        self.icon.set_from_icon_name(
+            match message_type {
+                gtk::MessageType::Warning => Some("dialog-warning"),
+                gtk::MessageType::Info => Some("dialog-information"),
+                gtk::MessageType::Question => Some("dialog-information"),
+                gtk::MessageType::Error => Some("dialog-error"),
+                _ => None,
+            },
+            gtk::IconSize::SmallToolbar,
+        );
         self.message.set_text(message);
         self.infobar.set_message_type(message_type);
         self.infobar.set_revealed(true);
@@ -88,7 +99,6 @@ impl Widget for Notifier {
         let infobar = gtk::InfoBarBuilder::new()
             .valign(gtk::Align::Start)
             .halign(gtk::Align::Fill)
-            .spacing(10)
             .show_close_button(true)
             .revealed(false)
             .message_type(gtk::MessageType::Warning)
@@ -103,13 +113,23 @@ impl Widget for Notifier {
             });
         }
 
-        let message = gtk::Label::new(None);
-        infobar.get_content_area().add(&message);
+        let message = gtk::LabelBuilder::new()
+            .wrap(true)
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Fill)
+            .xalign(0.0)
+            .build();
+        let icon = gtk::ImageBuilder::new().margin_start(5).build();
+
+        let infobox = infobar.get_content_area();
+        infobox.pack_start(&icon, false, false, 0);
+        infobox.pack_start(&message, false, false, 0);
 
         infobar.show_all();
 
         Notifier {
             stream,
+            icon,
             message,
             infobar,
             timer_id: None,
