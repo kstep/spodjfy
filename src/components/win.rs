@@ -75,6 +75,19 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
+                infobar.info > revealer > box {
+                    background-color: #90caf9;
+                }
+                infobar.warning > revealer > box {
+                    background-color: #ffcc80;
+                }
+                infobar.question > revealer > box {
+                    background-color: #ce93d8;
+                }
+                infobar.error > revealer > box {
+                    background-color: #ef9a9a;
+                }
+
                 #media_controls button.link#track_name_label,
                 #media_controls label#context_name_label {
                     padding: 0;
@@ -128,7 +141,7 @@ impl Widget for Win {
         match event {
             Quit => gtk::main_quit(),
             SearchStart(ref event) => {
-                self.searchbar.handle_event(event);
+                //self.searchbar.handle_event(event);
             }
             GoToSettings => {
                 self.stack.set_visible_child(self.settings_tab.widget());
@@ -192,16 +205,6 @@ impl Widget for Win {
             #[name="overlay"]
             gtk::Overlay {
                 gtk::Box(gtk::Orientation::Vertical, 1) {
-                    #[name="searchbar"]
-                    gtk::SearchBar {
-                        gtk::Box(gtk::Orientation::Horizontal, 0) {
-                            //gtk::MenuButton {},
-                            #[name="searchentry"]
-                            gtk::SearchEntry {
-                                hexpand: true,
-                            },
-                        },
-                    },
                     gtk::Paned(gtk::Orientation::Horizontal) {
                         #[name="sidebar"]
                         gtk::StackSidebar {
@@ -223,13 +226,11 @@ impl Widget for Win {
 
                                 #[name="search_tab"]
                                 SearchTab(self.model.spotify.clone()) {
-                                //gtk::Label {
                                     widget_name: "search_tab",
                                     child: {
                                         name: Some("search_tab"),
                                         title: Some("\u{1F50D} Search")
                                     },
-                                    //text: "Search"
                                 },
 
                                 #[name="recent_tab"]
@@ -372,7 +373,6 @@ impl Widget for Win {
 
     fn init_view(&mut self) {
         self.sidebar.set_stack(&self.stack);
-        self.searchbar.connect_entry(&self.searchentry);
         self.overlay.add_overlay(self.model.notifier.widget());
 
         let stream = self.model.stream.clone();
@@ -383,8 +383,8 @@ impl Widget for Win {
             match err {
                 InvalidAuth(msg) => {
                     notifier.emit(NotifierMsg::Notify {
-                        title: "Error!".to_owned(),
-                        body: format!("Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix", msg),
+                        message: format!("Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix", msg),
+                        kind: gtk::MessageType::Error,
                         timeout_ms: 5000,
                     });
                     spotify.tell(SpotifyCmd::RefreshUserToken).unwrap();
@@ -392,15 +392,15 @@ impl Widget for Win {
                 },
                 Unauthorized => {
                     notifier.emit(NotifierMsg::Notify {
-                        title: "<b>Error!</b>".to_owned(),
-                        body: "Authorization error. Check credentials in <Settings> and click <Authorize> to fix".to_owned(),
+                        message: "Authorization error. Check credentials in <Settings> and click <Authorize> to fix".to_owned(),
+                        kind: gtk::MessageType::Error,
                         timeout_ms: 5000
                     });
                     stream.emit(Msg::GoToSettings);
                 },
                 err => notifier.emit(NotifierMsg::Notify {
-                    title: "<b>Error!</b>".to_owned(),
-                    body: err.to_string(),
+                    message: err.to_string(),
+                    kind: gtk::MessageType::Warning,
                     timeout_ms: 5000
                 }),
             }
