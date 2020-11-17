@@ -50,15 +50,15 @@ impl Config {
         self.dirs.cache_dir().join(SPOTIFY_TOKEN_FILE)
     }
 
-    pub fn read_settings(&self) -> Settings {
-        self.try_read_settings()
+    pub fn load_settings(&self) -> Settings {
+        self.try_load_settings()
             .map_err(|error| {
                 error!("failed to read settings file: {:?}", error);
             })
             .unwrap_or_default()
     }
 
-    fn try_read_settings(&self) -> Result<Settings, Error> {
+    fn try_load_settings(&self) -> Result<Settings, Error> {
         let mut file = File::open(self.config_file())?;
         let mut buf = Vec::with_capacity(256);
         file.read_to_end(&mut buf)?;

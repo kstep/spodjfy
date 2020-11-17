@@ -1,7 +1,8 @@
 use crate::config::{Config, Settings};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gtk::{
-    self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, WidgetExt,
+    self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
+    WidgetExt,
 };
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -12,6 +13,7 @@ pub enum SettingsMsg {
     ShowTab,
     GetAuthorizeUrl,
     SetAuthorizeUrl(String),
+    Reset,
     Save,
 }
 
@@ -19,6 +21,7 @@ pub struct SettingsModel {
     stream: EventStream<SettingsMsg>,
     settings: Settings,
     spotify: Arc<SpotifyProxy>,
+    config: Config,
 }
 
 #[widget]
@@ -28,10 +31,12 @@ impl Widget for SettingsTab {
         (settings, spotify): (Settings, Arc<SpotifyProxy>),
     ) -> SettingsModel {
         let stream = relm.stream().clone();
+        let config = Config::new();
         SettingsModel {
             stream,
             settings,
             spotify,
+            config,
         }
     }
 
@@ -55,93 +60,124 @@ impl Widget for SettingsTab {
                 self.client_auth_url_btn.set_uri(&url);
                 self.client_auth_url_btn.set_visible(true);
             }
+            Reset => {
+                self.model.settings = self.model.config.load_settings();
+            }
             Save => {
-                let id = self.model.settings.client_id.clone();
-                let secret = self.model.settings.client_secret.clone();
-                self.model
-                    .spotify
-                    .ask(
-                        self.model.stream.clone(),
-                        |tx| SpotifyCmd::SetupClient { tx, id, secret },
-                        SetAuthorizeUrl,
-                    )
-                    .unwrap();
-
-                Config::new()
-                    .save_settings(&self.model.settings)
-                    .expect("error saving settings");
+                self.save_settings();
             }
         }
     }
 
+    fn save_settings(&mut self) {
+        let settings = Settings {
+            client_id: self.client_id_entry.get_text().into(),
+            client_secret: self.client_secret_entry.get_text().into(),
+            show_notifications: self.show_notifications_switch.get_active(),
+        };
+
+        self.model
+            .config
+            .save_settings(&settings)
+            .expect("error saving settings");
+
+        let id = settings.client_id.clone();
+        let secret = settings.client_secret.clone();
+        self.model
+            .spotify
+            .ask(
+                self.model.stream.clone(),
+                |tx| SpotifyCmd::SetupClient { tx, id, secret },
+                SettingsMsg::SetAuthorizeUrl,
+            )
+            .unwrap();
+
+        self.model.settings = settings;
+    }
+
     view! {
-        gtk::Frame {
-            label: Some("Credentials"),
-            gtk::Grid {
-                column_homogeneous: true,
-                margin_top: 50,
-                margin_bottom: 50,
-                margin_start: 50,
-                margin_end: 50,
-                row_spacing: 5,
-                column_spacing: 5,
+        gtk::Box(gtk::Orientation::Vertical, 0) {
+            gtk::Frame {
+                label: Some("Credentials"),
+                margin_top: 10, margin_bottom: 10, margin_start: 10, margin_end: 10,
 
-                #[name="client_id_label"]
-                gtk::Label {
-                    text_with_mnemonic: "Client _ID",
-                    halign: gtk::Align::End,
-                    cell: {
-                        left_attach: 0,
-                        top_attach: 0,
-                    }
-                },
-                #[name="client_id_entry"]
-                gtk::Entry {
-                    text: &self.model.settings.client_id,
-                    cell: {
-                        left_attach: 1,
-                        top_attach: 0,
-                    }
-                },
+                gtk::Grid {
+                    margin_top: 10, margin_bottom: 10, margin_start: 10, margin_end: 10,
+                    row_spacing: 5,
+                    column_spacing: 10,
 
-                #[name="client_secret_label"]
-                gtk::Label {
-                    text_with_mnemonic: "Client _Secret",
-                    halign: gtk::Align::End,
-                    cell: {
-                        left_attach: 0,
-                        top_attach: 1,
-                    }
-                },
-                #[name="client_secret_entry"]
-                gtk::Entry {
-                    text: &self.model.settings.client_secret,
-                    cell: {
-                        left_attach: 1,
-                        top_attach: 1,
-                    }
-                },
+                    #[name="client_id_label"]
+                    gtk::Label {
+                        cell: { left_attach: 0, top_attach: 0, },
+                        halign: gtk::Align::Start,
+                        text_with_mnemonic: "Client _ID",
+                    },
+                    #[name="client_id_entry"]
+                    gtk::Entry {
+                        cell: { left_attach: 1, top_attach: 0, },
+                        text: &self.model.settings.client_id,
+                        hexpand: true,
+                    },
 
-
-                gtk::ButtonBox(gtk::Orientation::Horizontal) {
-                    spacing: 5,
-                    halign: gtk::Align::End,
-                    cell: {
-                        left_attach: 1,
-                        top_attach: 3,
+                    #[name="client_secret_label"]
+                    gtk::Label {
+                        cell: { left_attach: 0, top_attach: 1, },
+                        halign: gtk::Align::Start,
+                        text_with_mnemonic: "Client _Secret",
+                    },
+                    #[name="client_secret_entry"]
+                    gtk::Entry {
+                        cell: { left_attach: 1, top_attach: 1, },
+                        text: &self.model.settings.client_secret,
                     },
 
                     #[name="client_auth_url_btn"]
                     gtk::LinkButton {
+                        cell: { left_attach: 1, top_attach: 2, width: 2, },
                         visible: false,
                         label: "Open authorization URL",
                         halign: gtk::Align::Start,
                     },
+                },
+            },
+            gtk::Frame {
+                label: Some("Playback"),
+                margin_top: 10, margin_bottom: 10, margin_start: 10, margin_end: 10,
 
-                    gtk::Button {
-                        label: "Save",
-                        clicked(_) => SettingsMsg::Save,
+                gtk::Grid {
+                    column_homogeneous: true,
+                    margin_top: 10, margin_bottom: 10, margin_start: 10, margin_end: 10,
+                    row_spacing: 5,
+                    column_spacing: 10,
+                    hexpand: true,
+
+                    gtk::Label {
+                        halign: gtk::Align::Start,
+                        cell: { left_attach: 0, top_attach: 0, },
+                        text: "Show track notifications",
                     },
+                    #[name="show_notifications_switch"]
+                    gtk::Switch {
+                        cell: { left_attach: 1, top_attach: 0, },
+                        active: self.model.settings.show_notifications,
+                        halign: gtk::Align::End,
+                    },
+                },
+            },
+
+            gtk::ButtonBox {
+                spacing: 10,
+                margin_end: 10,
+                halign: gtk::Align::End,
+                homogeneous: true,
+
+                gtk::Button {
+                    label: "Reset",
+                    clicked(_) => SettingsMsg::Reset,
+                },
+                gtk::Button {
+                    label: "Save",
+                    clicked(_) => SettingsMsg::Save,
                 },
             },
         }

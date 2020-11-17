@@ -14,7 +14,7 @@ async fn main() {
     let (tx, rx) = std::sync::mpsc::channel::<SpotifyCmd>();
 
     let config = Config::new();
-    let settings = config.read_settings();
+    let settings = config.load_settings();
     let spotify_cache_path = config.spotify_token_file();
 
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
