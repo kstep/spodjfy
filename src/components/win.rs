@@ -4,7 +4,7 @@ use gtk::{
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
@@ -28,7 +28,7 @@ use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use rspotify::model::Type;
 
 pub struct State {
-    pub settings: Settings,
+    pub settings: Arc<RwLock<Settings>>,
     pub spotify: Arc<SpotifyProxy>,
     pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
 
@@ -128,7 +128,7 @@ impl Widget for Win {
 
         let stream = relm.stream().clone();
         State {
-            settings: params.settings,
+            settings: Arc::new(RwLock::new(params.settings)),
             spotify: Arc::new(params.spotify),
             spotify_errors: params.spotify_errors,
             notifier: relm::create_component::<Notifier>(()),
@@ -216,7 +216,7 @@ impl Widget for Win {
                         },
                         gtk::Box(gtk::Orientation::Vertical, 1) {
                             #[name="media_controls"]
-                            MediaControls((self.model.spotify.clone(), self.model.settings.show_notifications)) {
+                            MediaControls((self.model.spotify.clone(), self.model.settings.clone())) {
                                widget_name: "media_controls",
                             },
 

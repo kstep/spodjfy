@@ -6,7 +6,7 @@ use gtk::{
 };
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Msg)]
 pub enum SettingsMsg {
@@ -19,7 +19,7 @@ pub enum SettingsMsg {
 
 pub struct SettingsModel {
     stream: EventStream<SettingsMsg>,
-    settings: Settings,
+    settings: Arc<RwLock<Settings>>,
     spotify: Arc<SpotifyProxy>,
     config: Config,
 }
@@ -28,7 +28,7 @@ pub struct SettingsModel {
 impl Widget for SettingsTab {
     fn model(
         relm: &Relm<Self>,
-        (settings, spotify): (Settings, Arc<SpotifyProxy>),
+        (settings, spotify): (Arc<RwLock<Settings>>, Arc<SpotifyProxy>),
     ) -> SettingsModel {
         let stream = relm.stream().clone();
         let config = Config::new();
@@ -61,7 +61,9 @@ impl Widget for SettingsTab {
                 self.client_auth_url_btn.set_visible(true);
             }
             Reset => {
-                self.model.settings = self.model.config.load_settings();
+                let settings = self.model.settings.clone();
+                *settings.write().unwrap() = self.model.config.load_settings();
+                self.model.settings = settings;
             }
             Save => {
                 self.save_settings();
@@ -92,7 +94,7 @@ impl Widget for SettingsTab {
             )
             .unwrap();
 
-        self.model.settings = settings;
+        *self.model.settings.write().unwrap() = settings;
     }
 
     view! {
@@ -115,7 +117,7 @@ impl Widget for SettingsTab {
                     #[name="client_id_entry"]
                     gtk::Entry {
                         cell: { left_attach: 1, top_attach: 0, },
-                        text: &self.model.settings.client_id,
+                        text: &self.model.settings.read().unwrap().client_id,
                         hexpand: true,
                     },
 
@@ -128,7 +130,7 @@ impl Widget for SettingsTab {
                     #[name="client_secret_entry"]
                     gtk::Entry {
                         cell: { left_attach: 1, top_attach: 1, },
-                        text: &self.model.settings.client_secret,
+                        text: &self.model.settings.read().unwrap().client_secret,
                     },
 
                     #[name="client_auth_url_btn"]
@@ -159,7 +161,7 @@ impl Widget for SettingsTab {
                     #[name="show_notifications_switch"]
                     gtk::Switch {
                         cell: { left_attach: 1, top_attach: 0, },
-                        active: self.model.settings.show_notifications,
+                        active: self.model.settings.read().unwrap().show_notifications,
                         halign: gtk::Align::End,
                     },
                 },

@@ -1,3 +1,4 @@
+use crate::config::Settings;
 use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
@@ -18,7 +19,7 @@ use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
 use std::borrow::Cow;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
 pub enum PlayContext {
@@ -179,7 +180,7 @@ pub struct MediaControlsModel {
     context: Option<PlayContext>,
     track_cover: Option<Pixbuf>,
     context_cover: Option<Pixbuf>,
-    show_notifications: bool,
+    settings: Arc<RwLock<Settings>>,
 }
 
 const TRACK_COVER_SIZE: i32 = 256;
@@ -189,7 +190,7 @@ const CONTEXT_COVER_SIZE: i32 = 128;
 impl Widget for MediaControls {
     fn model(
         relm: &Relm<Self>,
-        (spotify, show_notifications): (Arc<SpotifyProxy>, bool),
+        (spotify, settings): (Arc<SpotifyProxy>, Arc<RwLock<Settings>>),
     ) -> MediaControlsModel {
         let stream = relm.stream().clone();
 
@@ -213,7 +214,7 @@ impl Widget for MediaControls {
             stream,
             spotify,
             devices,
-            show_notifications,
+            settings,
             state: None,
             context: None,
             track_cover: None,
@@ -321,7 +322,7 @@ impl Widget for MediaControls {
 
                         let item = state.as_ref().as_ref().unwrap().item.as_ref().unwrap();
 
-                        if self.model.show_notifications {
+                        if self.model.settings.read().unwrap().show_notifications {
                             let _ = Notification::new()
                                 .summary(item.name())
                                 .body(&format!(
