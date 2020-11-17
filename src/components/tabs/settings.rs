@@ -44,6 +44,8 @@ impl Widget for SettingsTab {
         use SettingsMsg::*;
         match event {
             ShowTab => {
+                // Hacky method to make code generator create set_text() method calls
+                self.model.settings = self.model.settings.clone();
                 self.model.stream.emit(GetAuthorizeUrl);
             }
             GetAuthorizeUrl => {
@@ -61,6 +63,7 @@ impl Widget for SettingsTab {
                 self.client_auth_url_btn.set_visible(true);
             }
             Reset => {
+                // Hacky method to make code generator create set_text() method calls
                 let settings = self.model.settings.clone();
                 *settings.write().unwrap() = self.model.config.load_settings();
                 self.model.settings = settings;
