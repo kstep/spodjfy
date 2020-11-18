@@ -3,7 +3,7 @@ use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-use gtk::{ButtonBoxExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
+use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use notify_rust::Notification;
 use relm::{EventStream, Relm, Widget};
@@ -546,136 +546,155 @@ impl Widget for MediaControls {
         gtk::Box(gtk::Orientation::Vertical, 10) {
             #[name="state_info"]
             gtk::Revealer {
-                gtk::Box(gtk::Orientation::Horizontal, 10) {
-                    halign: gtk::Align::Start,
+                gtk::Grid {
+                    column_homogeneous: true,
+                    column_spacing: 10,
                     margin_top: 15,
                     margin_start: 15,
-                    #[name="track_cover_image"]
-                    gtk::Image {
-                        valign: gtk::Align::Start,
-                        from_pixbuf: self.model.track_cover.as_ref()
-                    },
-                    #[name="track_infobox"]
-                    gtk::Box(gtk::Orientation::Vertical, 10) {
-                        halign: gtk::Align::Start,
-                        #[name="track_name_label"]
-                        gtk::LinkButton {
-                            widget_name: "track_name_label",
-                            halign: gtk::Align::Start,
-                            hexpand: true,
-                            label: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
-                            uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
+                    margin_end: 15,
 
-                            activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
+                    gtk::Box(gtk::Orientation::Horizontal, 10) {
+                        cell: { left_attach: 0, top_attach: 0, width: 2, },
+                        #[name="track_cover_image"]
+                        gtk::Image {
+                            valign: gtk::Align::Start,
+                            from_pixbuf: self.model.track_cover.as_ref()
                         },
-                        #[name="track_artists_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            selectable: true,
-                            text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                                PlayingItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
-                                PlayingItem::Episode(episode) => episode.show.publisher.clone(),
-                            }).as_deref().unwrap_or("<Unknown Artist>")
-                        },
-                        #[name="track_album_label"]
-                        gtk::Label {
-                            widget_name: "track_album_label",
-                            selectable: true,
-                            halign: gtk::Align::Start,
-                            text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                                PlayingItem::Track(track) => &*track.album.name,
-                                PlayingItem::Episode(episode) => &*episode.show.name,
-                            }).unwrap_or("")
-                        },
-                        #[name="track_description_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            selectable: true,
-                            line_wrap: true,
-                            xalign: 0.0,
-                            text: self.model.state.as_ref()
-                                .and_then(|s| s.item.as_ref())
-                                .and_then(|it| it.description())
-                                .unwrap_or("")
-                        },
-                    },
-                    #[name="context_cover_image"]
-                    gtk::Image {
-                        valign: gtk::Align::Start,
-                        halign: gtk::Align::End,
-                        from_pixbuf: self.model.context_cover.as_ref(),
-                    },
-                    #[name="context_infobox"]
-                    gtk::Box(gtk::Orientation::Vertical, 10) {
-                        halign: gtk::Align::End,
+                        #[name="track_infobox"]
+                        gtk::Box(gtk::Orientation::Vertical, 10) {
+                            #[name="track_name_label"]
+                            gtk::LinkButton {
+                                widget_name: "track_name_label",
+                                uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
 
-                        gtk::Box(gtk::Orientation::Horizontal, 5) {
-                            gtk::Label {
-                                text: match self.model.context {
-                                        Some(PlayContext::Album(_)) => "\u{1F4BF}",
-                                        Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
-                                        Some(PlayContext::Artist(_)) => "\u{1F935}",
-                                        Some(PlayContext::Show(_)) => "\u{1F399}",
-                                        None => "",
-                                    }
+                                activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
+
+                                gtk::Label {
+                                    halign: gtk::Align::Start,
+                                    xalign: 0.0,
+                                    line_wrap: true,
+                                    ellipsize: pango::EllipsizeMode::End,
+                                    lines: 2,
+                                    text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
+                                }
                             },
-                            #[name="context_name_label"]
+                            #[name="track_artists_label"]
                             gtk::Label {
-                                widget_name: "context_name_label",
-                                selectable: true,
-                                line_wrap: true,
-                                xalign: 0.0,
-                                property_width_request: 200,
                                 halign: gtk::Align::Start,
-                                text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
+                                selectable: true,
+                                text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                                    PlayingItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
+                                    PlayingItem::Episode(episode) => episode.show.publisher.clone(),
+                                }).as_deref().unwrap_or("<Unknown Artist>")
                             },
+                            #[name="track_album_label"]
+                            gtk::Label {
+                                halign: gtk::Align::Start,
+                                widget_name: "track_album_label",
+                                selectable: true,
+                                text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                                    PlayingItem::Track(track) => &*track.album.name,
+                                    PlayingItem::Episode(episode) => &*episode.show.name,
+                                }).unwrap_or("")
+                            },
+                            //gtk::ScrolledWindow {
+                                #[name="track_description_label"]
+                                gtk::Label {
+                                    halign: gtk::Align::Start,
+                                    selectable: true,
+                                    line_wrap: true,
+                                    xalign: 0.0,
+                                    text: self.model.state.as_ref()
+                                        .and_then(|s| s.item.as_ref())
+                                        .and_then(|it| it.description())
+                                        .unwrap_or("")
+                                },
+                            //},
                         },
-                        #[name="context_artists_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            selectable: true,
-                            text: self.model.context.as_ref()
-                                .and_then(|ctx| ctx.artists())
-                                .as_deref()
-                                .unwrap_or("")
+                    },
+
+                    gtk::Box(gtk::Orientation::Horizontal, 10) {
+                        cell: { left_attach: 2, top_attach: 0, width: 1, },
+
+                        #[name="context_cover_image"]
+                        gtk::Image {
+                            valign: gtk::Align::Start,
+                            from_pixbuf: self.model.context_cover.as_ref(),
                         },
-                        #[name="context_tracks_number_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            selectable: true,
-                            text: self.model.context.as_ref()
-                                .map(|c| match (c.tracks_number(), c.duration()) {
-                                    (0, None) => String::new(),
-                                    (0, Some(d)) => format!("Duration: {}", crate::utils::humanize_time(d)),
-                                    (n, None) => format!("Tracks: {}", n),
-                                    (n, Some(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
-                                })
-                                .as_deref()
-                                .unwrap_or("")
-                        },
-                        #[name="context_description_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            line_wrap: true,
-                            selectable: true,
-                            xalign: 0.0,
-                            text: self.model.context.as_ref()
-                                .map(|c| c.description())
-                                .unwrap_or("")
-                        },
-                        #[name="context_genres_label"]
-                        gtk::Label {
-                            halign: gtk::Align::Start,
-                            selectable: true,
-                            text: self.model.context.as_ref()
-                                .and_then(|c| c.genres())
-                                .map(|gs| gs.iter().join(", "))
-                                .as_deref()
-                                .unwrap_or("")
-                        },
-                    }
+                        #[name="context_infobox"]
+                        gtk::Box(gtk::Orientation::Vertical, 10) {
+                            gtk::Box(gtk::Orientation::Horizontal, 5) {
+                                gtk::Label {
+                                    halign: gtk::Align::Start,
+                                    valign: gtk::Align::Start,
+                                    text: match self.model.context {
+                                            Some(PlayContext::Album(_)) => "\u{1F4BF}",
+                                            Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
+                                            Some(PlayContext::Artist(_)) => "\u{1F935}",
+                                            Some(PlayContext::Show(_)) => "\u{1F399}",
+                                            None => "",
+                                        }
+                                },
+                                #[name="context_name_label"]
+                                gtk::Label {
+                                    halign: gtk::Align::Start,
+                                    widget_name: "context_name_label",
+                                    selectable: true,
+                                    line_wrap: true,
+                                    xalign: 0.0,
+                                    text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
+                                },
+                            },
+                            #[name="context_artists_label"]
+                            gtk::Label {
+                                halign: gtk::Align::Start,
+                                selectable: true,
+                                text: self.model.context.as_ref()
+                                    .and_then(|ctx| ctx.artists())
+                                    .as_deref()
+                                    .unwrap_or("")
+                            },
+                            #[name="context_tracks_number_label"]
+                            gtk::Label {
+                                halign: gtk::Align::Start,
+                                selectable: true,
+                                text: self.model.context.as_ref()
+                                    .map(|c| match (c.tracks_number(), c.duration()) {
+                                        (0, None) => String::new(),
+                                        (0, Some(d)) => format!("Duration: {}", crate::utils::humanize_time(d)),
+                                        (n, None) => format!("Tracks: {}", n),
+                                        (n, Some(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
+                                    })
+                                    .as_deref()
+                                    .unwrap_or("")
+                            },
+                            //gtk::ScrolledWindow {
+                                #[name="context_description_label"]
+                                gtk::Label {
+                                    halign: gtk::Align::Start,
+                                    line_wrap: true,
+                                    selectable: true,
+                                    xalign: 0.0,
+                                    text: self.model.context.as_ref()
+                                        .map(|c| c.description())
+                                        .unwrap_or("")
+                                },
+                            //},
+                            #[name="context_genres_label"]
+                            gtk::Label {
+                                halign: gtk::Align::Start,
+                                selectable: true,
+                                text: self.model.context.as_ref()
+                                    .and_then(|c| c.genres())
+                                    .map(|gs| gs.iter().join(", "))
+                                    .as_deref()
+                                    .unwrap_or("")
+                            },
+                        }
+                    },
                 },
             },
+
             gtk::Box(gtk::Orientation::Horizontal, 10) {
                 #[name="track_seek_bar"]
                 gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 0.0, 1000.0, 1000.0, 1000.0))) {
