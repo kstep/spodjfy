@@ -229,12 +229,12 @@ impl PlaylistLike for Show {
 }
 
 pub trait PlaylistsLoader: Clone + 'static {
-    type ParentId;
+    type ParentId: Clone;
     type Playlist: PlaylistLike;
     type Page: PageLike<Self::Playlist>;
     const PAGE_LIMIT: u32;
     fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> Self::ParentId;
+    fn parent_id(&self) -> &Self::ParentId;
     fn load_page(
         self,
         tx: ResultSender<Self::Page>,
@@ -257,7 +257,9 @@ impl PlaylistsLoader for FeaturedLoader {
         FeaturedLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetFeaturedPlaylists {
@@ -280,7 +282,9 @@ impl PlaylistsLoader for SavedLoader {
         SavedLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyPlaylists {
@@ -303,7 +307,9 @@ impl PlaylistsLoader for ShowsLoader {
         ShowsLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyShows {
@@ -328,14 +334,14 @@ impl PlaylistsLoader for CategoryLoader {
         CategoryLoader { id }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        self.id.clone()
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.id
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetCategoryPlaylists {
             tx,
-            category_id: self.parent_id(),
+            category_id: self.parent_id().clone(),
             offset,
             limit: Self::PAGE_LIMIT,
         }

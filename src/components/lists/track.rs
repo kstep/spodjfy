@@ -109,7 +109,7 @@ where
 
     fn start_load(&mut self) {
         if let Some(ref mut loader) = self.model.tracks_loader {
-            *loader = Loader::new(loader.parent_id());
+            *loader = Loader::new(loader.parent_id().clone());
             let epoch = loader.uuid();
             self.model.is_loading = true;
             self.refresh_btn.set_visible(false);
@@ -221,7 +221,7 @@ where
                     .model
                     .tracks_loader
                     .as_ref()
-                    .filter(|loader| loader.parent_id() == parent_id)
+                    .filter(|loader| loader.parent_id() == &parent_id)
                     .is_none()
                 {
                     self.model.tracks_loader = Some(Loader::new(parent_id));
@@ -414,7 +414,7 @@ where
                 if let Some(ref loader) = self.model.tracks_loader {
                     self.model
                         .spotify
-                        .tell(loader.parent_id().play_tracks_cmd(uris))
+                        .tell(loader.parent_id().clone().play_tracks_cmd(uris))
                         .unwrap();
                     self.model.stream.emit(PlayingNewTrack);
                 }

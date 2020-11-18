@@ -5,12 +5,12 @@ use rspotify::model::{
 };
 
 pub trait AlbumsLoader: Clone + 'static {
-    type ParentId;
+    type ParentId: Clone;
     type Album: AlbumLike;
     type Page: PageLike<Self::Album>;
     const PAGE_LIMIT: u32;
     fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> Self::ParentId;
+    fn parent_id(&self) -> &Self::ParentId;
     fn load_page(
         self,
         tx: ResultSender<Self::Page>,
@@ -33,7 +33,9 @@ impl AlbumsLoader for SavedLoader {
         SavedLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyAlbums {
@@ -56,7 +58,9 @@ impl AlbumsLoader for NewReleasesLoader {
         NewReleasesLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetNewReleases {
@@ -81,15 +85,15 @@ impl AlbumsLoader for ArtistLoader {
         ArtistLoader { uri }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        self.uri.clone()
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.uri
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetArtistAlbums {
             tx,
             offset,
-            uri: self.parent_id(),
+            uri: self.parent_id().clone(),
             limit: Self::PAGE_LIMIT,
         }
     }

@@ -98,7 +98,7 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
 
     fn start_load(&mut self) {
         if let Some(ref mut loader) = self.model.playlists_loader {
-            *loader = Loader::new(loader.parent_id());
+            *loader = Loader::new(loader.parent_id().clone());
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);

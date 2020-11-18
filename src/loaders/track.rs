@@ -15,12 +15,12 @@ use rspotify::model::PlayingItem;
 use serde_json::{Map, Value};
 
 pub trait TracksLoader: Clone + 'static {
-    type ParentId;
+    type ParentId: Clone;
     type Track: TrackLike;
     type Page: PageLike<Self::Track>;
     const PAGE_LIMIT: u32;
     fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> Self::ParentId;
+    fn parent_id(&self) -> &Self::ParentId;
     fn load_page(
         self,
         tx: ResultSender<Self::Page>,
@@ -158,18 +158,19 @@ impl TracksLoader for RecommendLoader {
         }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        let mut params = self.tunables.clone();
-        if let Some(ref seed_artists) = self.seed_artists {
-            params.insert("seed_artists".into(), Value::from(seed_artists.clone()));
-        }
-        if let Some(ref seed_genres) = self.seed_genres {
-            params.insert("seed_genres".into(), Value::from(seed_genres.clone()));
-        }
-        if let Some(ref seed_tracks) = self.seed_tracks {
-            params.insert("seed_tracks".into(), Value::from(seed_tracks.clone()));
-        }
-        params
+    fn parent_id(&self) -> &Self::ParentId {
+        return &self.tunables;
+        //let mut params = self.tunables.clone();
+        //if let Some(ref seed_artists) = self.seed_artists {
+        //    params.insert("seed_artists".into(), Value::from(seed_artists.clone()));
+        //}
+        //if let Some(ref seed_genres) = self.seed_genres {
+        //    params.insert("seed_genres".into(), Value::from(seed_genres.clone()));
+        //}
+        //if let Some(ref seed_tracks) = self.seed_tracks {
+        //    params.insert("seed_tracks".into(), Value::from(seed_tracks.clone()));
+        //}
+        //params
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
@@ -202,7 +203,9 @@ impl TracksLoader for SavedLoader {
         SavedLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyTracks {
@@ -225,7 +228,9 @@ impl TracksLoader for RecentLoader {
         RecentLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
         SpotifyCmd::GetRecentTracks {
@@ -248,7 +253,9 @@ impl TracksLoader for QueueLoader {
         QueueLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
         SpotifyCmd::GetQueueTracks { tx }
@@ -270,12 +277,12 @@ impl TracksLoader for AlbumLoader {
         AlbumLoader { uri }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        self.uri.clone()
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.uri
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        let uri = self.parent_id();
+        let uri = self.parent_id().clone();
         SpotifyCmd::GetAlbumTracks {
             tx,
             uri,
@@ -300,12 +307,12 @@ impl TracksLoader for PlaylistLoader {
         PlaylistLoader { uri }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        self.uri.clone()
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.uri
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        let uri = self.parent_id();
+        let uri = self.parent_id().clone();
         SpotifyCmd::GetPlaylistTracks {
             tx,
             uri,
@@ -328,7 +335,9 @@ impl TracksLoader for MyTopTracksLoader {
         MyTopTracksLoader
     }
 
-    fn parent_id(&self) -> Self::ParentId {}
+    fn parent_id(&self) -> &Self::ParentId {
+        &()
+    }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
         SpotifyCmd::GetMyTopTracks {
@@ -354,12 +363,12 @@ impl TracksLoader for ShowLoader {
         ShowLoader { uri }
     }
 
-    fn parent_id(&self) -> Self::ParentId {
-        self.uri.clone()
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.uri
     }
 
     fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        let uri = self.parent_id();
+        let uri = self.parent_id().clone();
         SpotifyCmd::GetShowEpisodes {
             tx,
             uri,
