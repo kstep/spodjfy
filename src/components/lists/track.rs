@@ -24,6 +24,7 @@ pub trait PlayContextCmd {
 pub enum TrackListMsg<Loader: TracksLoader> {
     Clear,
     Reset(Loader::ParentId, bool),
+    Load(Loader::ParentId),
     Reload,
     LoadPage(<Loader::Page as PageLike<Loader::Track>>::Offset, usize),
     NewPage(Loader::Page, usize),
@@ -59,6 +60,7 @@ pub struct TrackListModel<Loader: TracksLoader> {
     tracks_loader: Option<Loader>,
     total_tracks: u32,
     total_duration: u32,
+    is_loading: bool,
 }
 
 pub struct TrackList<Loader: TracksLoader> {
@@ -92,7 +94,10 @@ impl PlayContextCmd for String {
     }
 }
 
-impl<Loader: TracksLoader> TrackList<Loader> {
+impl<Loader: TracksLoader> TrackList<Loader>
+where
+    Loader::ParentId: PartialEq,
+{
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_duration = 0;
@@ -106,6 +111,7 @@ impl<Loader: TracksLoader> TrackList<Loader> {
         if let Some(ref mut loader) = self.model.tracks_loader {
             *loader = Loader::new(loader.parent_id());
             let epoch = loader.uuid();
+            self.model.is_loading = true;
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);
@@ -116,8 +122,9 @@ impl<Loader: TracksLoader> TrackList<Loader> {
         }
     }
 
-    fn finish_load(&self) {
+    fn finish_load(&mut self) {
         let status_ctx = self.status_bar.get_context_id("totals");
+        self.model.is_loading = false;
         self.progress_bar.set_visible(false);
         self.refresh_btn.set_visible(true);
         self.status_bar.remove_all(status_ctx);
@@ -165,7 +172,7 @@ impl<Loader: TracksLoader> TrackList<Loader> {
 impl<Loader> Update for TrackList<Loader>
 where
     Loader: TracksLoader,
-    Loader::ParentId: PlayContextCmd,
+    Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Model = TrackListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
@@ -199,6 +206,7 @@ where
             tracks_loader: None,
             total_duration: 0,
             total_tracks: 0,
+            is_loading: false,
         }
     }
 
@@ -207,6 +215,19 @@ where
         match event {
             Clear => {
                 self.clear_store();
+            }
+            Load(parent_id) => {
+                if self
+                    .model
+                    .tracks_loader
+                    .as_ref()
+                    .filter(|loader| loader.parent_id() == parent_id)
+                    .is_none()
+                {
+                    self.model.tracks_loader = Some(Loader::new(parent_id));
+                    self.clear_store();
+                    self.start_load()
+                }
             }
             Reset(parent_id, reload) => {
                 self.model.tracks_loader = Some(Loader::new(parent_id));
@@ -279,15 +300,16 @@ where
 
                 self.model.total_duration += page_duration;
 
+                if !Loader::Track::unavailable_columns().contains(&COL_TRACK_BPM) {
+                    stream.emit(LoadTracksInfo(uris, iters));
+                }
+
                 if let Some(next_offset) = page.next_offset() {
                     stream.emit(LoadPage(next_offset, epoch));
                 } else {
+                    drop(stream);
                     self.model.total_tracks = page.total();
                     self.finish_load();
-                }
-
-                if !Loader::Track::unavailable_columns().contains(&COL_TRACK_BPM) {
-                    stream.emit(LoadTracksInfo(uris, iters));
                 }
             }
             LoadTracksInfo(uris, iters) => {
@@ -319,6 +341,13 @@ where
                 self.model
                     .store
                     .set_value(&pos, COL_TRACK_THUMB, &thumb.to_value());
+            }
+            GoToTrack(track_id) if self.model.is_loading => {
+                let stream = self.model.stream.clone();
+                glib::timeout_add_local(500, move || {
+                    stream.emit(GoToTrack(track_id.clone()));
+                    Continue(false)
+                });
             }
             GoToTrack(track_id) => {
                 let store = &self.model.store;
@@ -404,7 +433,7 @@ where
 impl<Loader> Widget for TrackList<Loader>
 where
     Loader: TracksLoader,
-    Loader::ParentId: PlayContextCmd,
+    Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Root = gtk::Box;
 

@@ -30,6 +30,15 @@ pub enum PlayContext {
 }
 
 impl PlayContext {
+    fn uri(&self) -> &str {
+        match self {
+            PlayContext::Album(ctx) => &*ctx.uri,
+            PlayContext::Artist(ctx) => &*ctx.uri,
+            PlayContext::Playlist(ctx) => &*ctx.uri,
+            PlayContext::Show(ctx) => &*ctx.uri,
+        }
+    }
+
     fn name(&self) -> &str {
         match self {
             PlayContext::Album(ctx) => &*ctx.name,
@@ -168,7 +177,7 @@ pub enum MediaControlsMsg {
     SetShuffle(bool),
     ToggleRepeatMode,
     ClickTrackUri(Option<String>),
-    GoToTrack(Type, String),
+    GoToTrack(Type, String, Option<(String, String)>),
     ShowInfo(bool),
 }
 
@@ -527,18 +536,24 @@ impl Widget for MediaControls {
                 }
             }
             ClickTrackUri(Some(uri)) => {
-                let kind = self
+                let (kind, context_info) = self
                     .model
                     .context
                     .as_ref()
-                    .map(|ctx| ctx.kind())
-                    .unwrap_or(Type::Track);
+                    .map(|ctx| {
+                        (
+                            ctx.kind(),
+                            Some((ctx.uri().to_owned(), ctx.name().to_owned())),
+                        )
+                    })
+                    .unwrap_or((Type::Track, None));
+
                 self.model
                     .stream
-                    .emit(MediaControlsMsg::GoToTrack(kind, uri));
+                    .emit(MediaControlsMsg::GoToTrack(kind, uri, context_info));
             }
             ClickTrackUri(None) => {}
-            GoToTrack(_, _) => {}
+            GoToTrack(_, _, _) => {}
         }
     }
 

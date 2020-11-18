@@ -145,7 +145,7 @@ impl Widget for ArtistsTab {
             }
             OpenArtist(None) => {}
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
+                self.tracks_view.emit(TrackListMsg::Load(uri));
 
                 let tracks_tab = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_tab, Some(&name));

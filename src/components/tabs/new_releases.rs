@@ -34,7 +34,7 @@ impl Widget for NewReleasesTab {
                 self.albums_view.emit(AlbumListMsg::Reset((), true));
             }
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(TrackListMsg::Reset(uri, true));
+                self.tracks_view.emit(TrackListMsg::Load(uri));
 
                 let album_widget = self.tracks_view.widget();
                 self.stack.set_child_title(album_widget, Some(&name));

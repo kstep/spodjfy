@@ -42,8 +42,27 @@ pub struct State {
 pub enum Msg {
     SearchStart(gdk::EventKey),
     ChangeTab(Option<glib::GString>),
-    GoToSettings,
+    GoToTab(Tab),
     Quit,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Tab {
+    Search,
+    RecentlyPlayed,
+    Queue,
+    Favorites,
+    Playlists,
+    Artists,
+    Albums,
+    Shows,
+    TopTracks,
+    TopArtists,
+    Categories,
+    Featured,
+    NewReleases,
+    Devices,
+    Settings,
 }
 
 pub struct Params {
@@ -145,8 +164,18 @@ impl Widget for Win {
             SearchStart(ref event) => {
                 //self.searchbar.handle_event(event);
             }
-            GoToSettings => {
-                self.stack.set_visible_child(self.settings_tab.widget());
+            GoToTab(tab) => {
+                self.stack.set_visible_child(match tab {
+                    Tab::Search => self.search_tab.widget(),
+                    Tab::Favorites => self.favorites_tab.widget(),
+                    Tab::Albums => self.albums_tab.widget(),
+                    Tab::Playlists => self.playlists_tab.widget(),
+                    Tab::Artists => self.artists_tab.widget(),
+                    Tab::Shows => self.shows_tab.widget(),
+                    Tab::Categories => self.categories_tab.widget(),
+                    Tab::Settings => self.settings_tab.widget(),
+                    _ => self.search_tab.widget(),
+                });
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
                 Some("recent_tab") => {
@@ -392,7 +421,7 @@ impl Widget for Win {
                         timeout_ms: 5000,
                     });
                     spotify.tell(SpotifyCmd::RefreshUserToken).unwrap();
-                    stream.emit(Msg::GoToSettings);
+                    stream.emit(Msg::GoToTab(Tab::Settings));
                 },
                 Unauthorized => {
                     notifier.emit(NotifierMsg::Notify {
@@ -400,7 +429,7 @@ impl Widget for Win {
                         kind: gtk::MessageType::Error,
                         timeout_ms: 5000
                     });
-                    stream.emit(Msg::GoToSettings);
+                    stream.emit(Msg::GoToTab(Tab::Settings));
                 },
                 err => notifier.emit(NotifierMsg::Notify {
                     message: err.to_string(),
@@ -414,14 +443,37 @@ impl Widget for Win {
         let playlists_stream = self.playlists_tab.stream().clone();
         let favorites_stream = self.favorites_tab.stream().clone();
         let shows_stream = self.shows_tab.stream().clone();
+        let stream = self.model.stream.clone();
         self.media_controls.stream().observe(move |msg| {
-            if let MediaControlsMsg::GoToTrack(kind, uri) = msg {
+            if let MediaControlsMsg::GoToTrack(kind, uri, context_info) = msg {
                 let uri = uri.clone();
+                let context_info = context_info.clone();
                 match kind {
-                    Type::Album => albums_stream.emit(AlbumsMsg::GoToTrack(uri)),
-                    Type::Playlist => playlists_stream.emit(PlaylistsMsg::GoToTrack(uri)),
-                    Type::Track => favorites_stream.emit(FavoritesMsg::GoToTrack(uri)),
-                    Type::Show => shows_stream.emit(ShowsMsg::GoToTrack(uri)),
+                    Type::Album => {
+                        stream.emit(Msg::GoToTab(Tab::Albums));
+                        if let Some((uri, name)) = context_info {
+                            albums_stream.emit(AlbumsMsg::OpenAlbum(uri, name));
+                        }
+                        albums_stream.emit(AlbumsMsg::GoToTrack(uri));
+                    }
+                    Type::Playlist => {
+                        stream.emit(Msg::GoToTab(Tab::Playlists));
+                        if let Some((uri, name)) = context_info {
+                            playlists_stream.emit(PlaylistsMsg::OpenPlaylist(uri, name));
+                        }
+                        playlists_stream.emit(PlaylistsMsg::GoToTrack(uri));
+                    }
+                    Type::Show => {
+                        stream.emit(Msg::GoToTab(Tab::Shows));
+                        if let Some((uri, name)) = context_info {
+                            shows_stream.emit(ShowsMsg::OpenShow(uri, name));
+                        }
+                        shows_stream.emit(ShowsMsg::GoToTrack(uri));
+                    }
+                    Type::Track => {
+                        stream.emit(Msg::GoToTab(Tab::Favorites));
+                        favorites_stream.emit(FavoritesMsg::GoToTrack(uri))
+                    }
                     _ => (),
                 }
             }
