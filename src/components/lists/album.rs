@@ -21,6 +21,7 @@
 //! }
 //! ```
 
+use crate::components::lists::common::ContainerListMsg;
 use crate::loaders::album::*;
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
@@ -32,38 +33,14 @@ use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
 use itertools::Itertools;
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
-use relm_derive::Msg;
 use std::sync::Arc;
-
-#[derive(Msg)]
-pub enum AlbumListMsg<Loader: ContainerLoader> {
-    /// Clear albums list
-    Clear,
-    /// Reset albums list, set new parent id to list albums from,
-    /// if second argument is `true`, also reload albums list
-    Reset(Loader::ParentId, bool),
-    /// Reload current artist's albums list
-    Reload,
-    /// Load one albums page from Spotify with an offset
-    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset),
-    /// New albums page from Spotify arrived
-    NewPage(Loader::Page),
-    /// Load album thumbnail from URI for a row
-    LoadThumb(String, gtk::TreeIter),
-    /// New album thumbnail image for a row arrived
-    NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
-    /// Album item in list is activated (e.g. double-clicked)
-    OpenChosenAlbum,
-    /// Open given album (uri, name), show tracks list for the album
-    OpenAlbum(String, String),
-}
 
 #[doc(hidden)]
 const THUMB_SIZE: i32 = 48;
 
 #[doc(hidden)]
 pub struct AlbumListModel<Loader: ContainerLoader> {
-    stream: EventStream<AlbumListMsg<Loader>>,
+    stream: EventStream<ContainerListMsg<Loader>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
     albums_loader: Option<Loader>,
@@ -98,7 +75,7 @@ impl<Loader: ContainerLoader> AlbumList<Loader> {
             self.progress_bar.pulse();
             self.model
                 .stream
-                .emit(AlbumListMsg::LoadPage(Loader::Page::init_offset()));
+                .emit(ContainerListMsg::LoadPage(Loader::Page::init_offset()));
         }
     }
 
@@ -120,7 +97,7 @@ where
 {
     type Model = AlbumListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
-    type Msg = AlbumListMsg<Loader>;
+    type Msg = ContainerListMsg<Loader>;
 
     fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
         let stream = relm.stream().clone();
@@ -148,7 +125,7 @@ where
     }
 
     fn update(&mut self, event: Self::Msg) {
-        use AlbumListMsg::*;
+        use ContainerListMsg::*;
         match event {
             Clear => {
                 self.clear_store();
@@ -236,7 +213,7 @@ where
             NewThumb(thumb, pos) => {
                 self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
-            OpenChosenAlbum => {
+            OpenChosenItem => {
                 let select = self.albums_view.get_selection();
                 let (rows, model) = select.get_selected_rows();
 
@@ -258,10 +235,10 @@ where
                             )
                     })
                 {
-                    self.model.stream.emit(OpenAlbum(uri, name));
+                    self.model.stream.emit(OpenItem(uri, name));
                 }
             }
-            OpenAlbum(_, _) => {}
+            OpenItem(_, _) => {}
         }
     }
 }
@@ -305,7 +282,7 @@ where
                         )
                 })
             }) {
-                stream.emit(AlbumListMsg::OpenAlbum(uri, name));
+                stream.emit(ContainerListMsg::OpenItem(uri, name));
             }
         });
 
@@ -477,7 +454,7 @@ where
         let refresh_btn =
             gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
         let stream = relm.stream().clone();
-        refresh_btn.connect_clicked(move |_| stream.emit(AlbumListMsg::Reload));
+        refresh_btn.connect_clicked(move |_| stream.emit(ContainerListMsg::Reload));
         status_bar.pack_start(&refresh_btn, false, false, 0);
 
         root.add(&status_bar);

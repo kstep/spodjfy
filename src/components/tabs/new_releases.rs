@@ -1,4 +1,5 @@
-use crate::components::lists::album::{AlbumList, AlbumListMsg};
+use crate::components::lists::album::AlbumList;
+use crate::components::lists::common::ContainerListMsg;
 use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::album::NewReleasesLoader;
 use crate::loaders::track::AlbumLoader;
@@ -31,7 +32,7 @@ impl Widget for NewReleasesTab {
         use NewReleasesMsg::*;
         match event {
             ShowTab => {
-                self.albums_view.emit(AlbumListMsg::Reset((), true));
+                self.albums_view.emit(ContainerListMsg::Reset((), true));
             }
             OpenAlbum(uri, name) => {
                 self.tracks_view.emit(TrackListMsg::Load(uri));
@@ -71,7 +72,7 @@ impl Widget for NewReleasesTab {
 
         let stream = self.model.stream.clone();
         self.albums_view.stream().observe(move |msg| match msg {
-            AlbumListMsg::OpenAlbum(uri, name) => {
+            ContainerListMsg::OpenItem(uri, name) => {
                 stream.emit(NewReleasesMsg::OpenAlbum(uri.clone(), name.clone()));
             }
             _ => {}

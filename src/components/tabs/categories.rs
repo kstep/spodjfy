@@ -1,4 +1,5 @@
-use crate::components::lists::playlist::{PlaylistList, PlaylistListMsg};
+use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::playlist::PlaylistList;
 use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::playlist::CategoryLoader;
@@ -113,7 +114,7 @@ impl Widget for CategoriesTab {
                 self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
             OpenCategory(Some((id, name))) => {
-                self.playlists_view.emit(PlaylistListMsg::Reset(id, true));
+                self.playlists_view.emit(ContainerListMsg::Reset(id, true));
 
                 let playlists_tab = self.playlists_view.widget();
                 self.stack.set_child_title(playlists_tab, Some(&name));
@@ -176,7 +177,7 @@ impl Widget for CategoriesTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            PlaylistListMsg::OpenPlaylist(uri, name) => {
+            ContainerListMsg::OpenItem(uri, name) => {
                 stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}

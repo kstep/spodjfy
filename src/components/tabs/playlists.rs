@@ -1,4 +1,5 @@
-use crate::components::lists::playlist::{PlaylistList, PlaylistListMsg};
+use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::playlist::PlaylistList;
 use crate::components::lists::track::{TrackList, TrackListMsg};
 use crate::loaders::playlist::SavedLoader;
 use crate::loaders::track::PlaylistLoader;
@@ -31,7 +32,7 @@ impl Widget for PlaylistsTab {
         use PlaylistsMsg::*;
         match event {
             ShowTab => {
-                self.playlists_view.emit(PlaylistListMsg::Reset((), true));
+                self.playlists_view.emit(ContainerListMsg::Reset((), true));
             }
             OpenPlaylist(uri, name) => {
                 self.tracks_view.emit(TrackListMsg::Load(uri));
@@ -70,7 +71,7 @@ impl Widget for PlaylistsTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            PlaylistListMsg::OpenPlaylist(uri, name) => {
+            ContainerListMsg::OpenItem(uri, name) => {
                 stream.emit(PlaylistsMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}
