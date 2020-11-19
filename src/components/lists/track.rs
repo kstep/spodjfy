@@ -1,3 +1,4 @@
+use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::{PageLike, RowLike};
 use crate::loaders::track::*;
@@ -21,12 +22,12 @@ pub trait PlayContextCmd {
 }
 
 #[derive(Msg)]
-pub enum TrackListMsg<Loader: TracksLoader> {
+pub enum TrackListMsg<Loader: ContainerLoader> {
     Clear,
     Reset(Loader::ParentId, bool),
     Load(Loader::ParentId),
     Reload,
-    LoadPage(<Loader::Page as PageLike<Loader::Track>>::Offset, usize),
+    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset, usize),
     NewPage(Loader::Page, usize),
 
     LoadThumb(String, gtk::TreeIter),
@@ -52,7 +53,7 @@ pub enum TrackListMsg<Loader: TracksLoader> {
 
 const THUMB_SIZE: i32 = 32;
 
-pub struct TrackListModel<Loader: TracksLoader> {
+pub struct TrackListModel<Loader: ContainerLoader> {
     stream: EventStream<TrackListMsg<Loader>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
@@ -63,7 +64,7 @@ pub struct TrackListModel<Loader: TracksLoader> {
     is_loading: bool,
 }
 
-pub struct TrackList<Loader: TracksLoader> {
+pub struct TrackList<Loader: ContainerLoader> {
     model: TrackListModel<Loader>,
     root: gtk::Box,
     tracks_view: gtk::TreeView,
@@ -94,8 +95,10 @@ impl PlayContextCmd for String {
     }
 }
 
-impl<Loader: TracksLoader> TrackList<Loader>
+impl<Loader> TrackList<Loader>
 where
+    Loader: ContainerLoader,
+    Loader::Item: TrackLike,
     Loader::ParentId: PartialEq,
 {
     fn clear_store(&mut self) {
@@ -138,7 +141,7 @@ where
         );
     }
 
-    fn load_tracks_page(&self, offset: <Loader::Page as PageLike<Loader::Track>>::Offset) {
+    fn load_tracks_page(&self, offset: <Loader::Page as PageLike<Loader::Item>>::Offset) {
         if let Some(ref loader) = self.model.tracks_loader {
             let epoch = loader.uuid();
             let loader = loader.clone();
@@ -171,7 +174,8 @@ where
 
 impl<Loader> Update for TrackList<Loader>
 where
-    Loader: TracksLoader,
+    Loader: ContainerLoader,
+    Loader::Item: TrackLike,
     Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Model = TrackListModel<Loader>;
@@ -300,7 +304,7 @@ where
 
                 self.model.total_duration += page_duration;
 
-                if !Loader::Track::unavailable_columns().contains(&COL_TRACK_BPM) {
+                if !Loader::Item::unavailable_columns().contains(&COL_TRACK_BPM) {
                     stream.emit(LoadTracksInfo(uris, iters));
                 }
 
@@ -432,7 +436,8 @@ where
 
 impl<Loader> Widget for TrackList<Loader>
 where
-    Loader: TracksLoader,
+    Loader: ContainerLoader,
+    Loader::Item: TrackLike,
     Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Root = gtk::Box;
@@ -462,7 +467,7 @@ where
             .reorderable(true)
             .expand(true);
 
-        let unavailable_columns = Loader::Track::unavailable_columns();
+        let unavailable_columns = Loader::Item::unavailable_columns();
 
         if !unavailable_columns.contains(&COL_TRACK_NUMBER) {
             tracks_view.append_column(&{

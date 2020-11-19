@@ -1,32 +1,15 @@
-use crate::loaders::paged::PageLike;
+use crate::loaders::common::ContainerLoader;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use rspotify::model::{
     AlbumType, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist,
 };
 
-pub trait AlbumsLoader: Clone + 'static {
-    type ParentId: Clone;
-    type Album: AlbumLike;
-    type Page: PageLike<Self::Album>;
-    const PAGE_LIMIT: u32;
-    fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> &Self::ParentId;
-    fn load_page(
-        self,
-        tx: ResultSender<Self::Page>,
-        offset: <<Self as AlbumsLoader>::Page as PageLike<Self::Album>>::Offset,
-    ) -> SpotifyCmd;
-    fn uuid(&self) -> usize {
-        self as *const _ as *const () as usize
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
-impl AlbumsLoader for SavedLoader {
+impl ContainerLoader for SavedLoader {
     type ParentId = ();
-    type Album = SavedAlbum;
-    type Page = Page<Self::Album>;
+    type Item = SavedAlbum;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -48,10 +31,10 @@ impl AlbumsLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct NewReleasesLoader;
-impl AlbumsLoader for NewReleasesLoader {
+impl ContainerLoader for NewReleasesLoader {
     type ParentId = ();
-    type Album = SimplifiedAlbum;
-    type Page = Page<Self::Album>;
+    type Item = SimplifiedAlbum;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -75,10 +58,10 @@ impl AlbumsLoader for NewReleasesLoader {
 pub struct ArtistLoader {
     uri: String,
 }
-impl AlbumsLoader for ArtistLoader {
+impl ContainerLoader for ArtistLoader {
     type ParentId = String;
-    type Album = SimplifiedAlbum;
-    type Page = Page<Self::Album>;
+    type Item = SimplifiedAlbum;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(uri: Self::ParentId) -> Self {

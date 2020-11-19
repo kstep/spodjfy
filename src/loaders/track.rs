@@ -1,4 +1,5 @@
-use crate::loaders::paged::{PageLike, RowLike};
+use crate::loaders::common::ContainerLoader;
+use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::IsA;
 use gtk::prelude::GtkListStoreExtManual;
@@ -13,23 +14,6 @@ use rspotify::model::show::{FullEpisode, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
 use serde_json::{Map, Value};
-
-pub trait TracksLoader: Clone + 'static {
-    type ParentId: Clone;
-    type Track: TrackLike;
-    type Page: PageLike<Self::Track>;
-    const PAGE_LIMIT: u32;
-    fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> &Self::ParentId;
-    fn load_page(
-        self,
-        tx: ResultSender<Self::Page>,
-        offset: <<Self as TracksLoader>::Page as PageLike<Self::Track>>::Offset,
-    ) -> SpotifyCmd;
-    fn uuid(&self) -> usize {
-        self as *const _ as *const () as usize
-    }
-}
 
 #[derive(Clone, Copy)]
 pub struct Seed<Val: Copy> {
@@ -90,10 +74,10 @@ impl RecommendLoader {
     }
 }
 
-impl TracksLoader for RecommendLoader {
+impl ContainerLoader for RecommendLoader {
     type ParentId = Map<String, Value>;
-    type Track = SimplifiedTrack;
-    type Page = Vec<Self::Track>;
+    type Item = SimplifiedTrack;
+    type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 100;
 
     fn new(mut tunables: Self::ParentId) -> Self {
@@ -193,10 +177,10 @@ impl TracksLoader for RecommendLoader {
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
-impl TracksLoader for SavedLoader {
+impl ContainerLoader for SavedLoader {
     type ParentId = ();
-    type Track = SavedTrack;
-    type Page = Page<Self::Track>;
+    type Item = SavedTrack;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -218,10 +202,10 @@ impl TracksLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct RecentLoader;
-impl TracksLoader for RecentLoader {
+impl ContainerLoader for RecentLoader {
     type ParentId = ();
-    type Track = PlayHistory;
-    type Page = Vec<Self::Track>;
+    type Item = PlayHistory;
+    type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 50;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -243,10 +227,10 @@ impl TracksLoader for RecentLoader {
 #[derive(Clone, Copy)]
 pub struct QueueLoader;
 
-impl TracksLoader for QueueLoader {
+impl ContainerLoader for QueueLoader {
     type ParentId = ();
-    type Track = FullTrack;
-    type Page = Vec<Self::Track>;
+    type Item = FullTrack;
+    type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 0;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -267,10 +251,10 @@ pub struct AlbumLoader {
     uri: String,
 }
 
-impl TracksLoader for AlbumLoader {
+impl ContainerLoader for AlbumLoader {
     type ParentId = String;
-    type Track = SimplifiedTrack;
-    type Page = Page<Self::Track>;
+    type Item = SimplifiedTrack;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
 
     fn new(uri: Self::ParentId) -> Self {
@@ -297,10 +281,10 @@ pub struct PlaylistLoader {
     uri: String,
 }
 
-impl TracksLoader for PlaylistLoader {
+impl ContainerLoader for PlaylistLoader {
     type ParentId = String;
-    type Track = PlaylistTrack;
-    type Page = Page<Self::Track>;
+    type Item = PlaylistTrack;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
 
     fn new(uri: Self::ParentId) -> Self {
@@ -325,10 +309,10 @@ impl TracksLoader for PlaylistLoader {
 #[derive(Clone)]
 pub struct MyTopTracksLoader;
 
-impl TracksLoader for MyTopTracksLoader {
+impl ContainerLoader for MyTopTracksLoader {
     type ParentId = ();
-    type Track = FullTrack;
-    type Page = Page<Self::Track>;
+    type Item = FullTrack;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_uri: Self::ParentId) -> Self {
@@ -353,10 +337,10 @@ pub struct ShowLoader {
     uri: String,
 }
 
-impl TracksLoader for ShowLoader {
+impl ContainerLoader for ShowLoader {
     type ParentId = String;
-    type Track = SimplifiedEpisode;
-    type Page = Page<Self::Track>;
+    type Item = SimplifiedEpisode;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
 
     fn new(uri: Self::ParentId) -> Self {

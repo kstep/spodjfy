@@ -1,5 +1,5 @@
 use glib::Continue;
-use gtk::{BoxExt, ContainerExt, ImageExt, InfoBarExt, LabelExt, WidgetExt};
+use gtk::{BoxExt, ImageExt, InfoBarExt, LabelExt, WidgetExt};
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 

@@ -1,3 +1,26 @@
+//! # Playlists list component
+//!
+//! A component to show list of playlists of a given parent (e.g. current user playlists, some other user playlists, etc).
+//!
+//! Parameters:
+//!   - `Arc<SpotifyProxy>` - a reference to spotify proxy
+//!
+//! Usage:
+//!
+//! ```
+//!# use std::sync::{Arc, mpsc::channel};
+//!# use spodjfy::servers::spotify::SpotifyProxy;
+//!# macro_rules! view { ($body:tt*) => {} }
+//!# let (tx, rx) = channel();
+//!# let spotify = Arc::new(SpotifyProxy::new(tx));
+//! use spodjfy::components::lists::playlist::PlaylistList;
+//! use spodjfy::loaders::playlist::SavedLoader;
+//!
+//! view! {
+//!     PlaylistList::<SavedLoader>(spotify.clone())
+//! }
+//! ```
+use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::PageLike;
 use crate::loaders::playlist::*;
@@ -15,11 +38,11 @@ const ICON_THUMB_SIZE: i32 = 128;
 const ICON_ITEM_SIZE: i32 = (ICON_THUMB_SIZE as f32 * 2.25) as i32;
 
 #[derive(Msg)]
-pub enum PlaylistListMsg<Loader: PlaylistsLoader> {
+pub enum PlaylistListMsg<Loader: ContainerLoader> {
     Clear,
     Reset(Loader::ParentId, bool),
     Reload,
-    LoadPage(<Loader::Page as PageLike<Loader::Playlist>>::Offset),
+    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset),
     NewPage(Loader::Page),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
@@ -27,7 +50,7 @@ pub enum PlaylistListMsg<Loader: PlaylistsLoader> {
     OpenPlaylist(String, String),
 }
 
-pub struct PlaylistListModel<Loader: PlaylistsLoader> {
+pub struct PlaylistListModel<Loader: ContainerLoader> {
     stream: EventStream<PlaylistListMsg<Loader>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
@@ -79,7 +102,7 @@ impl From<gtk::IconView> for PlaylistView {
     }
 }
 
-pub struct PlaylistList<Loader: PlaylistsLoader> {
+pub struct PlaylistList<Loader: ContainerLoader> {
     root: gtk::Box,
     status_bar: gtk::Statusbar,
     model: PlaylistListModel<Loader>,
@@ -87,7 +110,11 @@ pub struct PlaylistList<Loader: PlaylistsLoader> {
     refresh_btn: gtk::Button,
 }
 
-impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
+impl<Loader> PlaylistList<Loader>
+where
+    Loader: ContainerLoader,
+    Loader::Item: PlaylistLike,
+{
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_playlists = 0;
@@ -121,7 +148,7 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
     }
 
     fn build_playlists_view(relm: &Relm<Self>, store: &gtk::ListStore) -> PlaylistView {
-        if Loader::Playlist::unavailable_columns().is_empty() {
+        if Loader::Item::unavailable_columns().is_empty() {
             Self::build_tree_view(relm, store).into()
         } else {
             Self::build_icon_view(relm, store).into()
@@ -204,7 +231,7 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
             .resizable(true)
             .reorderable(true);
 
-        let unavailable_columns = Loader::Playlist::unavailable_columns();
+        let unavailable_columns = Loader::Item::unavailable_columns();
 
         if !unavailable_columns.contains(&COL_PLAYLIST_THUMB) {
             playlists_view.append_column(&{
@@ -308,7 +335,11 @@ impl<Loader: PlaylistsLoader> PlaylistList<Loader> {
     }
 }
 
-impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
+impl<Loader> Update for PlaylistList<Loader>
+where
+    Loader: ContainerLoader,
+    Loader::Item: PlaylistLike,
+{
     type Model = PlaylistListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = PlaylistListMsg<Loader>;
@@ -442,7 +473,11 @@ impl<Loader: PlaylistsLoader> Update for PlaylistList<Loader> {
     }
 }
 
-impl<Loader: PlaylistsLoader> Widget for PlaylistList<Loader> {
+impl<Loader> Widget for PlaylistList<Loader>
+where
+    Loader: ContainerLoader,
+    Loader::Item: PlaylistLike,
+{
     type Root = gtk::Box;
 
     fn root(&self) -> Self::Root {

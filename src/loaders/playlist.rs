@@ -1,4 +1,4 @@
-use crate::loaders::paged::PageLike;
+use crate::loaders::common::ContainerLoader;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use rspotify::model::{
     FullPlaylist, FullShow, Image, Page, Show, SimplifiedPlaylist, SimplifiedShow,
@@ -228,29 +228,12 @@ impl PlaylistLike for Show {
     }
 }
 
-pub trait PlaylistsLoader: Clone + 'static {
-    type ParentId: Clone;
-    type Playlist: PlaylistLike;
-    type Page: PageLike<Self::Playlist>;
-    const PAGE_LIMIT: u32;
-    fn new(id: Self::ParentId) -> Self;
-    fn parent_id(&self) -> &Self::ParentId;
-    fn load_page(
-        self,
-        tx: ResultSender<Self::Page>,
-        offset: <<Self as PlaylistsLoader>::Page as PageLike<Self::Playlist>>::Offset,
-    ) -> SpotifyCmd;
-    fn uuid(&self) -> usize {
-        self as *const _ as *const () as usize
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct FeaturedLoader;
-impl PlaylistsLoader for FeaturedLoader {
+impl ContainerLoader for FeaturedLoader {
     type ParentId = ();
-    type Playlist = SimplifiedPlaylist;
-    type Page = Page<Self::Playlist>;
+    type Item = SimplifiedPlaylist;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -272,10 +255,10 @@ impl PlaylistsLoader for FeaturedLoader {
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
-impl PlaylistsLoader for SavedLoader {
+impl ContainerLoader for SavedLoader {
     type ParentId = ();
-    type Playlist = SimplifiedPlaylist;
-    type Page = Page<Self::Playlist>;
+    type Item = SimplifiedPlaylist;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -297,10 +280,10 @@ impl PlaylistsLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct ShowsLoader;
-impl PlaylistsLoader for ShowsLoader {
+impl ContainerLoader for ShowsLoader {
     type ParentId = ();
-    type Playlist = Show;
-    type Page = Page<Self::Playlist>;
+    type Item = Show;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(_id: Self::ParentId) -> Self {
@@ -324,10 +307,10 @@ impl PlaylistsLoader for ShowsLoader {
 pub struct CategoryLoader {
     id: String,
 }
-impl PlaylistsLoader for CategoryLoader {
+impl ContainerLoader for CategoryLoader {
     type ParentId = String;
-    type Playlist = SimplifiedPlaylist;
-    type Page = Page<Self::Playlist>;
+    type Item = SimplifiedPlaylist;
+    type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
 
     fn new(id: Self::ParentId) -> Self {

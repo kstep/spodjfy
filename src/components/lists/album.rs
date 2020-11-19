@@ -1,4 +1,28 @@
+//! # Albums list component
+//!
+//! A component to show list of albums of a given parent (e.g. artist, user followed albums, etc).
+//!
+//! Parameters:
+//!   - `Arc<SpotifyProxy>` - a reference to spotify proxy
+//!
+//! Usage:
+//!
+//! ```
+//!# use std::sync::{Arc, mpsc::channel};
+//!# use crate::spodjfy::servers::spotify::SpotifyProxy;
+//!# macro_rules! view { ($body:tt*) => {} }
+//!# let (tx, rx) = channel();
+//!# let spotify = Arc::new(SpotifyProxy::new(tx));
+//! use spodjfy::components::lists::album::AlbumList;
+//! use spodjfy::loaders::album::SavedLoader;
+//!
+//! view! {
+//!     AlbumList::<SavedLoader>(spotify.clone())
+//! }
+//! ```
+
 use crate::loaders::album::*;
+use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::PageLike;
 use crate::servers::spotify::SpotifyProxy;
@@ -12,21 +36,33 @@ use relm_derive::Msg;
 use std::sync::Arc;
 
 #[derive(Msg)]
-pub enum AlbumListMsg<Loader: AlbumsLoader> {
+pub enum AlbumListMsg<Loader: ContainerLoader> {
+    /// Clear albums list
     Clear,
+    /// Reset albums list, set new parent id to list albums from,
+    /// if second argument is `true`, also reload albums list
     Reset(Loader::ParentId, bool),
+    /// Reload current artist's albums list
     Reload,
-    LoadPage(<Loader::Page as PageLike<Loader::Album>>::Offset),
+    /// Load one albums page from Spotify with an offset
+    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset),
+    /// New albums page from Spotify arrived
     NewPage(Loader::Page),
+    /// Load album thumbnail from URI for a row
     LoadThumb(String, gtk::TreeIter),
+    /// New album thumbnail image for a row arrived
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
+    /// Album item in list is activated (e.g. double-clicked)
     OpenChosenAlbum,
+    /// Open given album (uri, name), show tracks list for the album
     OpenAlbum(String, String),
 }
 
+#[doc(hidden)]
 const THUMB_SIZE: i32 = 48;
 
-pub struct AlbumListModel<Loader: AlbumsLoader> {
+#[doc(hidden)]
+pub struct AlbumListModel<Loader: ContainerLoader> {
     stream: EventStream<AlbumListMsg<Loader>>,
     spotify: Arc<SpotifyProxy>,
     store: gtk::ListStore,
@@ -35,7 +71,7 @@ pub struct AlbumListModel<Loader: AlbumsLoader> {
     total_albums: u32,
 }
 
-pub struct AlbumList<Loader: AlbumsLoader> {
+pub struct AlbumList<Loader: ContainerLoader> {
     root: gtk::Box,
     albums_view: gtk::TreeView,
     status_bar: gtk::Statusbar,
@@ -44,7 +80,7 @@ pub struct AlbumList<Loader: AlbumsLoader> {
     refresh_btn: gtk::Button,
 }
 
-impl<Loader: AlbumsLoader> AlbumList<Loader> {
+impl<Loader: ContainerLoader> AlbumList<Loader> {
     fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_albums = 0;
@@ -78,7 +114,10 @@ impl<Loader: AlbumsLoader> AlbumList<Loader> {
     }
 }
 
-impl<Loader: AlbumsLoader> Update for AlbumList<Loader> {
+impl<Loader: ContainerLoader> Update for AlbumList<Loader>
+where
+    Loader::Item: AlbumLike,
+{
     type Model = AlbumListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = AlbumListMsg<Loader>;
@@ -227,7 +266,10 @@ impl<Loader: AlbumsLoader> Update for AlbumList<Loader> {
     }
 }
 
-impl<Loader: AlbumsLoader> Widget for AlbumList<Loader> {
+impl<Loader: ContainerLoader> Widget for AlbumList<Loader>
+where
+    Loader::Item: AlbumLike,
+{
     type Root = gtk::Box;
 
     fn root(&self) -> Self::Root {
@@ -272,7 +314,7 @@ impl<Loader: AlbumsLoader> Widget for AlbumList<Loader> {
             .resizable(true)
             .reorderable(true);
 
-        let unavailable_columns = Loader::Album::unavailable_columns();
+        let unavailable_columns = Loader::Item::unavailable_columns();
 
         if !unavailable_columns.contains(&COL_ALBUM_THUMB) {
             albums_view.append_column(&{

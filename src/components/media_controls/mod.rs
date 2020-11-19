@@ -1,3 +1,26 @@
+//! # Media controls component
+//!
+//! A component to show media controls, currently playing track and context information,
+//! controls and track media playback state.
+//!
+//! Parameters:
+//!   - `Arc<SpotifyProxy>` - a reference to spotify client proxy
+//!   - `Arc<RwLock<Settings>` - a reference to application settings
+//!
+//! Usage:
+//!
+//! ```
+//!# use std::sync::{Arc, RwLock, mpsc::channel};
+//!# use crate::spodjfy::{servers::spotify::SpotifyProxy, config::Config};
+//!# macro_rules! view { ($body:tt*) => {} }
+//! let (tx, rx) = channel();
+//! let spotify = Arc::new(SpotifyProxy::new(tx));
+//! let settings = Arc::new(RwLock::new(Config::new().load_settings()));
+//!
+//! view! {
+//!     MediaControls(spotify.clone(), settings.clone())
+//! }
+//! ```
 mod play_context;
 
 use self::play_context::PlayContext;
@@ -18,32 +41,71 @@ use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
 use std::sync::{Arc, RwLock};
 
+/// Media controls component messages
 #[derive(Msg)]
 pub enum MediaControlsMsg {
+    /// Reload full component state (devices & playback state) from Spotify
     Reload,
+    /// Load playback state from Spotify
     LoadState,
+    /// New playback state arrived from Spotify
     NewState(Box<Option<CurrentPlaybackContext>>),
+    /// Load devices list from Spotify
     LoadDevices,
+    /// New devices list arrived from Spotify
     NewDevices(Vec<Device>),
+    /// Transfer playback to a given device
     UseDevice(Option<String>),
+    /// Load cover image (url, is_for_track)
     LoadCover(String, bool),
+    /// New cover image loaded from Spotify,
+    /// if the second field is `true` it's for track,
+    /// if it's `false`, the cover is for context
     NewCover(Pixbuf, bool),
+    /// Play button clicked
     Play,
+    /// Pause button clicked
     Pause,
+    /// Previous track button clicked
     PrevTrack,
+    /// Next track button clicked
     NextTrack,
+    /// Load play context with given (type, uri) from Spotify
     LoadContext(Type, String),
+    /// New play context arrived from Spotify
     NewContext(Box<PlayContext>),
+    /// A tick message to update playback status (e.g. current playback position)
     Tick(u32),
+    /// User seeked playing track to a given position in milliseconds
     SeekTrack(u32),
+    /// Volume scale changed, new volume provided
     SetVolume(u8),
+    /// Shuffle button clicked, new shuffle state provided
     SetShuffle(bool),
+    /// Toggle repeat mode button clicked
     ToggleRepeatMode,
+    /// Track name clicked, track URI provided
     ClickTrackUri(Option<String>),
+    /// Go to track `(context_type, track_uri, Some((context_uri, context_name)))`
+    ///
+    /// This component does not react to this message, it's for external communication only.
+    /// Observe this message outside of the component to react to it:
+    ///
+    /// ```ignore
+    /// use spodjfy::components::media_controls::MediaControlsMsg;
+    /// media_controls.stream().observe(|msg| {
+    ///     match msg {
+    ///         MediaControlsMsg::GoToTrack(context_type, track_uri, Some((context_uri, context_name))) => {}
+    ///         MediaControlsMsg::GoToTrack(context_type, track_uri, None) => {}
+    ///     }
+    /// });
+    /// ```
     GoToTrack(Type, String, Option<(String, String)>),
+    /// Show playback state info box button clicked, new infobox visibility state provided
     ShowInfo(bool),
 }
 
+#[doc(hidden)]
 pub struct MediaControlsModel {
     stream: EventStream<MediaControlsMsg>,
     devices: gtk::ListStore,
@@ -55,7 +117,9 @@ pub struct MediaControlsModel {
     settings: Arc<RwLock<Settings>>,
 }
 
+#[doc(hidden)]
 const TRACK_COVER_SIZE: i32 = 256;
+#[doc(hidden)]
 const CONTEXT_COVER_SIZE: i32 = 128;
 
 #[widget]
