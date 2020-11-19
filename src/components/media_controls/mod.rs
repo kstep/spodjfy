@@ -1,3 +1,6 @@
+mod play_context;
+
+use self::play_context::PlayContext;
 use crate::config::Settings;
 use crate::loaders::track::TrackLike;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
@@ -8,152 +11,12 @@ use itertools::Itertools;
 use notify_rust::Notification;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use rspotify::model::album::FullAlbum;
-use rspotify::model::artist::FullArtist;
 use rspotify::model::context::Context;
 use rspotify::model::device::Device;
-use rspotify::model::image::Image;
-use rspotify::model::playlist::FullPlaylist;
-use rspotify::model::show::{FullEpisode, FullShow};
+use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
-use std::borrow::Cow;
-use std::ops::Deref;
 use std::sync::{Arc, RwLock};
-
-#[derive(Debug, Clone)]
-pub enum PlayContext {
-    Album(FullAlbum),
-    Playlist(FullPlaylist),
-    Artist(FullArtist),
-    Show(FullShow),
-}
-
-impl PlayContext {
-    fn uri(&self) -> &str {
-        match self {
-            PlayContext::Album(ctx) => &*ctx.uri,
-            PlayContext::Artist(ctx) => &*ctx.uri,
-            PlayContext::Playlist(ctx) => &*ctx.uri,
-            PlayContext::Show(ctx) => &*ctx.uri,
-        }
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            PlayContext::Album(ctx) => &*ctx.name,
-            PlayContext::Artist(ctx) => &*ctx.name,
-            PlayContext::Playlist(ctx) => &*ctx.name,
-            PlayContext::Show(ctx) => &*ctx.name,
-        }
-    }
-
-    fn artists(&self) -> Option<Cow<str>> {
-        match self {
-            PlayContext::Album(ctx) => Some(
-                ctx.artists
-                    .iter()
-                    .map(|artist| &artist.name)
-                    .join(", ")
-                    .into(),
-            ),
-            PlayContext::Artist(_) => None,
-            PlayContext::Playlist(ctx) => Some(
-                ctx.owner
-                    .display_name
-                    .as_deref()
-                    .unwrap_or(&ctx.owner.id)
-                    .into(),
-            ),
-            PlayContext::Show(ctx) => Some(ctx.publisher.deref().into()),
-        }
-    }
-
-    fn duration(&self) -> Option<u32> {
-        match self {
-            PlayContext::Album(ctx) => {
-                if ctx.tracks.next.is_none() {
-                    Some(ctx.tracks.items.iter().map(|track| track.duration_ms).sum())
-                } else {
-                    None
-                }
-            }
-            PlayContext::Artist(_) => None,
-            PlayContext::Playlist(ctx) => {
-                if ctx.tracks.next.is_none() {
-                    Some(
-                        ctx.tracks
-                            .items
-                            .iter()
-                            .filter_map(|track| track.track.as_ref())
-                            .map(|track| track.duration_ms)
-                            .sum(),
-                    )
-                } else {
-                    None
-                }
-            }
-            PlayContext::Show(ctx) => {
-                if ctx.episodes.next.is_none() {
-                    Some(
-                        ctx.episodes
-                            .items
-                            .iter()
-                            .map(|episode| episode.duration_ms)
-                            .sum(),
-                    )
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    fn genres(&self) -> Option<&Vec<String>> {
-        match self {
-            PlayContext::Album(ctx) => Some(&ctx.genres),
-            PlayContext::Artist(ctx) => Some(&ctx.genres),
-            PlayContext::Playlist(_) => None,
-            PlayContext::Show(_) => None,
-        }
-    }
-
-    fn images(&self) -> &Vec<Image> {
-        match self {
-            PlayContext::Album(ctx) => &ctx.images,
-            PlayContext::Artist(ctx) => &ctx.images,
-            PlayContext::Playlist(ctx) => &ctx.images,
-            PlayContext::Show(ctx) => &ctx.images,
-        }
-    }
-
-    fn tracks_number(&self) -> u32 {
-        match self {
-            PlayContext::Album(ctx) => ctx.tracks.total,
-            PlayContext::Artist(_) => 0,
-            PlayContext::Playlist(ctx) => ctx.tracks.total,
-            PlayContext::Show(ctx) => ctx.episodes.total,
-        }
-    }
-
-    fn kind(&self) -> Type {
-        match self {
-            PlayContext::Album(_) => Type::Album,
-            PlayContext::Artist(_) => Type::Artist,
-            PlayContext::Playlist(_) => Type::Playlist,
-            PlayContext::Show(_) => Type::Show,
-        }
-    }
-
-    fn description(&self) -> &str {
-        match self {
-            PlayContext::Album(_) => "",
-            PlayContext::Artist(_) => "",
-            PlayContext::Playlist(ctx) => &ctx.description,
-            PlayContext::Show(ctx) => &ctx.description,
-        }
-    }
-}
 
 #[derive(Msg)]
 pub enum MediaControlsMsg {

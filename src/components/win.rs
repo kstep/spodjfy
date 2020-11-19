@@ -246,7 +246,7 @@ impl Widget for Win {
                         gtk::Box(gtk::Orientation::Vertical, 1) {
                             #[name="media_controls"]
                             MediaControls((self.model.spotify.clone(), self.model.settings.clone())) {
-                               widget_name: "media_controls",
+                                widget_name: "media_controls",
                             },
 
                             #[name="stack"]
