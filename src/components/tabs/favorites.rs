@@ -28,6 +28,7 @@ impl Widget for FavoritesTab {
                 self.tracks.emit(ContainerListMsg::Reset((), true));
             }
             FavoritesMsg::GoToTrack(uri) => {
+                self.tracks.emit(ContainerListMsg::Load(()));
                 self.tracks
                     .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
             }

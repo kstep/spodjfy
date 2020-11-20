@@ -73,8 +73,8 @@ pub trait ItemsListView<Loader: ContainerLoader> {
 }
 
 #[doc(hidden)]
-pub struct ContainerListModel<Loader: ContainerLoader, CustomMsg = ()> {
-    pub stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
+pub struct ContainerListModel<Loader: ContainerLoader, Message> {
+    pub stream: EventStream<Message>,
     pub spotify: Arc<SpotifyProxy>,
     pub store: gtk::ListStore,
     pub items_loader: Option<Loader>,
@@ -84,15 +84,15 @@ pub struct ContainerListModel<Loader: ContainerLoader, CustomMsg = ()> {
     pub is_loading: bool,
 }
 
-impl<Loader: ContainerLoader, CustomMsg> ContainerListModel<Loader, CustomMsg> {
+impl<Loader: ContainerLoader, Message> ContainerListModel<Loader, Message> {
     pub fn from_row<R: RowLike>(
-        stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
+        stream: EventStream<Message>,
         spotify: Arc<SpotifyProxy>,
     ) -> Self {
         Self::new(stream, spotify, &R::content_types())
     }
     pub fn new(
-        stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
+        stream: EventStream<Message>,
         spotify: Arc<SpotifyProxy>,
         column_types: &[Type],
     ) -> Self {
@@ -134,7 +134,7 @@ pub struct ContainerList<Loader: ContainerLoader, ItemsView: ItemsListView<Loade
     pub root: gtk::Box,
     pub items_view: ItemsView,
     pub status_bar: gtk::Statusbar,
-    pub model: ContainerListModel<Loader, ItemsView::CustomMsg>,
+    pub model: ContainerListModel<Loader, ContainerListMsg<Loader, ItemsView::CustomMsg>>,
     pub progress_bar: gtk::ProgressBar,
     pub refresh_btn: gtk::Button,
     pub context_menu: gtk::Menu,
@@ -202,7 +202,7 @@ where
     Loader::ParentId: PartialEq,
     ItemsView: ItemsListView<Loader> + GetSelectedRows + AsRef<gtk::Widget>,
 {
-    type Model = ContainerListModel<Loader, ItemsView::CustomMsg>;
+    type Model = ContainerListModel<Loader, Self::Msg>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = ContainerListMsg<Loader, ItemsView::CustomMsg>;
 

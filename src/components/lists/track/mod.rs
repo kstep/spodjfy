@@ -96,7 +96,7 @@ where
     Loader::Page: Clone,
     Loader::ParentId: PartialEq + PlayContextCmd,
 {
-    type Model = ContainerListModel<Loader, TrackMsg>;
+    type Model = ContainerListModel<Loader, Self::Msg>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = ContainerListMsg<Loader, TrackMsg>;
 
