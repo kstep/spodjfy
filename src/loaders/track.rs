@@ -402,6 +402,8 @@ pub const COL_TRACK_BPM: u32 = 9;
 pub const COL_TRACK_TIMELINE: u32 = 10;
 pub const COL_TRACK_RELEASE_DATE: u32 = 11;
 pub const COL_TRACK_DESCRIPTION: u32 = 12;
+pub const COL_TRACK_ALBUM_URI: u32 = 13;
+pub const COL_TRACK_ARTIST_URI: u32 = 14;
 
 impl<T: TrackLike> RowLike for T {
     fn content_types() -> Vec<Type> {
@@ -419,6 +421,8 @@ impl<T: TrackLike> RowLike for T {
             String::static_type(),             // duration from start
             String::static_type(),             // release date
             String::static_type(),             // description
+            String::static_type(),             // album uri
+            String::static_type(),             // first artist uri
         ]
     }
 
@@ -435,6 +439,8 @@ impl<T: TrackLike> RowLike for T {
                 COL_TRACK_DURATION_MS,
                 COL_TRACK_RELEASE_DATE,
                 COL_TRACK_DESCRIPTION,
+                COL_TRACK_ALBUM_URI,
+                COL_TRACK_ARTIST_URI,
             ],
             &[
                 &self.uri(),
@@ -446,6 +452,8 @@ impl<T: TrackLike> RowLike for T {
                 &self.duration(),
                 &self.release_date(),
                 &self.description(),
+                &self.album().and_then(|album| album.uri.as_deref()),
+                &self.artists().iter().next().and_then(|artist| artist.uri.as_deref()),
             ],
         )
     }

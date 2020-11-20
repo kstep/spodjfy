@@ -10,7 +10,7 @@ use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gtk::prelude::*;
 use gtk::{TreeModelExt, TreeViewExt};
 use item_view::TrackView;
-use relm::{Relm, Update, Widget};
+use relm::{Relm, Update, Widget, EventStream};
 use rspotify::model::audio::AudioFeatures;
 use serde_json::Map;
 use std::sync::Arc;
@@ -31,7 +31,9 @@ pub enum TrackMsg {
     PlayChosenTracks,
     GoToTrack(String),
     GoToChosenTrackAlbum,
+    GoToAlbum(String, String),
     GoToChosenTrackArtist,
+    GoToArtist(String, String),
     EnqueueChosenTracks,
     AddChosenTracks,
     SaveChosenTracks,
@@ -193,8 +195,34 @@ where
                             .unwrap();
                     }
                     RecommendTracks => {}
-                    GoToChosenTrackAlbum => {}
-                    GoToChosenTrackArtist => {}
+                    GoToChosenTrackAlbum => {
+                        let (rows, model) = self.0.items_view.get_selected_rows();
+                        if let Some(pos) = rows.into_iter()
+                            .filter_map(|path| model.get_iter(&path))
+                            .next() {
+                            let album_uri = model.get_value(&pos, COL_TRACK_ALBUM_URI as i32).get::<String>().ok().flatten();
+                            let album_name = model.get_value(&pos, COL_TRACK_ALBUM as i32).get::<String>().ok().flatten();
+
+                            if let (Some(uri), Some(name)) = (album_uri, album_name) {
+                                self.0.model.stream.emit(Custom(GoToAlbum(uri, name)));
+                            }
+                        }
+                    }
+                    GoToChosenTrackArtist => {
+                        let (rows, model) = self.0.items_view.get_selected_rows();
+                        if let Some(pos) = rows.into_iter()
+                            .filter_map(|path| model.get_iter(&path))
+                            .next() {
+                            let artist_uri = model.get_value(&pos, COL_TRACK_ARTIST_URI as i32).get::<String>().ok().flatten();
+                            let artist_name = model.get_value(&pos, COL_TRACK_ARTISTS as i32).get::<String>().ok().flatten();
+
+                            if let (Some(uri), Some(name)) = (artist_uri, artist_name) {
+                                self.0.model.stream.emit(Custom(GoToArtist(uri, name)));
+                            }
+                        }
+                    }
+                    GoToAlbum(_, _) => {}
+                    GoToArtist(_, _) => {}
                     PlayTracks(uris) => {
                         if let Some(ref loader) = self.0.model.items_loader {
                             self.0
@@ -294,7 +322,7 @@ where
     }
 
     fn view(relm: &Relm<Self>, model: Self::Model) -> Self {
-        let inner_relm = unsafe { std::mem::transmute_copy(relm) };
-        TrackList(ContainerList::<Loader, TrackView>::view(&inner_relm, model))
+        let inner_relm = unsafe { std::mem::transmute(relm) };
+        TrackList(ContainerList::<Loader, TrackView>::view(inner_relm, model))
     }
 }
