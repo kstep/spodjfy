@@ -1,6 +1,6 @@
 use crate::components::lists::album::AlbumList;
 use crate::components::lists::common::ContainerListMsg;
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::album::SavedLoader;
 use crate::loaders::track::AlbumLoader;
 use crate::servers::spotify::SpotifyProxy;
@@ -35,14 +35,15 @@ impl Widget for AlbumsTab {
                 self.albums_view.emit(ContainerListMsg::Reset((), true));
             }
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(TrackListMsg::Load(uri));
+                self.tracks_view.emit(ContainerListMsg::Load(uri));
 
                 let tracks_widget = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_widget, Some(&name));
                 self.stack.set_visible_child(tracks_widget);
             }
             GoToTrack(uri) => {
-                self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks_view
+                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
             }
         }
     }

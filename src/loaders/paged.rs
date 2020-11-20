@@ -2,7 +2,7 @@ use glib::{IsA, Type};
 use rspotify::model::page::{CursorBasedPage, Page};
 
 pub trait PageLike<T> {
-    type Offset;
+    type Offset: Clone;
     fn items(&self) -> &[T];
     fn total(&self) -> u32 {
         self.items().len() as u32

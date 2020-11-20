@@ -1,6 +1,6 @@
 use crate::components::lists::album::AlbumList;
 use crate::components::lists::common::ContainerListMsg;
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::track::TrackList;
 use crate::loaders::album::ArtistLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::track::AlbumLoader;
@@ -89,7 +89,8 @@ impl Widget for ArtistsTab {
                         &[&artist.name, &artist.uri],
                     );
 
-                    let image = crate::loaders::image::find_best_thumb(&artist.images, THUMB_SIZE);
+                    let image = self.model.image_loader.find_best_thumb(&artist.images);
+
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
@@ -146,7 +147,7 @@ impl Widget for ArtistsTab {
             }
             OpenArtist(None) => {}
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(TrackListMsg::Load(uri));
+                self.tracks_view.emit(ContainerListMsg::Load(uri));
 
                 let tracks_tab = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_tab, Some(&name));

@@ -110,6 +110,17 @@ impl ImageLoader {
     pub fn size(&self) -> i32 {
         self.resize
     }
+
+    pub fn find_best_thumb<
+        'b,
+        'a: 'b,
+        I: IntoIterator<Item = &'a rspotify::model::image::Image>,
+    >(
+        &self,
+        images: I,
+    ) -> Option<&'b str> {
+        find_best_thumb(images, self.resize)
+    }
 }
 
 fn pixbuf_from_raw_bytes(data: &[u8], resize: i32) -> Result<Option<Pixbuf>, glib::Error> {

@@ -1,4 +1,5 @@
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::track::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
 use glib::IsA;
@@ -26,10 +27,11 @@ impl Widget for RecentTab {
         use RecentMsg::*;
         match event {
             ShowTab => {
-                self.recent_view.emit(TrackListMsg::Reset((), true));
+                self.recent_view.emit(ContainerListMsg::Reset((), true));
             }
             GoToTrack(uri) => {
-                self.recent_view.emit(TrackListMsg::GoToTrack(uri));
+                self.recent_view
+                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
             }
         }
     }
@@ -40,6 +42,6 @@ impl Widget for RecentTab {
     }
 
     fn on_add<W: IsA<gtk::Widget> + IsA<glib::Object>>(&self, _parent: W) {
-        //self.recent_view.emit(TrackListMsg::Reset((), true));
+        //self.recent_view.emit(ContainerListMsg::Reset((), true));
     }
 }

@@ -5,48 +5,94 @@ use crate::servers::spotify::SpotifyProxy;
 use glib::{IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
-    BoxExt, ButtonExt, ContainerExt, GtkListStoreExt, IconViewExt, ProgressBarExt, StatusbarExt,
-    TreeSelectionExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, ContainerExt, GtkListStoreExt, GtkMenuExt, IconViewExt, ProgressBarExt,
+    StatusbarExt, TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
-use relm::{EventStream, Relm, Update, Widget};
-use relm_derive::Msg;
+use relm::{DisplayVariant, EventStream, IntoOption, Relm, Update, Widget};
 use std::sync::Arc;
 
-#[derive(Msg)]
-pub enum ContainerListMsg<Loader: ContainerLoader> {
+#[derive(Clone)]
+pub enum ContainerListMsg<Loader: ContainerLoader, Other = ()> {
     Clear,
     Reset(Loader::ParentId, bool),
+    Load(Loader::ParentId),
     Reload,
-    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset),
-    NewPage(Loader::Page),
+    LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset, usize),
+    NewPage(Loader::Page, usize),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
     ActivateChosenItems,
     ActivateItem(String, String),
+    ActivateItems(Vec<String>),
+    OpenContextMenu(gdk::EventButton),
+    Custom(Other),
+}
+
+impl<Loader: ContainerLoader, Other> IntoOption<Self> for ContainerListMsg<Loader, Other> {
+    fn into_option(self) -> Option<Self> {
+        Some(self)
+    }
+}
+
+impl<Loader: ContainerLoader, Other> DisplayVariant for ContainerListMsg<Loader, Other> {
+    fn display_variant(&self) -> &'static str {
+        use ContainerListMsg::*;
+        match self {
+            Clear => "Clear",
+            Reset(_, _) => "Reset",
+            Load(_) => "Load",
+            Reload => "Reload",
+            LoadPage(_, _) => "LoadPage",
+            NewPage(_, _) => "NewPage",
+            LoadThumb(_, _) => "LoadThumb",
+            NewThumb(_, _) => "NewThumb",
+            ActivateChosenItems => "ActivateChosenItems",
+            ActivateItem(_, _) => "ActivateItem",
+            ActivateItems(_) => "ActivateItems",
+            OpenContextMenu(_) => "OpenContextMenu",
+            Custom(_) => "Custom",
+        }
+    }
 }
 
 pub trait ItemsListView<Loader: ContainerLoader> {
+    type CustomMsg: 'static;
+
     fn create<S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader>>,
+        stream: EventStream<ContainerListMsg<Loader, Self::CustomMsg>>,
         store: &S,
     ) -> Self;
+    fn context_menu(
+        &self,
+        _stream: EventStream<ContainerListMsg<Loader, Self::CustomMsg>>,
+    ) -> gtk::Menu {
+        gtk::Menu::new()
+    }
     fn thumb_size(&self) -> i32;
 }
 
 #[doc(hidden)]
-pub struct ContainerListModel<Loader: ContainerLoader> {
-    pub stream: EventStream<ContainerListMsg<Loader>>,
+pub struct ContainerListModel<Loader: ContainerLoader, CustomMsg = ()> {
+    pub stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
     pub spotify: Arc<SpotifyProxy>,
     pub store: gtk::ListStore,
     pub items_loader: Option<Loader>,
     pub image_loader: ImageLoader,
     pub total_items: u32,
+    pub total_duration: u32, // TODO
+    pub is_loading: bool,
 }
 
-impl<Loader: ContainerLoader> ContainerListModel<Loader> {
+impl<Loader: ContainerLoader, CustomMsg> ContainerListModel<Loader, CustomMsg> {
+    pub fn from_row<R: RowLike>(
+        stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
+        spotify: Arc<SpotifyProxy>,
+    ) -> Self {
+        Self::new(stream, spotify, &R::content_types())
+    }
     pub fn new(
-        stream: EventStream<ContainerListMsg<Loader>>,
+        stream: EventStream<ContainerListMsg<Loader, CustomMsg>>,
         spotify: Arc<SpotifyProxy>,
         column_types: &[Type],
     ) -> Self {
@@ -60,6 +106,8 @@ impl<Loader: ContainerLoader> ContainerListModel<Loader> {
             image_loader,
             items_loader: None,
             total_items: 0,
+            total_duration: 0,
+            is_loading: false,
         }
     }
 }
@@ -82,21 +130,23 @@ impl GetSelectedRows for gtk::IconView {
     }
 }
 
-pub struct ContainerList<Loader: ContainerLoader, ItemsView> {
+pub struct ContainerList<Loader: ContainerLoader, ItemsView: ItemsListView<Loader>> {
     pub root: gtk::Box,
     pub items_view: ItemsView,
     pub status_bar: gtk::Statusbar,
-    pub model: ContainerListModel<Loader>,
+    pub model: ContainerListModel<Loader, ItemsView::CustomMsg>,
     pub progress_bar: gtk::ProgressBar,
     pub refresh_btn: gtk::Button,
+    pub context_menu: gtk::Menu,
 }
 
 impl<Loader, ItemsView> ContainerList<Loader, ItemsView>
 where
     Loader: ContainerLoader,
     Loader::Item: RowLike,
+    ItemsView: ItemsListView<Loader>,
 {
-    fn clear_store(&mut self) {
+    pub fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_items = 0;
 
@@ -104,28 +154,44 @@ where
         self.status_bar.remove_all(status_ctx);
     }
 
-    fn start_load(&mut self) {
+    pub fn start_load(&mut self) {
         if let Some(ref mut loader) = self.model.items_loader {
+            self.model.is_loading = true;
             *loader = Loader::new(loader.parent_id().clone());
+            let epoch = loader.uuid();
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);
             self.progress_bar.pulse();
-            self.model
-                .stream
-                .emit(ContainerListMsg::LoadPage(Loader::Page::init_offset()));
+            self.model.stream.emit(ContainerListMsg::LoadPage(
+                Loader::Page::init_offset(),
+                epoch,
+            ));
         }
     }
 
-    fn finish_load(&self) {
+    pub fn finish_load(&mut self) {
         let status_ctx = self.status_bar.get_context_id("totals");
+        self.model.is_loading = false;
         self.progress_bar.set_visible(false);
         self.refresh_btn.set_visible(true);
         self.status_bar.remove_all(status_ctx);
-        self.status_bar.push(
-            status_ctx,
-            &format!("Total items: {}", self.model.total_items),
-        );
+
+        let totals = if self.model.total_duration > 0 {
+            format!(
+                "Total items: {}, total duration: {}",
+                self.model.total_items,
+                crate::utils::humanize_time(self.model.total_duration)
+            )
+        } else {
+            format!("Total items: {}", self.model.total_items)
+        };
+
+        self.status_bar.push(status_ctx, &totals);
+    }
+
+    pub fn current_epoch(&self) -> usize {
+        self.model.items_loader.as_ref().map_or(0, |ldr| ldr.uuid())
     }
 }
 
@@ -133,18 +199,15 @@ impl<Loader, ItemsView> Update for ContainerList<Loader, ItemsView>
 where
     Loader: ContainerLoader,
     Loader::Item: RowLike + HasImages,
-    ItemsView: GetSelectedRows + AsRef<gtk::Widget>,
+    Loader::ParentId: PartialEq,
+    ItemsView: ItemsListView<Loader> + GetSelectedRows + AsRef<gtk::Widget>,
 {
-    type Model = ContainerListModel<Loader>;
+    type Model = ContainerListModel<Loader, ItemsView::CustomMsg>;
     type ModelParam = Arc<SpotifyProxy>;
-    type Msg = ContainerListMsg<Loader>;
+    type Msg = ContainerListMsg<Loader, ItemsView::CustomMsg>;
 
     fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        ContainerListModel::new(
-            relm.stream().clone(),
-            spotify,
-            &Loader::Item::content_types(),
-        )
+        ContainerListModel::from_row::<Loader::Item>(relm.stream().clone(), spotify)
     }
 
     fn update(&mut self, event: Self::Msg) {
@@ -161,11 +224,28 @@ where
                     self.start_load();
                 }
             }
+            Load(parent_id) => {
+                if self
+                    .model
+                    .items_loader
+                    .as_ref()
+                    .filter(|loader| loader.parent_id() == &parent_id)
+                    .is_none()
+                {
+                    self.model.items_loader = Some(Loader::new(parent_id));
+                    self.clear_store();
+                    self.start_load()
+                }
+            }
             Reload => {
                 self.clear_store();
                 self.start_load();
             }
-            LoadPage(offset) => {
+            LoadPage(offset, epoch) => {
+                if epoch != self.current_epoch() {
+                    return;
+                }
+
                 if let Some(ref loader) = self.model.items_loader {
                     let loader = loader.clone();
                     self.model
@@ -173,12 +253,16 @@ where
                         .ask(
                             self.model.stream.clone(),
                             move |tx| loader.load_page(tx, offset),
-                            NewPage,
+                            move |page| NewPage(page, epoch),
                         )
                         .unwrap();
                 }
             }
-            NewPage(page) => {
+            NewPage(page, epoch) => {
+                if epoch != self.current_epoch() {
+                    return;
+                }
+
                 let stream = &self.model.stream;
                 let store = &self.model.store;
                 let items = page.items();
@@ -190,17 +274,15 @@ where
                 for item in items {
                     let pos = item.append_to_store(store);
 
-                    let image = crate::loaders::image::find_best_thumb(
-                        item.images(),
-                        self.model.image_loader.size(),
-                    );
+                    let image = self.model.image_loader.find_best_thumb(item.images());
+
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
                 }
 
                 if let Some(next_offset) = page.next_offset() {
-                    stream.emit(LoadPage(next_offset));
+                    stream.emit(LoadPage(next_offset, epoch));
                 } else {
                     self.model.total_items = page.total();
                     self.finish_load();
@@ -231,6 +313,11 @@ where
                 }
             }
             ActivateItem(_, _) => {}
+            ActivateItems(_) => {}
+            OpenContextMenu(event) => {
+                self.context_menu.popup_at_pointer(Some(&event));
+            }
+            Custom(_) => {}
         }
     }
 }
@@ -239,6 +326,7 @@ impl<Loader, ItemsView> Widget for ContainerList<Loader, ItemsView>
 where
     Loader: ContainerLoader,
     Loader::Item: RowLike + HasImages + MissingColumns,
+    Loader::ParentId: PartialEq,
     ItemsView: AsRef<gtk::Widget> + ItemsListView<Loader> + GetSelectedRows,
 {
     type Root = gtk::Box;
@@ -277,6 +365,11 @@ where
 
         root.add(&status_bar);
 
+        let context_menu = items_view.context_menu(relm.stream().clone());
+        context_menu.show_all();
+
+        root.add(&context_menu);
+
         root.show_all();
 
         ContainerList {
@@ -285,6 +378,7 @@ where
             status_bar,
             progress_bar,
             refresh_btn,
+            context_menu,
             model,
         }
     }

@@ -1,4 +1,5 @@
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::track::QueueLoader;
 use crate::servers::spotify::SpotifyProxy;
 use relm::Widget;
@@ -24,10 +25,11 @@ impl Widget for QueueTab {
     fn update(&mut self, event: QueueMsg) {
         match event {
             QueueMsg::ShowTab => {
-                self.tracks.emit(TrackListMsg::Reset((), true));
+                self.tracks.emit(ContainerListMsg::Reset((), true));
             }
             QueueMsg::GoToTrack(uri) => {
-                self.tracks.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks
+                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
             }
         }
     }

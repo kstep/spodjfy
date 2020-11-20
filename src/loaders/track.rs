@@ -1,4 +1,6 @@
-use crate::loaders::common::{ContainerLoader, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI};
+use crate::loaders::common::{
+    ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
+};
 use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
@@ -385,17 +387,6 @@ pub trait TrackLike {
     fn release_date(&self) -> Option<&str> {
         self.album().and_then(|album| album.release_date.as_deref())
     }
-
-    fn images(&self) -> Option<&Vec<Image>> {
-        self.album().map(|album| &album.images)
-    }
-
-    fn unavailable_columns() -> &'static [u32]
-    where
-        Self: Sized,
-    {
-        &[]
-    }
 }
 
 pub const COL_TRACK_THUMB: u32 = COL_ITEM_THUMB;
@@ -496,8 +487,16 @@ impl TrackLike for PlayHistory {
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl HasImages for PlayHistory {
+    fn images(&self) -> &[Image] {
+        self.album().map(|album| &*album.images).unwrap_or(&[])
+    }
+}
+
+impl MissingColumns for PlayHistory {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -544,8 +543,16 @@ impl TrackLike for PlaylistTrack {
     fn release_date(&self) -> Option<&str> {
         self.track.as_ref().and_then(FullTrack::release_date)
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl HasImages for PlaylistTrack {
+    fn images(&self) -> &[Image] {
+        self.album().map(|album| &*album.images).unwrap_or(&[])
+    }
+}
+
+impl MissingColumns for PlaylistTrack {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -589,8 +596,16 @@ impl TrackLike for FullTrack {
     fn release_date(&self) -> Option<&str> {
         self.album.release_date.as_deref()
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl HasImages for FullTrack {
+    fn images(&self) -> &[Image] {
+        self.album().map(|album| &*album.images).unwrap_or(&[])
+    }
+}
+
+impl MissingColumns for FullTrack {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -622,8 +637,16 @@ impl TrackLike for SimplifiedTrack {
     fn duration(&self) -> u32 {
         self.duration_ms
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl HasImages for SimplifiedTrack {
+    fn images(&self) -> &[Image] {
+        self.album().map(|album| &*album.images).unwrap_or(&[])
+    }
+}
+
+impl MissingColumns for SimplifiedTrack {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -672,8 +695,16 @@ impl TrackLike for SavedTrack {
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl HasImages for SavedTrack {
+    fn images(&self) -> &[Image] {
+        self.album().map(|album| &*album.images).unwrap_or(&[])
+    }
+}
+
+impl MissingColumns for SavedTrack {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -709,12 +740,16 @@ impl TrackLike for FullEpisode {
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
     }
+}
 
-    fn images(&self) -> Option<&Vec<Image>> {
-        Some(&self.images)
+impl HasImages for FullEpisode {
+    fn images(&self) -> &[Image] {
+        &self.images
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for FullEpisode {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
@@ -750,16 +785,30 @@ impl TrackLike for SimplifiedEpisode {
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
     }
+}
 
-    fn images(&self) -> Option<&Vec<Image>> {
-        Some(&self.images)
+impl HasImages for SimplifiedEpisode {
+    fn images(&self) -> &[Image] {
+        &self.images
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for SimplifiedEpisode {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
         &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_BPM]
+    }
+}
+
+impl MissingColumns for PlayingItem {}
+impl HasImages for PlayingItem {
+    fn images(&self) -> &[Image] {
+        match self {
+            PlayingItem::Track(track) => track.images(),
+            PlayingItem::Episode(episode) => episode.images(),
+        }
     }
 }
 
@@ -779,6 +828,6 @@ impl_track_like_for_playing_item! {
     id -> &str, uri -> &str, name -> &str,
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
-    duration -> u32, images -> Option<&Vec<Image>>,
-    release_date -> Option<&str>, description -> Option<&str>
+    duration -> u32, release_date -> Option<&str>,
+    description -> Option<&str>
 }

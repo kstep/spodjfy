@@ -1,6 +1,6 @@
 use crate::components::lists::common::ContainerListMsg;
 use crate::components::lists::playlist::PlaylistList;
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::playlist::CategoryLoader;
 use crate::loaders::track::PlaylistLoader;
@@ -91,7 +91,8 @@ impl Widget for CategoriesTab {
                         &[&category.name, &category.id],
                     );
 
-                    let image = crate::loaders::image::find_best_thumb(&category.icons, ICON_SIZE);
+                    let image = self.model.image_loader.find_best_thumb(&category.icons);
+
                     if let Some(url) = image {
                         stream.emit(LoadThumb(url.to_owned(), pos));
                     }
@@ -122,14 +123,15 @@ impl Widget for CategoriesTab {
             }
             OpenCategory(None) => {}
             OpenPlaylist(uri, name) => {
-                self.tracks_view.emit(TrackListMsg::Load(uri));
+                self.tracks_view.emit(ContainerListMsg::Load(uri));
 
                 let tracks_tab = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_tab, Some(&name));
                 self.stack.set_visible_child(tracks_tab);
             }
             GoToTrack(uri) => {
-                self.tracks_view.emit(TrackListMsg::GoToTrack(uri));
+                self.tracks_view
+                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
             }
         }
     }

@@ -56,6 +56,8 @@ where
     Loader: ContainerLoader,
     Loader::Item: MissingColumns,
 {
+    type CustomMsg = ();
+
     fn create<S: IsA<gtk::TreeModel>>(
         stream: EventStream<ContainerListMsg<Loader>>,
         store: &S,
