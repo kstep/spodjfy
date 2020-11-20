@@ -21,7 +21,7 @@
 //! }
 //! ```
 
-use crate::components::lists::common::{ContainerListMsg, GetSelectedRows};
+use crate::components::lists::common::{ContainerListModel, ContainerListMsg, GetSelectedRows};
 use crate::loaders::album::*;
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
@@ -37,21 +37,11 @@ use std::sync::Arc;
 #[doc(hidden)]
 const THUMB_SIZE: i32 = 48;
 
-#[doc(hidden)]
-pub struct AlbumListModel<Loader: ContainerLoader> {
-    stream: EventStream<ContainerListMsg<Loader>>,
-    spotify: Arc<SpotifyProxy>,
-    store: gtk::ListStore,
-    items_loader: Option<Loader>,
-    image_loader: ImageLoader,
-    total_items: u32,
-}
-
 pub struct AlbumList<Loader: ContainerLoader> {
     root: gtk::Box,
     items_view: gtk::TreeView,
     status_bar: gtk::Statusbar,
-    model: AlbumListModel<Loader>,
+    model: ContainerListModel<Loader>,
     progress_bar: gtk::ProgressBar,
     refresh_btn: gtk::Button,
 }
@@ -282,35 +272,26 @@ impl<Loader: ContainerLoader> Update for AlbumList<Loader>
 where
     Loader::Item: AlbumLike,
 {
-    type Model = AlbumListModel<Loader>;
+    type Model = ContainerListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = ContainerListMsg<Loader>;
 
     fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        let stream = relm.stream().clone();
-
-        let store = gtk::ListStore::new(&[
-            gdk_pixbuf::Pixbuf::static_type(), // thumb
-            String::static_type(),             // uri
-            String::static_type(),             // name
-            String::static_type(),             // release date
-            u32::static_type(),                // total tracks
-            String::static_type(),             // artists
-            String::static_type(),             // genres
-            u8::static_type(),                 // type
-            u32::static_type(),                // duration
-        ]);
-
-        let image_loader = ImageLoader::new();
-
-        AlbumListModel {
-            stream,
+        ContainerListModel::new(
+            relm.stream().clone(),
             spotify,
-            store,
-            image_loader,
-            items_loader: None,
-            total_items: 0,
-        }
+            &[
+                gdk_pixbuf::Pixbuf::static_type(), // thumb
+                String::static_type(),             // uri
+                String::static_type(),             // name
+                String::static_type(),             // release date
+                u32::static_type(),                // total tracks
+                String::static_type(),             // artists
+                String::static_type(),             // genres
+                u8::static_type(),                 // type
+                u32::static_type(),                // duration
+            ],
+        )
     }
 
     fn update(&mut self, event: Self::Msg) {
@@ -408,7 +389,7 @@ where
         self.root.clone()
     }
 
-    fn view(relm: &Relm<Self>, mut model: AlbumListModel<Loader>) -> Self {
+    fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);

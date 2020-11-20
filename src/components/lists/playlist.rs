@@ -20,7 +20,7 @@
 //!     PlaylistList::<SavedLoader>(spotify.clone())
 //! }
 //! ```
-use crate::components::lists::common::{ContainerListMsg, GetSelectedRows};
+use crate::components::lists::common::{ContainerListModel, ContainerListMsg, GetSelectedRows};
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::PageLike;
@@ -37,36 +37,27 @@ const TREE_THUMB_SIZE: i32 = 48;
 const ICON_THUMB_SIZE: i32 = 128;
 const ICON_ITEM_SIZE: i32 = (ICON_THUMB_SIZE as f32 * 2.25) as i32;
 
-pub struct PlaylistListModel<Loader: ContainerLoader> {
-    stream: EventStream<ContainerListMsg<Loader>>,
-    spotify: Arc<SpotifyProxy>,
-    store: gtk::ListStore,
-    items_loader: Option<Loader>,
-    image_loader: ImageLoader,
-    total_items: u32,
-}
-
 pub enum PlaylistView {
     Tree(gtk::TreeView),
     Icon(gtk::IconView),
 }
 impl PlaylistView {
-    fn create<Loader: ContainerLoader, Comp: Update<Msg = ContainerListMsg<Loader>>>(
-        events: EventStream<Comp::Msg>,
+    fn create<Loader: ContainerLoader>(
+        events: EventStream<ContainerListMsg<Loader>>,
         store: &gtk::ListStore,
     ) -> PlaylistView
     where
         Loader::Item: PlaylistLike,
     {
         if Loader::Item::unavailable_columns().is_empty() {
-            Self::build_tree_view::<Loader, Comp>(events, store).into()
+            Self::build_tree_view::<Loader>(events, store).into()
         } else {
-            Self::build_icon_view::<Loader, Comp>(events, store).into()
+            Self::build_icon_view::<Loader>(events, store).into()
         }
     }
 
-    fn build_icon_view<Loader: ContainerLoader, Comp: Update<Msg = ContainerListMsg<Loader>>>(
-        stream: EventStream<Comp::Msg>,
+    fn build_icon_view<Loader: ContainerLoader>(
+        stream: EventStream<ContainerListMsg<Loader>>,
         store: &gtk::ListStore,
     ) -> gtk::IconView
     where
@@ -124,8 +115,8 @@ impl PlaylistView {
         playlists_view
     }
 
-    fn build_tree_view<Loader: ContainerLoader, Comp: Update<Msg = ContainerListMsg<Loader>>>(
-        stream: EventStream<Comp::Msg>,
+    fn build_tree_view<Loader: ContainerLoader>(
+        stream: EventStream<ContainerListMsg<Loader>>,
         store: &gtk::ListStore,
     ) -> gtk::TreeView
     where
@@ -291,7 +282,7 @@ pub struct PlaylistList<Loader: ContainerLoader> {
     root: gtk::Box,
     items_view: PlaylistView,
     status_bar: gtk::Statusbar,
-    model: PlaylistListModel<Loader>,
+    model: ContainerListModel<Loader>,
     progress_bar: gtk::ProgressBar,
     refresh_btn: gtk::Button,
 }
@@ -339,33 +330,24 @@ where
     Loader: ContainerLoader,
     Loader::Item: PlaylistLike,
 {
-    type Model = PlaylistListModel<Loader>;
+    type Model = ContainerListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
     type Msg = ContainerListMsg<Loader>;
 
     fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        let stream = relm.stream().clone();
-
-        let store = gtk::ListStore::new(&[
-            gdk_pixbuf::Pixbuf::static_type(), // thumb
-            String::static_type(),             // uri
-            String::static_type(),             // name
-            u32::static_type(),                // total tracks
-            u32::static_type(),                // duration
-            String::static_type(),             // description
-            String::static_type(),             // publisher
-        ]);
-
-        let image_loader = ImageLoader::new();
-
-        PlaylistListModel {
-            stream,
+        ContainerListModel::new(
+            relm.stream().clone(),
             spotify,
-            store,
-            image_loader,
-            items_loader: None,
-            total_items: 0,
-        }
+            &[
+                gdk_pixbuf::Pixbuf::static_type(), // thumb
+                String::static_type(),             // uri
+                String::static_type(),             // name
+                u32::static_type(),                // total tracks
+                u32::static_type(),                // duration
+                String::static_type(),             // description
+                String::static_type(),             // publisher
+            ],
+        )
     }
 
     fn update(&mut self, event: Self::Msg) {
@@ -463,12 +445,12 @@ where
         self.root.clone()
     }
 
-    fn view(relm: &Relm<Self>, mut model: PlaylistListModel<Loader>) -> Self {
+    fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
-        let items_view = PlaylistView::create::<Loader, Self>(relm.stream().clone(), &model.store);
+        let items_view = PlaylistView::create::<Loader>(relm.stream().clone(), &model.store);
         model.image_loader.resize = items_view.thumb_size();
 
         scroller.add(items_view.widget());
