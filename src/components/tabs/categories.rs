@@ -177,7 +177,7 @@ impl Widget for CategoriesTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::OpenItem(uri, name) => {
+            ContainerListMsg::ActivateItem(uri, name) => {
                 stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}

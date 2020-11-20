@@ -1,4 +1,6 @@
-use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
+use crate::loaders::common::{
+    ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
+};
 use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
@@ -309,9 +311,9 @@ impl RowLike for SavedAlbum {
     }
 }
 
-pub const COL_ALBUM_THUMB: u32 = 0;
-pub const COL_ALBUM_URI: u32 = 1;
-pub const COL_ALBUM_NAME: u32 = 2;
+pub const COL_ALBUM_THUMB: u32 = COL_ITEM_THUMB;
+pub const COL_ALBUM_URI: u32 = COL_ITEM_URI;
+pub const COL_ALBUM_NAME: u32 = COL_ITEM_NAME;
 pub const COL_ALBUM_RELEASE_DATE: u32 = 3;
 pub const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
 pub const COL_ALBUM_ARTISTS: u32 = 5;

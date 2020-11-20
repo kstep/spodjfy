@@ -21,29 +21,45 @@
 //! }
 //! ```
 
-use crate::components::lists::common::{ContainerList, ContainerListMsg};
+use crate::components::lists::common::{
+    ContainerList, ContainerListMsg, GetSelectedRows, ItemsListView,
+};
 use crate::loaders::album::*;
-use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
-use crate::loaders::paged::RowLike;
+use crate::loaders::common::{ContainerLoader, MissingColumns};
 use glib::Cast;
 use gtk::prelude::*;
-use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
-use relm::{EventStream, Relm, Widget};
+use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};
+use relm::EventStream;
 
 #[doc(hidden)]
 const THUMB_SIZE: i32 = 48;
 
-pub type AlbumList<Loader> = ContainerList<Loader, gtk::TreeView>;
+pub struct AlbumView(gtk::TreeView);
+impl From<gtk::TreeView> for AlbumView {
+    fn from(view: gtk::TreeView) -> Self {
+        AlbumView(view)
+    }
+}
+impl AsRef<gtk::Widget> for AlbumView {
+    fn as_ref(&self) -> &gtk::Widget {
+        self.0.upcast_ref()
+    }
+}
+impl GetSelectedRows for AlbumView {
+    fn get_selected_rows(&self) -> (Vec<TreePath>, TreeModel) {
+        self.0.get_selected_rows()
+    }
+}
 
-impl<Loader> ContainerList<Loader, gtk::TreeView>
+impl<Loader> ItemsListView<Loader> for AlbumView
 where
     Loader: ContainerLoader,
     Loader::Item: MissingColumns,
 {
-    pub fn create_items_view<S: IsA<gtk::TreeModel>>(
+    fn create<S: IsA<gtk::TreeModel>>(
         stream: EventStream<ContainerListMsg<Loader>>,
         store: &S,
-    ) -> (gtk::TreeView, i32) {
+    ) -> Self {
         let albums_view = gtk::TreeViewBuilder::new()
             .model(store)
             .expand(true)
@@ -67,7 +83,7 @@ where
                         )
                 })
             }) {
-                stream.emit(ContainerListMsg::OpenItem(uri, name));
+                stream.emit(ContainerListMsg::ActivateItem(uri, name));
             }
         });
 
@@ -222,60 +238,12 @@ where
             });
         }
 
-        (albums_view, THUMB_SIZE)
+        AlbumView(albums_view)
+    }
+
+    fn thumb_size(&self) -> i32 {
+        THUMB_SIZE
     }
 }
 
-impl<Loader> Widget for ContainerList<Loader, gtk::TreeView>
-where
-    Loader: ContainerLoader,
-    Loader::Item: RowLike + HasImages + MissingColumns,
-{
-    type Root = gtk::Box;
-
-    fn root(&self) -> Self::Root {
-        self.root.clone()
-    }
-
-    fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
-        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-        let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-
-        let (items_view, thumb_size) = Self::create_items_view(relm.stream().clone(), &model.store);
-        model.image_loader.resize = thumb_size;
-
-        scroller.add(&items_view);
-
-        root.add(&scroller);
-
-        let status_bar = gtk::Statusbar::new();
-
-        let progress_bar = gtk::ProgressBarBuilder::new()
-            .valign(gtk::Align::Center)
-            .width_request(200)
-            .visible(false)
-            .show_text(true)
-            .build();
-        status_bar.pack_end(&progress_bar, false, true, 0);
-
-        let refresh_btn =
-            gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
-        let stream = relm.stream().clone();
-        refresh_btn.connect_clicked(move |_| stream.emit(ContainerListMsg::Reload));
-        status_bar.pack_start(&refresh_btn, false, false, 0);
-
-        root.add(&status_bar);
-
-        root.show_all();
-
-        ContainerList {
-            root,
-            items_view,
-            status_bar,
-            progress_bar,
-            refresh_btn,
-            model,
-        }
-    }
-}
+pub type AlbumList<Loader> = ContainerList<Loader, AlbumView>;

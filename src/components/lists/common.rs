@@ -1,15 +1,15 @@
-use crate::loaders::common::{ContainerLoader, HasImages};
+use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns, COL_ITEM_THUMB};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::{PageLike, RowLike};
 use crate::servers::spotify::SpotifyProxy;
-use glib::{ToValue, Type};
+use glib::{IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
-    GtkListStoreExt, IconViewExt, ProgressBarExt, StatusbarExt, TreeModelExt, TreeSelectionExt,
-    TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, ContainerExt, GtkListStoreExt, IconViewExt, ProgressBarExt, StatusbarExt,
+    TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
-use relm::{EventStream, Relm, Update};
+use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 use std::sync::Arc;
 
@@ -22,8 +22,16 @@ pub enum ContainerListMsg<Loader: ContainerLoader> {
     NewPage(Loader::Page),
     LoadThumb(String, gtk::TreeIter),
     NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
-    OpenChosenItem,
-    OpenItem(String, String),
+    ActivateChosenItems,
+    ActivateItem(String, String),
+}
+
+pub trait ItemsListView<Loader: ContainerLoader> {
+    fn create<S: IsA<gtk::TreeModel>>(
+        stream: EventStream<ContainerListMsg<Loader>>,
+        store: &S,
+    ) -> Self;
+    fn thumb_size(&self) -> i32;
 }
 
 #[doc(hidden)]
@@ -125,7 +133,7 @@ impl<Loader, ItemsView> Update for ContainerList<Loader, ItemsView>
 where
     Loader: ContainerLoader,
     Loader::Item: RowLike + HasImages,
-    ItemsView: GetSelectedRows,
+    ItemsView: GetSelectedRows + AsRef<gtk::Widget>,
 {
     type Model = ContainerListModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
@@ -140,6 +148,7 @@ where
     }
 
     fn update(&mut self, event: Self::Msg) {
+        use crate::utils;
         use ContainerListMsg::*;
         match event {
             Clear => {
@@ -207,35 +216,76 @@ where
                 });
             }
             NewThumb(thumb, pos) => {
-                self.model.store.set_value(&pos, 0, &thumb.to_value());
+                self.model
+                    .store
+                    .set_value(&pos, COL_ITEM_THUMB, &thumb.to_value());
             }
-            OpenChosenItem => {
+            ActivateChosenItems => {
                 let (rows, model) = self.items_view.get_selected_rows();
 
-                if let Some((uri, name)) =
-                    rows.first().and_then(|path| extract_uri_name(&model, path))
+                if let Some((uri, name)) = rows
+                    .first()
+                    .and_then(|path| utils::extract_uri_name(&model, path))
                 {
-                    self.model.stream.emit(OpenItem(uri, name));
+                    self.model.stream.emit(ActivateItem(uri, name));
                 }
             }
-            OpenItem(_, _) => {}
+            ActivateItem(_, _) => {}
         }
     }
 }
 
-fn extract_uri_name(model: &gtk::TreeModel, path: &gtk::TreePath) -> Option<(String, String)> {
-    model.get_iter(path).and_then(|pos| {
-        model
-            .get_value(&pos, 1 as i32) // COL_ITEM_URI
-            .get::<String>()
-            .ok()
-            .flatten()
-            .zip(
-                model
-                    .get_value(&pos, 2 as i32) // COL_ITEM_NAME
-                    .get::<String>()
-                    .ok()
-                    .flatten(),
-            )
-    })
+impl<Loader, ItemsView> Widget for ContainerList<Loader, ItemsView>
+where
+    Loader: ContainerLoader,
+    Loader::Item: RowLike + HasImages + MissingColumns,
+    ItemsView: AsRef<gtk::Widget> + ItemsListView<Loader> + GetSelectedRows,
+{
+    type Root = gtk::Box;
+
+    fn root(&self) -> Self::Root {
+        self.root.clone()
+    }
+
+    fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
+        let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+
+        let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+
+        let items_view = ItemsView::create(relm.stream().clone(), &model.store);
+        model.image_loader.resize = items_view.thumb_size();
+
+        scroller.add(items_view.as_ref());
+
+        root.add(&scroller);
+
+        let status_bar = gtk::Statusbar::new();
+
+        let progress_bar = gtk::ProgressBarBuilder::new()
+            .valign(gtk::Align::Center)
+            .width_request(200)
+            .visible(false)
+            .show_text(true)
+            .build();
+        status_bar.pack_end(&progress_bar, false, true, 0);
+
+        let refresh_btn =
+            gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
+        let stream = relm.stream().clone();
+        refresh_btn.connect_clicked(move |_| stream.emit(ContainerListMsg::Reload));
+        status_bar.pack_start(&refresh_btn, false, false, 0);
+
+        root.add(&status_bar);
+
+        root.show_all();
+
+        ContainerList {
+            root,
+            items_view,
+            status_bar,
+            progress_bar,
+            refresh_btn,
+            model,
+        }
+    }
 }

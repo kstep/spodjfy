@@ -205,7 +205,7 @@ impl Widget for ArtistsTab {
 
         let stream = self.model.stream.clone();
         self.albums_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::OpenItem(uri, name) => {
+            ContainerListMsg::ActivateItem(uri, name) => {
                 stream.emit(ArtistsMsg::OpenAlbum(uri.clone(), name.clone()));
             }
             _ => {}

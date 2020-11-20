@@ -1,4 +1,4 @@
-use crate::loaders::common::ContainerLoader;
+use crate::loaders::common::{ContainerLoader, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI};
 use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
@@ -398,26 +398,25 @@ pub trait TrackLike {
     }
 }
 
-pub const COL_TRACK_ID: u32 = 0;
-pub const COL_TRACK_THUMB: u32 = 1;
-pub const COL_TRACK_NAME: u32 = 2;
+pub const COL_TRACK_THUMB: u32 = COL_ITEM_THUMB;
+pub const COL_TRACK_URI: u32 = COL_ITEM_URI;
+pub const COL_TRACK_NAME: u32 = COL_ITEM_NAME;
 pub const COL_TRACK_ARTISTS: u32 = 3;
 pub const COL_TRACK_NUMBER: u32 = 4;
 pub const COL_TRACK_ALBUM: u32 = 5;
 pub const COL_TRACK_CANT_PLAY: u32 = 6;
 pub const COL_TRACK_DURATION: u32 = 7;
 pub const COL_TRACK_DURATION_MS: u32 = 8;
-pub const COL_TRACK_URI: u32 = 9;
-pub const COL_TRACK_BPM: u32 = 10;
-pub const COL_TRACK_TIMELINE: u32 = 11;
-pub const COL_TRACK_RELEASE_DATE: u32 = 12;
-pub const COL_TRACK_DESCRIPTION: u32 = 13;
+pub const COL_TRACK_BPM: u32 = 9;
+pub const COL_TRACK_TIMELINE: u32 = 10;
+pub const COL_TRACK_RELEASE_DATE: u32 = 11;
+pub const COL_TRACK_DESCRIPTION: u32 = 12;
 
 impl<T: TrackLike> RowLike for T {
     fn content_types() -> Vec<Type> {
         vec![
-            String::static_type(),             // id
             gdk_pixbuf::Pixbuf::static_type(), // thumb
+            String::static_type(),             // track uri
             String::static_type(),             // name
             String::static_type(),             // artists
             u32::static_type(),                // number
@@ -425,7 +424,6 @@ impl<T: TrackLike> RowLike for T {
             bool::static_type(),               // is playable
             String::static_type(),             // formatted duration
             u32::static_type(),                // duration in ms
-            String::static_type(),             // track uri
             f32::static_type(),                // bpm
             String::static_type(),             // duration from start
             String::static_type(),             // release date
@@ -437,26 +435,24 @@ impl<T: TrackLike> RowLike for T {
         store.insert_with_values(
             None,
             &[
-                COL_TRACK_ID,
+                COL_TRACK_URI,
                 COL_TRACK_NAME,
                 COL_TRACK_ARTISTS,
                 COL_TRACK_ALBUM,
                 COL_TRACK_CANT_PLAY,
                 COL_TRACK_DURATION,
                 COL_TRACK_DURATION_MS,
-                COL_TRACK_URI,
                 COL_TRACK_RELEASE_DATE,
                 COL_TRACK_DESCRIPTION,
             ],
             &[
-                &self.id(),
+                &self.uri(),
                 &self.name(),
                 &self.artists().iter().map(|artist| &artist.name).join(", "),
                 &self.album().map(|album| &*album.name),
                 &!self.is_playable(),
                 &crate::utils::humanize_time(self.duration()),
                 &self.duration(),
-                &self.uri(),
                 &self.release_date(),
                 &self.description(),
             ],

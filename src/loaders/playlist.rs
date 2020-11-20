@@ -1,4 +1,6 @@
-use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
+use crate::loaders::common::{
+    ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
+};
 use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
@@ -7,9 +9,9 @@ use rspotify::model::{
     FullPlaylist, FullShow, Image, Page, Show, SimplifiedPlaylist, SimplifiedShow,
 };
 
-pub const COL_PLAYLIST_THUMB: u32 = 0;
-pub const COL_PLAYLIST_URI: u32 = 1;
-pub const COL_PLAYLIST_NAME: u32 = 2;
+pub const COL_PLAYLIST_THUMB: u32 = COL_ITEM_THUMB;
+pub const COL_PLAYLIST_URI: u32 = COL_ITEM_URI;
+pub const COL_PLAYLIST_NAME: u32 = COL_ITEM_NAME;
 pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
 pub const COL_PLAYLIST_DURATION: u32 = 4;
 pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;

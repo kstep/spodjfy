@@ -71,7 +71,7 @@ impl Widget for PlaylistsTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::OpenItem(uri, name) => {
+            ContainerListMsg::ActivateItem(uri, name) => {
                 stream.emit(PlaylistsMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}

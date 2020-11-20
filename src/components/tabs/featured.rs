@@ -71,7 +71,7 @@ impl Widget for FeaturedTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::OpenItem(uri, name) => {
+            ContainerListMsg::ActivateItem(uri, name) => {
                 stream.emit(FeaturedMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}

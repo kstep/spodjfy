@@ -72,7 +72,7 @@ impl Widget for ShowsTab {
 
         let stream = self.model.stream.clone();
         self.shows_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::OpenItem(uri, name) => {
+            ContainerListMsg::ActivateItem(uri, name) => {
                 stream.emit(ShowsMsg::OpenShow(uri.clone(), name.clone()));
             }
             _ => {}

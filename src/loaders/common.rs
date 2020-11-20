@@ -2,6 +2,10 @@ use crate::loaders::paged::PageLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use rspotify::model::Image;
 
+pub const COL_ITEM_THUMB: u32 = 0;
+pub const COL_ITEM_URI: u32 = 1;
+pub const COL_ITEM_NAME: u32 = 2;
+
 pub trait ContainerLoader: Clone + 'static {
     type ParentId: Clone;
     type Item;
