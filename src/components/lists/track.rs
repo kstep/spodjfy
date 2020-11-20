@@ -1,10 +1,9 @@
+use crate::components::lists::common::GetSelectedRows;
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::{PageLike, RowLike};
 use crate::loaders::track::*;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
-use gdk_pixbuf::Pixbuf;
-use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{
     ButtonExt, CellRendererExt, GtkMenuExt, GtkMenuItemExt, Inhibit, ProgressBarExt, StatusbarExt,
@@ -157,8 +156,7 @@ where
     }
 
     fn get_selected_tracks_uris(&self) -> Vec<String> {
-        let select = self.tracks_view.get_selection();
-        let (rows, model) = select.get_selected_rows();
+        let (rows, model) = self.tracks_view.get_selected_rows();
         rows.into_iter()
             .filter_map(|path| model.get_iter(&path))
             .filter_map(|pos| {
@@ -175,7 +173,7 @@ where
 impl<Loader> Update for TrackList<Loader>
 where
     Loader: ContainerLoader,
-    Loader::Item: TrackLike,
+    Loader::Item: TrackLike + RowLike,
     Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Model = TrackListModel<Loader>;
@@ -183,22 +181,7 @@ where
     type Msg = TrackListMsg<Loader>;
 
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> Self::Model {
-        let store = gtk::ListStore::new(&[
-            String::static_type(), // id
-            Pixbuf::static_type(), // thumb
-            String::static_type(), // name
-            String::static_type(), // artists
-            u32::static_type(),    // number
-            String::static_type(), // album
-            bool::static_type(),   // is playable
-            String::static_type(), // formatted duration
-            u32::static_type(),    // duration in ms
-            String::static_type(), // track uri
-            f32::static_type(),    // bpm
-            String::static_type(), // duration from start
-            String::static_type(), // release date
-            String::static_type(), // description
-        ]);
+        let store = gtk::ListStore::new(&Loader::Item::content_types());
 
         let stream = relm.stream().clone();
 
@@ -437,7 +420,7 @@ where
 impl<Loader> Widget for TrackList<Loader>
 where
     Loader: ContainerLoader,
-    Loader::Item: TrackLike,
+    Loader::Item: TrackLike + RowLike,
     Loader::ParentId: PartialEq + PlayContextCmd,
 {
     type Root = gtk::Box;

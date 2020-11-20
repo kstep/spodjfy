@@ -1,6 +1,7 @@
-use crate::loaders::common::ContainerLoader;
+use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
+use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
-use glib::IsA;
+use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{
@@ -103,14 +104,6 @@ pub trait AlbumLike {
     fn duration_exact(&self) -> bool {
         false
     }
-    fn images(&self) -> &[Image];
-
-    fn unavailable_columns() -> &'static [u32]
-    where
-        Self: Sized,
-    {
-        &[]
-    }
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         store.insert_with_values(
@@ -136,6 +129,20 @@ pub trait AlbumLike {
                 &self.duration(),
             ],
         )
+    }
+
+    fn store_content_types() -> Vec<Type> {
+        vec![
+            gdk_pixbuf::Pixbuf::static_type(), // thumb
+            String::static_type(),             // uri
+            String::static_type(),             // name
+            String::static_type(),             // release date
+            u32::static_type(),                // total tracks
+            String::static_type(),             // artists
+            String::static_type(),             // genres
+            u8::static_type(),                 // type
+            u32::static_type(),                // duration
+        ]
     }
 }
 
@@ -179,9 +186,20 @@ impl AlbumLike for FullAlbum {
     fn duration_exact(&self) -> bool {
         self.tracks.total as usize == self.tracks.items.len()
     }
-
+}
+impl MissingColumns for FullAlbum {}
+impl HasImages for FullAlbum {
     fn images(&self) -> &[Image] {
         &self.images
+    }
+}
+impl RowLike for FullAlbum {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -212,16 +230,28 @@ impl AlbumLike for SimplifiedAlbum {
                 _ => AlbumType::Album,
             })
     }
+}
 
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
-
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for SimplifiedAlbum {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
         &[COL_ALBUM_DURATION, COL_ALBUM_TOTAL_TRACKS, COL_ALBUM_GENRES]
+    }
+}
+impl HasImages for SimplifiedAlbum {
+    fn images(&self) -> &[Image] {
+        &self.images
+    }
+}
+impl RowLike for SimplifiedAlbum {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -261,9 +291,21 @@ impl AlbumLike for SavedAlbum {
     fn duration_exact(&self) -> bool {
         self.album.duration_exact()
     }
+}
 
+impl MissingColumns for SavedAlbum {}
+impl HasImages for SavedAlbum {
     fn images(&self) -> &[Image] {
-        self.album.images()
+        &self.album.images
+    }
+}
+impl RowLike for SavedAlbum {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 

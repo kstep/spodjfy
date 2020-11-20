@@ -1,5 +1,6 @@
 use crate::loaders::paged::PageLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use rspotify::model::Image;
 
 pub trait ContainerLoader: Clone + 'static {
     type ParentId: Clone;
@@ -15,5 +16,15 @@ pub trait ContainerLoader: Clone + 'static {
     ) -> SpotifyCmd;
     fn uuid(&self) -> usize {
         self as *const _ as *const () as usize
+    }
+}
+
+pub trait HasImages {
+    fn images(&self) -> &[Image];
+}
+
+pub trait MissingColumns {
+    fn missing_columns() -> &'static [u32] {
+        &[]
     }
 }

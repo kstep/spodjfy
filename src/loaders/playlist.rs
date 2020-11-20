@@ -1,6 +1,7 @@
-use crate::loaders::common::ContainerLoader;
+use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
+use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
-use glib::IsA;
+use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use rspotify::model::{
     FullPlaylist, FullShow, Image, Page, Show, SimplifiedPlaylist, SimplifiedShow,
@@ -21,7 +22,6 @@ pub trait PlaylistLike {
     fn description(&self) -> &str;
     fn publisher(&self) -> &str;
 
-    fn images(&self) -> &[Image];
     fn total_tracks(&self) -> u32 {
         0
     }
@@ -30,12 +30,6 @@ pub trait PlaylistLike {
     }
     fn duration_exact(&self) -> bool {
         false
-    }
-    fn unavailable_columns() -> &'static [u32]
-    where
-        Self: Sized,
-    {
-        &[]
     }
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -58,6 +52,18 @@ pub trait PlaylistLike {
                 &self.publisher(),
             ],
         )
+    }
+
+    fn store_content_types() -> Vec<Type> {
+        vec![
+            gdk_pixbuf::Pixbuf::static_type(), // thumb
+            String::static_type(),             // uri
+            String::static_type(),             // name
+            u32::static_type(),                // total tracks
+            u32::static_type(),                // duration
+            String::static_type(),             // description
+            String::static_type(),             // publisher
+        ]
     }
 }
 
@@ -82,22 +88,34 @@ impl PlaylistLike for SimplifiedPlaylist {
         self.owner.display_name.as_deref().unwrap_or(&self.owner.id)
     }
 
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
-
     fn total_tracks(&self) -> u32 {
         self.tracks
             .get("total")
             .and_then(|value| value.as_u64())
             .unwrap_or(0) as u32
     }
+}
 
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for SimplifiedPlaylist {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
         &[COL_PLAYLIST_DURATION, COL_PLAYLIST_DESCRIPTION]
+    }
+}
+impl HasImages for SimplifiedPlaylist {
+    fn images(&self) -> &[Image] {
+        &self.images
+    }
+}
+impl RowLike for SimplifiedPlaylist {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -122,10 +140,6 @@ impl PlaylistLike for FullPlaylist {
         self.owner.display_name.as_deref().unwrap_or(&self.owner.id)
     }
 
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
-
     fn total_tracks(&self) -> u32 {
         self.tracks.total
     }
@@ -141,6 +155,20 @@ impl PlaylistLike for FullPlaylist {
 
     fn duration_exact(&self) -> bool {
         self.tracks.total as usize == self.tracks.items.len()
+    }
+}
+impl HasImages for FullPlaylist {
+    fn images(&self) -> &[Image] {
+        &self.images
+    }
+}
+impl RowLike for FullPlaylist {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -165,10 +193,6 @@ impl PlaylistLike for FullShow {
         &self.publisher
     }
 
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
-
     fn total_tracks(&self) -> u32 {
         self.episodes.total
     }
@@ -183,6 +207,21 @@ impl PlaylistLike for FullShow {
 
     fn duration_exact(&self) -> bool {
         self.episodes.items.len() == self.episodes.total as usize
+    }
+}
+impl MissingColumns for FullShow {}
+impl HasImages for FullShow {
+    fn images(&self) -> &[Image] {
+        &self.images
+    }
+}
+impl RowLike for FullShow {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -206,16 +245,28 @@ impl PlaylistLike for SimplifiedShow {
     fn publisher(&self) -> &str {
         &self.publisher
     }
+}
 
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
-
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for SimplifiedShow {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
         &[COL_PLAYLIST_TOTAL_TRACKS, COL_PLAYLIST_DURATION]
+    }
+}
+impl HasImages for SimplifiedShow {
+    fn images(&self) -> &[Image] {
+        &self.images
+    }
+}
+impl RowLike for SimplifiedShow {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 
@@ -239,16 +290,28 @@ impl PlaylistLike for Show {
     fn publisher(&self) -> &str {
         self.show.publisher()
     }
+}
 
-    fn images(&self) -> &[Image] {
-        self.show.images()
-    }
-
-    fn unavailable_columns() -> &'static [u32]
+impl MissingColumns for Show {
+    fn missing_columns() -> &'static [u32]
     where
         Self: Sized,
     {
         &[COL_PLAYLIST_TOTAL_TRACKS, COL_PLAYLIST_DURATION]
+    }
+}
+impl HasImages for Show {
+    fn images(&self) -> &[Image] {
+        &self.show.images
+    }
+}
+impl RowLike for Show {
+    fn content_types() -> Vec<Type> {
+        Self::store_content_types()
+    }
+
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        self.insert_into_store(store)
     }
 }
 

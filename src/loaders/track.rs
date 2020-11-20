@@ -1,7 +1,7 @@
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::paged::RowLike;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
-use glib::IsA;
+use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::album::SimplifiedAlbum;
@@ -414,6 +414,25 @@ pub const COL_TRACK_RELEASE_DATE: u32 = 12;
 pub const COL_TRACK_DESCRIPTION: u32 = 13;
 
 impl<T: TrackLike> RowLike for T {
+    fn content_types() -> Vec<Type> {
+        vec![
+            String::static_type(),             // id
+            gdk_pixbuf::Pixbuf::static_type(), // thumb
+            String::static_type(),             // name
+            String::static_type(),             // artists
+            u32::static_type(),                // number
+            String::static_type(),             // album
+            bool::static_type(),               // is playable
+            String::static_type(),             // formatted duration
+            u32::static_type(),                // duration in ms
+            String::static_type(),             // track uri
+            f32::static_type(),                // bpm
+            String::static_type(),             // duration from start
+            String::static_type(),             // release date
+            String::static_type(),             // description
+        ]
+    }
+
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         store.insert_with_values(
             None,

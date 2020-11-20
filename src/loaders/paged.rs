@@ -1,4 +1,4 @@
-use glib::IsA;
+use glib::{IsA, Type};
 use rspotify::model::page::{CursorBasedPage, Page};
 
 pub trait PageLike<T> {
@@ -64,5 +64,6 @@ impl<T> PageLike<T> for CursorBasedPage<T> {
 }
 
 pub trait RowLike {
+    fn content_types() -> Vec<Type>;
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter;
 }

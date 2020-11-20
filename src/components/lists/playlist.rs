@@ -20,48 +20,46 @@
 //!     PlaylistList::<SavedLoader>(spotify.clone())
 //! }
 //! ```
-use crate::components::lists::common::{ContainerListModel, ContainerListMsg, GetSelectedRows};
-use crate::loaders::common::ContainerLoader;
-use crate::loaders::image::ImageLoader;
-use crate::loaders::paged::PageLike;
+use crate::components::lists::common::{
+    ContainerList, ContainerListModel, ContainerListMsg, GetSelectedRows,
+};
+use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
+use crate::loaders::paged::RowLike;
 use crate::loaders::playlist::*;
-use crate::servers::spotify::SpotifyProxy;
-use glib::{Cast, StaticType};
+use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
-use relm::vendor::fragile::Fragile;
-use relm::{EventStream, Relm, Update, Widget};
-use std::sync::Arc;
+use relm::{EventStream, Relm, Widget};
+use std::ops::Deref;
 
 const TREE_THUMB_SIZE: i32 = 48;
 const ICON_THUMB_SIZE: i32 = 128;
 const ICON_ITEM_SIZE: i32 = (ICON_THUMB_SIZE as f32 * 2.25) as i32;
 
+pub type PlaylistList<Loader> = ContainerList<Loader, PlaylistView>;
+
 pub enum PlaylistView {
     Tree(gtk::TreeView),
     Icon(gtk::IconView),
 }
-impl PlaylistView {
-    fn create<Loader: ContainerLoader>(
-        events: EventStream<ContainerListMsg<Loader>>,
-        store: &gtk::ListStore,
-    ) -> PlaylistView
-    where
-        Loader::Item: PlaylistLike,
-    {
-        if Loader::Item::unavailable_columns().is_empty() {
-            Self::build_tree_view::<Loader>(events, store).into()
-        } else {
-            Self::build_icon_view::<Loader>(events, store).into()
+
+impl Deref for PlaylistView {
+    type Target = gtk::Widget;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            PlaylistView::Icon(view) => view.upcast_ref::<gtk::Widget>(),
+            PlaylistView::Tree(view) => view.upcast_ref::<gtk::Widget>(),
         }
     }
+}
 
-    fn build_icon_view<Loader: ContainerLoader>(
+impl PlaylistView {
+    fn build_icon_view<Loader: ContainerLoader, S: IsA<gtk::TreeModel>>(
         stream: EventStream<ContainerListMsg<Loader>>,
-        store: &gtk::ListStore,
+        store: &S,
     ) -> gtk::IconView
     where
-        Loader::Item: PlaylistLike,
+        Loader::Item: MissingColumns,
     {
         let playlists_view = gtk::IconViewBuilder::new()
             .model(store)
@@ -115,12 +113,12 @@ impl PlaylistView {
         playlists_view
     }
 
-    fn build_tree_view<Loader: ContainerLoader>(
+    fn build_tree_view<Loader: ContainerLoader, S: IsA<gtk::TreeModel>>(
         stream: EventStream<ContainerListMsg<Loader>>,
-        store: &gtk::ListStore,
+        store: &S,
     ) -> gtk::TreeView
     where
-        Loader::Item: PlaylistLike,
+        Loader::Item: MissingColumns,
     {
         let playlists_view = gtk::TreeViewBuilder::new()
             .model(store)
@@ -142,9 +140,9 @@ impl PlaylistView {
             .resizable(true)
             .reorderable(true);
 
-        let unavailable_columns = Loader::Item::unavailable_columns();
+        let missing_columns = Loader::Item::missing_columns();
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_THUMB) {
+        if !missing_columns.contains(&COL_PLAYLIST_THUMB) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererPixbuf::new();
                 let col = gtk::TreeViewColumn::new();
@@ -154,7 +152,7 @@ impl PlaylistView {
             });
         }
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_NAME) {
+        if !missing_columns.contains(&COL_PLAYLIST_NAME) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
                 let col = base_column
@@ -168,7 +166,7 @@ impl PlaylistView {
             });
         }
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_PUBLISHER) {
+        if !missing_columns.contains(&COL_PLAYLIST_PUBLISHER) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
                 let col = base_column
@@ -182,7 +180,7 @@ impl PlaylistView {
             });
         }
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_DESCRIPTION) {
+        if !missing_columns.contains(&COL_PLAYLIST_DESCRIPTION) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
                 let col = base_column
@@ -196,7 +194,7 @@ impl PlaylistView {
             });
         }
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_TOTAL_TRACKS) {
+        if !missing_columns.contains(&COL_PLAYLIST_TOTAL_TRACKS) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
                 cell.set_alignment(1.0, 0.5);
@@ -212,7 +210,7 @@ impl PlaylistView {
             });
         }
 
-        if !unavailable_columns.contains(&COL_PLAYLIST_DURATION) {
+        if !missing_columns.contains(&COL_PLAYLIST_DURATION) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
                 cell.set_alignment(1.0, 0.5);
@@ -244,20 +242,6 @@ impl PlaylistView {
 
         playlists_view
     }
-
-    fn thumb_size(&self) -> i32 {
-        match self {
-            PlaylistView::Icon(_) => ICON_THUMB_SIZE,
-            PlaylistView::Tree(_) => TREE_THUMB_SIZE,
-        }
-    }
-
-    fn widget(&self) -> &gtk::Widget {
-        match self {
-            PlaylistView::Tree(view) => view.upcast_ref::<gtk::Widget>(),
-            PlaylistView::Icon(view) => view.upcast_ref::<gtk::Widget>(),
-        }
-    }
 }
 impl GetSelectedRows for PlaylistView {
     fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
@@ -278,166 +262,33 @@ impl From<gtk::IconView> for PlaylistView {
     }
 }
 
-pub struct PlaylistList<Loader: ContainerLoader> {
-    root: gtk::Box,
-    items_view: PlaylistView,
-    status_bar: gtk::Statusbar,
-    model: ContainerListModel<Loader>,
-    progress_bar: gtk::ProgressBar,
-    refresh_btn: gtk::Button,
-}
-
-impl<Loader> PlaylistList<Loader>
+impl<Loader> ContainerList<Loader, PlaylistView>
 where
     Loader: ContainerLoader,
-    Loader::Item: PlaylistLike,
+    Loader::Item: MissingColumns,
 {
-    fn clear_store(&mut self) {
-        self.model.store.clear();
-        self.model.total_items = 0;
-
-        let status_ctx = self.status_bar.get_context_id("totals");
-        self.status_bar.remove_all(status_ctx);
-    }
-
-    fn start_load(&mut self) {
-        if let Some(ref mut loader) = self.model.items_loader {
-            *loader = Loader::new(loader.parent_id().clone());
-            self.refresh_btn.set_visible(false);
-            self.progress_bar.set_fraction(0.0);
-            self.progress_bar.set_visible(true);
-            self.progress_bar.pulse();
-            self.model
-                .stream
-                .emit(ContainerListMsg::LoadPage(Loader::Page::init_offset()));
-        }
-    }
-
-    fn finish_load(&self) {
-        let status_ctx = self.status_bar.get_context_id("totals");
-        self.progress_bar.set_visible(false);
-        self.refresh_btn.set_visible(true);
-        self.status_bar.remove_all(status_ctx);
-        self.status_bar.push(
-            status_ctx,
-            &format!("Total items: {}", self.model.total_items),
-        );
-    }
-}
-
-impl<Loader> Update for PlaylistList<Loader>
-where
-    Loader: ContainerLoader,
-    Loader::Item: PlaylistLike,
-{
-    type Model = ContainerListModel<Loader>;
-    type ModelParam = Arc<SpotifyProxy>;
-    type Msg = ContainerListMsg<Loader>;
-
-    fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        ContainerListModel::new(
-            relm.stream().clone(),
-            spotify,
-            &[
-                gdk_pixbuf::Pixbuf::static_type(), // thumb
-                String::static_type(),             // uri
-                String::static_type(),             // name
-                u32::static_type(),                // total tracks
-                u32::static_type(),                // duration
-                String::static_type(),             // description
-                String::static_type(),             // publisher
-            ],
-        )
-    }
-
-    fn update(&mut self, event: Self::Msg) {
-        use ContainerListMsg::*;
-        match event {
-            Clear => {
-                self.clear_store();
-            }
-            Reset(artist_id, reload) => {
-                self.model.items_loader = Some(Loader::new(artist_id));
-                self.clear_store();
-                if reload {
-                    self.start_load();
-                }
-            }
-            Reload => {
-                self.clear_store();
-                self.start_load();
-            }
-            LoadPage(offset) => {
-                if let Some(ref loader) = self.model.items_loader {
-                    let loader = loader.clone();
-                    self.model
-                        .spotify
-                        .ask(
-                            self.model.stream.clone(),
-                            move |tx| loader.load_page(tx, offset),
-                            NewPage,
-                        )
-                        .unwrap();
-                }
-            }
-            NewPage(page) => {
-                let stream = &self.model.stream;
-                let store = &self.model.store;
-                let items = page.items();
-
-                self.progress_bar.set_fraction(
-                    (page.num_offset() as f64 + items.len() as f64) / page.total() as f64,
-                );
-
-                for item in items {
-                    let pos = item.insert_into_store(store);
-
-                    let image = crate::loaders::image::find_best_thumb(
-                        item.images(),
-                        self.model.image_loader.size(),
-                    );
-                    if let Some(url) = image {
-                        stream.emit(LoadThumb(url.to_owned(), pos));
-                    }
-                }
-
-                if let Some(next_offset) = page.next_offset() {
-                    stream.emit(LoadPage(next_offset));
-                } else {
-                    self.model.total_items = page.total();
-                    self.finish_load();
-                }
-            }
-            LoadThumb(url, pos) => {
-                let stream = Fragile::new(self.model.stream.clone());
-                let pos = Fragile::new(pos);
-                self.model.image_loader.load_from_url(&url, move |loaded| {
-                    if let Ok(Some(pb)) = loaded {
-                        stream.into_inner().emit(NewThumb(pb, pos.into_inner()));
-                    }
-                });
-            }
-            NewThumb(thumb, pos) => {
-                self.model.store.set_value(&pos, 0, &thumb.to_value());
-            }
-            OpenChosenItem => {
-                let (rows, model) = self.items_view.get_selected_rows();
-
-                if let Some((uri, name)) =
-                    rows.first().and_then(|path| extract_uri_name(&model, path))
-                {
-                    self.model.stream.emit(OpenItem(uri, name));
-                }
-            }
-            OpenItem(_, _) => {}
+    pub fn create_items_view<S: IsA<gtk::TreeModel>>(
+        stream: EventStream<ContainerListMsg<Loader>>,
+        store: &S,
+    ) -> (PlaylistView, i32) {
+        if Loader::Item::missing_columns().is_empty() {
+            (
+                PlaylistView::build_tree_view::<Loader, S>(stream, store).into(),
+                TREE_THUMB_SIZE,
+            )
+        } else {
+            (
+                PlaylistView::build_icon_view::<Loader, S>(stream, store).into(),
+                ICON_THUMB_SIZE,
+            )
         }
     }
 }
 
-impl<Loader> Widget for PlaylistList<Loader>
+impl<Loader> Widget for ContainerList<Loader, PlaylistView>
 where
     Loader: ContainerLoader,
-    Loader::Item: PlaylistLike,
+    Loader::Item: RowLike + HasImages + MissingColumns,
 {
     type Root = gtk::Box;
 
@@ -450,10 +301,10 @@ where
 
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
-        let items_view = PlaylistView::create::<Loader>(relm.stream().clone(), &model.store);
-        model.image_loader.resize = items_view.thumb_size();
+        let (items_view, thumb_size) = Self::create_items_view(relm.stream().clone(), &model.store);
+        model.image_loader.resize = thumb_size;
 
-        scroller.add(items_view.widget());
+        scroller.add(&*items_view);
 
         root.add(&scroller);
 
@@ -477,7 +328,7 @@ where
 
         root.show_all();
 
-        PlaylistList {
+        ContainerList {
             root,
             items_view,
             status_bar,
