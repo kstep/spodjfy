@@ -20,9 +20,7 @@
 //!     PlaylistList::<SavedLoader>(spotify.clone())
 //! }
 //! ```
-use crate::components::lists::common::{
-    ContainerList, ContainerListModel, ContainerListMsg, GetSelectedRows,
-};
+use crate::components::lists::common::{ContainerList, ContainerListMsg, GetSelectedRows};
 use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
 use crate::loaders::paged::RowLike;
 use crate::loaders::playlist::*;

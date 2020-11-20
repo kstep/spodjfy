@@ -11,16 +11,17 @@ pub enum SearchMsg {
     ShowTab,
 }
 
+// TODO
 pub struct SearchModel {
     spotify: Arc<SpotifyProxy>,
-    stream: EventStream<SearchMsg>,
+    _stream: EventStream<SearchMsg>,
 }
 
 #[widget]
 impl Widget for SearchTab {
     fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> SearchModel {
-        let stream = relm.stream().clone();
-        SearchModel { spotify, stream }
+        let _stream = relm.stream().clone();
+        SearchModel { spotify, _stream }
     }
 
     fn update(&mut self, msg: SearchMsg) {

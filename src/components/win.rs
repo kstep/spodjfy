@@ -1,6 +1,6 @@
 use gtk::{
-    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SearchBarExt, SettingsExt,
-    StackExt, StackSidebarExt, WidgetExt,
+    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SettingsExt, StackExt,
+    StackSidebarExt, WidgetExt,
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
@@ -40,7 +40,6 @@ pub struct State {
 
 #[derive(Msg)]
 pub enum Msg {
-    SearchStart(gdk::EventKey),
     ChangeTab(Option<glib::GString>),
     GoToTab(Tab),
     Quit,
@@ -161,9 +160,6 @@ impl Widget for Win {
         use Msg::*;
         match event {
             Quit => gtk::main_quit(),
-            SearchStart(ref event) => {
-                //self.searchbar.handle_event(event);
-            }
             GoToTab(tab) => {
                 self.stack.set_visible_child(match tab {
                     Tab::Search => self.search_tab.widget(),
@@ -398,7 +394,7 @@ impl Widget for Win {
             },
 
             delete_event(_, _) => (Msg::Quit, Inhibit(false)),
-            //key_press_event(_, event) => (Msg::SearchStart(event.clone()), Inhibit(false)),
+
         }
     }
 
