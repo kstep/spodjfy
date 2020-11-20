@@ -1,5 +1,6 @@
 use crate::loaders::common::ContainerLoader;
 use crate::loaders::paged::PageLike;
+use gtk::{IconViewExt, TreeSelectionExt, TreeViewExt};
 use relm_derive::Msg;
 
 #[derive(Msg)]
@@ -23,4 +24,22 @@ pub enum ContainerListMsg<Loader: ContainerLoader> {
     OpenChosenItem,
     /// Open given item (uri, name), show tracks list for the item
     OpenItem(String, String),
+}
+
+pub trait GetSelectedRows {
+    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel);
+}
+
+impl GetSelectedRows for gtk::TreeView {
+    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
+        let select = self.get_selection();
+        select.get_selected_rows()
+    }
+}
+
+impl GetSelectedRows for gtk::IconView {
+    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
+        let items = self.get_selected_items();
+        (items, self.get_model().unwrap())
+    }
 }

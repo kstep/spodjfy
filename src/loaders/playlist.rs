@@ -1,5 +1,7 @@
 use crate::loaders::common::ContainerLoader;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use glib::IsA;
+use gtk::prelude::GtkListStoreExtManual;
 use rspotify::model::{
     FullPlaylist, FullShow, Image, Page, Show, SimplifiedPlaylist, SimplifiedShow,
 };
@@ -34,6 +36,28 @@ pub trait PlaylistLike {
         Self: Sized,
     {
         &[]
+    }
+
+    fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        store.insert_with_values(
+            None,
+            &[
+                COL_PLAYLIST_URI,
+                COL_PLAYLIST_NAME,
+                COL_PLAYLIST_TOTAL_TRACKS,
+                COL_PLAYLIST_DURATION,
+                COL_PLAYLIST_DESCRIPTION,
+                COL_PLAYLIST_PUBLISHER,
+            ],
+            &[
+                &self.uri(),
+                &self.name(),
+                &self.total_tracks(),
+                &self.duration(),
+                &self.description(),
+                &self.publisher(),
+            ],
+        )
     }
 }
 

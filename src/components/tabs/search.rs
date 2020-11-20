@@ -1,4 +1,4 @@
-use crate::components::lists::track::{TrackList, TrackListMsg};
+use crate::components::lists::track::TrackList;
 use crate::loaders::track::RecommendLoader;
 use crate::servers::spotify::SpotifyProxy;
 use gtk::{ButtonExt, LabelExt};

@@ -12,7 +12,7 @@ pub struct ImageLoader {
     cache_dir: PathBuf,
     queue: JobQueue,
     cache: HashMap<String, Pixbuf>,
-    resize: i32,
+    pub resize: i32,
 }
 
 impl Default for ImageLoader {

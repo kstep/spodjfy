@@ -1,5 +1,8 @@
 use crate::loaders::common::ContainerLoader;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use glib::IsA;
+use gtk::prelude::GtkListStoreExtManual;
+use itertools::Itertools;
 use rspotify::model::{
     AlbumType, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist,
 };
@@ -107,6 +110,32 @@ pub trait AlbumLike {
         Self: Sized,
     {
         &[]
+    }
+
+    fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
+        store.insert_with_values(
+            None,
+            &[
+                COL_ALBUM_URI,
+                COL_ALBUM_NAME,
+                COL_ALBUM_RELEASE_DATE,
+                COL_ALBUM_TOTAL_TRACKS,
+                COL_ALBUM_ARTISTS,
+                COL_ALBUM_GENRES,
+                COL_ALBUM_TYPE,
+                COL_ALBUM_DURATION,
+            ],
+            &[
+                &self.uri(),
+                &self.name(),
+                &self.release_date(),
+                &self.total_tracks(),
+                &self.artists().iter().map(|artist| &artist.name).join(", "),
+                &self.genres().iter().join(", "),
+                &(self.kind() as u8),
+                &self.duration(),
+            ],
+        )
     }
 }
 
