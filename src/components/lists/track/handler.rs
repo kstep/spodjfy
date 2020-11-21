@@ -2,7 +2,7 @@ use crate::components::lists::{
     ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
 };
 use crate::loaders::track::*;
-use crate::loaders::{ContainerLoader, HasImages, MissingColumns, PageLike, RowLike};
+use crate::loaders::{ContainerLoader, HasDuration, HasImages, MissingColumns, PageLike, RowLike};
 use crate::servers::spotify::SpotifyCmd;
 use glib::{Continue, ToValue};
 use gtk::{
@@ -16,7 +16,7 @@ impl<Loader> MessageHandler<TrackList<Loader>, TrackMsg<Loader>> for TrackMsgHan
 where
     Loader: ContainerLoader + 'static,
     Loader::Page: PageLike<Loader::Item>,
-    Loader::Item: RowLike + HasImages + TrackLike + MissingColumns,
+    Loader::Item: RowLike + HasImages + TrackLike + HasDuration + MissingColumns,
     Loader::ParentId: Clone + PlayContextCmd,
     ContainerMsg<Loader>: Into<TrackMsg<Loader>>,
 {

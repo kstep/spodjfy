@@ -2,6 +2,7 @@ use crate::loaders::common::{
     ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
 use crate::loaders::paged::RowLike;
+use crate::loaders::HasDuration;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -17,7 +18,7 @@ pub const COL_PLAYLIST_DURATION: u32 = 4;
 pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
 pub const COL_PLAYLIST_PUBLISHER: u32 = 6;
 
-pub trait PlaylistLike {
+pub trait PlaylistLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
@@ -26,12 +27,6 @@ pub trait PlaylistLike {
 
     fn total_tracks(&self) -> u32 {
         0
-    }
-    fn duration(&self) -> u32 {
-        0
-    }
-    fn duration_exact(&self) -> bool {
-        false
     }
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -98,6 +93,12 @@ impl PlaylistLike for SimplifiedPlaylist {
     }
 }
 
+impl HasDuration for SimplifiedPlaylist {
+    fn duration_exact(&self) -> bool {
+        false
+    }
+}
+
 impl MissingColumns for SimplifiedPlaylist {
     fn missing_columns() -> &'static [u32]
     where
@@ -106,11 +107,13 @@ impl MissingColumns for SimplifiedPlaylist {
         &[COL_PLAYLIST_DURATION, COL_PLAYLIST_DESCRIPTION]
     }
 }
+
 impl HasImages for SimplifiedPlaylist {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for SimplifiedPlaylist {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -145,7 +148,9 @@ impl PlaylistLike for FullPlaylist {
     fn total_tracks(&self) -> u32 {
         self.tracks.total
     }
+}
 
+impl HasDuration for FullPlaylist {
     fn duration(&self) -> u32 {
         self.tracks
             .items
@@ -159,11 +164,13 @@ impl PlaylistLike for FullPlaylist {
         self.tracks.total as usize == self.tracks.items.len()
     }
 }
+
 impl HasImages for FullPlaylist {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for FullPlaylist {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -198,7 +205,9 @@ impl PlaylistLike for FullShow {
     fn total_tracks(&self) -> u32 {
         self.episodes.total
     }
+}
 
+impl HasDuration for FullShow {
     fn duration(&self) -> u32 {
         self.episodes
             .items
@@ -211,12 +220,15 @@ impl PlaylistLike for FullShow {
         self.episodes.items.len() == self.episodes.total as usize
     }
 }
+
 impl MissingColumns for FullShow {}
+
 impl HasImages for FullShow {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for FullShow {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -249,6 +261,12 @@ impl PlaylistLike for SimplifiedShow {
     }
 }
 
+impl HasDuration for SimplifiedShow {
+    fn duration_exact(&self) -> bool {
+        false
+    }
+}
+
 impl MissingColumns for SimplifiedShow {
     fn missing_columns() -> &'static [u32]
     where
@@ -257,11 +275,13 @@ impl MissingColumns for SimplifiedShow {
         &[COL_PLAYLIST_TOTAL_TRACKS, COL_PLAYLIST_DURATION]
     }
 }
+
 impl HasImages for SimplifiedShow {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for SimplifiedShow {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -294,6 +314,12 @@ impl PlaylistLike for Show {
     }
 }
 
+impl HasDuration for Show {
+    fn duration_exact(&self) -> bool {
+        false
+    }
+}
+
 impl MissingColumns for Show {
     fn missing_columns() -> &'static [u32]
     where
@@ -302,11 +328,13 @@ impl MissingColumns for Show {
         &[COL_PLAYLIST_TOTAL_TRACKS, COL_PLAYLIST_DURATION]
     }
 }
+
 impl HasImages for Show {
     fn images(&self) -> &[Image] {
         &self.show.images
     }
 }
+
 impl RowLike for Show {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()

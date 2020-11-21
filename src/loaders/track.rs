@@ -2,6 +2,7 @@ use crate::loaders::common::{
     ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
 use crate::loaders::paged::RowLike;
+use crate::loaders::HasDuration;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -364,7 +365,7 @@ impl ContainerLoader for ShowLoader {
     }
 }
 
-pub trait TrackLike {
+pub trait TrackLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
@@ -383,7 +384,6 @@ pub trait TrackLike {
     fn is_playable(&self) -> bool {
         true
     }
-    fn duration(&self) -> u32;
     fn release_date(&self) -> Option<&str> {
         self.album().and_then(|album| album.release_date.as_deref())
     }
@@ -492,12 +492,14 @@ impl TrackLike for PlayHistory {
         self.track.is_playable()
     }
 
-    fn duration(&self) -> u32 {
-        self.track.duration()
-    }
-
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
+    }
+}
+
+impl HasDuration for PlayHistory {
+    fn duration(&self) -> u32 {
+        self.track.duration_ms
     }
 }
 
@@ -548,12 +550,17 @@ impl TrackLike for PlaylistTrack {
             .unwrap_or(false)
     }
 
-    fn duration(&self) -> u32 {
-        self.track.as_ref().map(FullTrack::duration).unwrap_or(0)
-    }
-
     fn release_date(&self) -> Option<&str> {
         self.track.as_ref().and_then(FullTrack::release_date)
+    }
+}
+
+impl HasDuration for PlaylistTrack {
+    fn duration(&self) -> u32 {
+        self.track.as_ref().map_or(0, |track| track.duration_ms)
+    }
+    fn duration_exact(&self) -> bool {
+        self.track.is_some()
     }
 }
 
@@ -601,12 +608,14 @@ impl TrackLike for FullTrack {
         self.is_playable.unwrap_or(true)
     }
 
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-
     fn release_date(&self) -> Option<&str> {
         self.album.release_date.as_deref()
+    }
+}
+
+impl HasDuration for FullTrack {
+    fn duration(&self) -> u32 {
+        self.duration_ms
     }
 }
 
@@ -645,7 +654,9 @@ impl TrackLike for SimplifiedTrack {
     fn number(&self) -> u32 {
         self.track_number
     }
+}
 
+impl HasDuration for SimplifiedTrack {
     fn duration(&self) -> u32 {
         self.duration_ms
     }
@@ -700,12 +711,14 @@ impl TrackLike for SavedTrack {
         self.track.is_playable()
     }
 
-    fn duration(&self) -> u32 {
-        self.track.duration()
-    }
-
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
+    }
+}
+
+impl HasDuration for SavedTrack {
+    fn duration(&self) -> u32 {
+        self.track.duration_ms
     }
 }
 
@@ -745,12 +758,14 @@ impl TrackLike for FullEpisode {
         self.is_playable
     }
 
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
+    }
+}
+
+impl HasDuration for FullEpisode {
+    fn duration(&self) -> u32 {
+        self.duration_ms
     }
 }
 
@@ -790,12 +805,14 @@ impl TrackLike for SimplifiedEpisode {
         self.is_playable
     }
 
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
-
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
+    }
+}
+
+impl HasDuration for SimplifiedEpisode {
+    fn duration(&self) -> u32 {
+        self.duration_ms
     }
 }
 
@@ -814,7 +831,17 @@ impl MissingColumns for SimplifiedEpisode {
     }
 }
 
+impl HasDuration for PlayingItem {
+    fn duration(&self) -> u32 {
+        match self {
+            PlayingItem::Track(track) => track.duration_ms,
+            PlayingItem::Episode(episode) => episode.duration_ms,
+        }
+    }
+}
+
 impl MissingColumns for PlayingItem {}
+
 impl HasImages for PlayingItem {
     fn images(&self) -> &[Image] {
         match self {
@@ -840,6 +867,6 @@ impl_track_like_for_playing_item! {
     id -> &str, uri -> &str, name -> &str,
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
-    duration -> u32, release_date -> Option<&str>,
+    release_date -> Option<&str>,
     description -> Option<&str>
 }

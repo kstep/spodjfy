@@ -1,4 +1,6 @@
-use crate::loaders::{ContainerLoader, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB};
+use crate::loaders::{
+    ContainerLoader, HasDuration, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB,
+};
 use crate::servers::spotify::SpotifyProxy;
 use glib::{IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -102,6 +104,7 @@ impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handl
     pub fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_items = 0;
+        self.model.total_duration = 0;
 
         let status_ctx = self.status_bar.get_context_id("totals");
         self.status_bar.remove_all(status_ctx);
@@ -171,7 +174,7 @@ impl<Loader, ItemsView, Handler, Message> Update
     for ContainerList<Loader, ItemsView, Handler, Message>
 where
     Loader: ContainerLoader + Clone + 'static,
-    Loader::Item: RowLike + HasImages,
+    Loader::Item: RowLike + HasImages + HasDuration,
     Loader::Page: PageLike<Loader::Item>,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows,
@@ -253,8 +256,11 @@ where
                         (page.num_offset() as f64 + items.len() as f64) / page.total() as f64,
                     );
 
+                    let mut page_duration = 0;
                     for item in items {
                         let pos = item.append_to_store(store);
+
+                        page_duration += item.duration();
 
                         let image = self.model.image_loader.find_best_thumb(item.images());
 
@@ -262,6 +268,8 @@ where
                             stream.emit(LoadThumb(url.to_owned(), pos).into());
                         }
                     }
+
+                    self.model.total_duration += page_duration;
 
                     if let Some(next_offset) = page.next_offset() {
                         stream.emit(LoadPage(next_offset, epoch).into());
@@ -310,7 +318,7 @@ impl<Loader, ItemsView, Handler, Message> Widget
     for ContainerList<Loader, ItemsView, Handler, Message>
 where
     Loader: ContainerLoader + Clone + 'static,
-    Loader::Item: RowLike + HasImages,
+    Loader::Item: RowLike + HasImages + HasDuration,
     Loader::Page: PageLike<Loader::Item>,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows + AsRef<gtk::Widget> + ItemsListView<Loader, Message>,

@@ -2,6 +2,7 @@ use crate::loaders::common::{
     ContainerLoader, HasImages, MissingColumns, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
 use crate::loaders::paged::RowLike;
+use crate::loaders::HasDuration;
 use crate::servers::spotify::{ResultSender, SpotifyCmd};
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -88,7 +89,7 @@ impl ContainerLoader for ArtistLoader {
     }
 }
 
-pub trait AlbumLike {
+pub trait AlbumLike: HasDuration + HasImages {
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
     fn release_date(&self) -> &str;
@@ -100,12 +101,6 @@ pub trait AlbumLike {
         &[]
     }
     fn kind(&self) -> AlbumType;
-    fn duration(&self) -> u32 {
-        0
-    }
-    fn duration_exact(&self) -> bool {
-        false
-    }
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         store.insert_with_values(
@@ -176,7 +171,9 @@ impl AlbumLike for FullAlbum {
     fn kind(&self) -> AlbumType {
         self.album_type
     }
+}
 
+impl HasDuration for FullAlbum {
     fn duration(&self) -> u32 {
         self.tracks
             .items
@@ -189,12 +186,15 @@ impl AlbumLike for FullAlbum {
         self.tracks.total as usize == self.tracks.items.len()
     }
 }
+
 impl MissingColumns for FullAlbum {}
+
 impl HasImages for FullAlbum {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for FullAlbum {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -234,6 +234,12 @@ impl AlbumLike for SimplifiedAlbum {
     }
 }
 
+impl HasDuration for SimplifiedAlbum {
+    fn duration_exact(&self) -> bool {
+        false
+    }
+}
+
 impl MissingColumns for SimplifiedAlbum {
     fn missing_columns() -> &'static [u32]
     where
@@ -242,11 +248,13 @@ impl MissingColumns for SimplifiedAlbum {
         &[COL_ALBUM_DURATION, COL_ALBUM_TOTAL_TRACKS, COL_ALBUM_GENRES]
     }
 }
+
 impl HasImages for SimplifiedAlbum {
     fn images(&self) -> &[Image] {
         &self.images
     }
 }
+
 impl RowLike for SimplifiedAlbum {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()
@@ -285,7 +293,9 @@ impl AlbumLike for SavedAlbum {
     fn kind(&self) -> AlbumType {
         self.album.kind()
     }
+}
 
+impl HasDuration for SavedAlbum {
     fn duration(&self) -> u32 {
         self.album.duration()
     }
@@ -296,11 +306,13 @@ impl AlbumLike for SavedAlbum {
 }
 
 impl MissingColumns for SavedAlbum {}
+
 impl HasImages for SavedAlbum {
     fn images(&self) -> &[Image] {
         &self.album.images
     }
 }
+
 impl RowLike for SavedAlbum {
     fn content_types() -> Vec<Type> {
         Self::store_content_types()

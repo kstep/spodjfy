@@ -1,3 +1,4 @@
+use crate::loaders::HasDuration;
 use glib::{IsA, Type};
 use rspotify::model::page::{CursorBasedPage, Page};
 
@@ -24,6 +25,16 @@ impl<T> PageLike<T> for Vec<T> {
     fn init_offset() -> Self::Offset {}
 }
 
+impl<T: HasDuration> HasDuration for Vec<T> {
+    fn duration(&self) -> u32 {
+        self.iter().map(|item| item.duration()).sum()
+    }
+
+    fn duration_exact(&self) -> bool {
+        self.iter().all(|item| item.duration_exact())
+    }
+}
+
 impl<T> PageLike<T> for Page<T> {
     type Offset = u32;
     fn items(&self) -> &[T] {
@@ -47,6 +58,17 @@ impl<T> PageLike<T> for Page<T> {
     }
 }
 
+impl<T: HasDuration> HasDuration for Page<T> {
+    fn duration(&self) -> u32 {
+        self.items.iter().map(|item| item.duration()).sum()
+    }
+
+    fn duration_exact(&self) -> bool {
+        (self.items.len() == self.total as usize)
+            && self.items.iter().all(|item| item.duration_exact())
+    }
+}
+
 impl<T> PageLike<T> for CursorBasedPage<T> {
     type Offset = String;
     fn items(&self) -> &[T] {
@@ -60,6 +82,17 @@ impl<T> PageLike<T> for CursorBasedPage<T> {
     }
     fn next_offset(&self) -> Option<Self::Offset> {
         self.next.clone()
+    }
+}
+
+impl<T: HasDuration> HasDuration for CursorBasedPage<T> {
+    fn duration(&self) -> u32 {
+        self.items.iter().map(|item| item.duration()).sum()
+    }
+
+    fn duration_exact(&self) -> bool {
+        (self.items.len() == self.total.unwrap_or(0) as usize)
+            && self.items.iter().all(|item| item.duration_exact())
     }
 }
 

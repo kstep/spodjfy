@@ -27,6 +27,15 @@ pub trait HasImages {
     fn images(&self) -> &[Image];
 }
 
+pub trait HasDuration {
+    fn duration(&self) -> u32 {
+        0
+    }
+    fn duration_exact(&self) -> bool {
+        true
+    }
+}
+
 pub trait MissingColumns {
     fn missing_columns() -> &'static [u32] {
         &[]
