@@ -559,10 +559,9 @@ impl Widget for MediaControls {
                                 selectable: true,
                                 text: self.model.context.as_ref()
                                     .map(|c| match (c.tracks_number(), c.duration()) {
-                                        (0, None) => String::new(),
-                                        (0, Some(d)) => format!("Duration: {}", crate::utils::humanize_time(d)),
-                                        (n, None) => format!("Tracks: {}", n),
-                                        (n, Some(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
+                                        (0, _) => String::new(),
+                                        (n, Ok(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
+                                        (n, Err(d)) => format!("Tracks: {}, duration: around {}", n, crate::utils::humanize_inexact_time(d)),
                                     })
                                     .as_deref()
                                     .unwrap_or("")

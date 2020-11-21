@@ -1,3 +1,4 @@
+use crate::loaders::HasDuration;
 use itertools::Itertools;
 use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, Type};
 use std::borrow::Cow;
@@ -51,41 +52,34 @@ impl PlayContext {
         }
     }
 
-    pub fn duration(&self) -> Option<u32> {
+    pub fn duration(&self) -> Result<u32, u32> {
         match self {
             PlayContext::Album(ctx) => {
-                if ctx.tracks.next.is_none() {
-                    Some(ctx.tracks.items.iter().map(|track| track.duration_ms).sum())
+                let duration = ctx.duration();
+                if ctx.duration_exact() {
+                    Ok(duration)
                 } else {
-                    None
+                    let average_duration = duration / ctx.tracks.items.len() as u32;
+                    Err(ctx.tracks.total * average_duration)
                 }
             }
-            PlayContext::Artist(_) => None,
+            PlayContext::Artist(_) => Err(0),
             PlayContext::Playlist(ctx) => {
-                if ctx.tracks.next.is_none() {
-                    Some(
-                        ctx.tracks
-                            .items
-                            .iter()
-                            .filter_map(|track| track.track.as_ref())
-                            .map(|track| track.duration_ms)
-                            .sum(),
-                    )
+                let duration = ctx.duration();
+                if ctx.duration_exact() {
+                    Ok(duration)
                 } else {
-                    None
+                    let average_duration = duration / ctx.tracks.items.len() as u32;
+                    Err(ctx.tracks.total * average_duration)
                 }
             }
             PlayContext::Show(ctx) => {
-                if ctx.episodes.next.is_none() {
-                    Some(
-                        ctx.episodes
-                            .items
-                            .iter()
-                            .map(|episode| episode.duration_ms)
-                            .sum(),
-                    )
+                let duration = ctx.duration();
+                if ctx.duration_exact() {
+                    Ok(duration)
                 } else {
-                    None
+                    let average_duration = duration / ctx.episodes.items.len() as u32;
+                    Err(ctx.episodes.total * average_duration)
                 }
             }
         }
