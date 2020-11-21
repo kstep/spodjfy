@@ -46,7 +46,8 @@ pub struct ContainerModel<Loader> {
     pub items_loader: Option<Loader>,
     pub image_loader: ImageLoader,
     pub total_items: u32,
-    pub total_duration: u32, // TODO
+    pub total_duration: u32,
+    pub total_duration_exact: bool,
     pub is_loading: bool,
 }
 
@@ -65,6 +66,7 @@ impl<Loader> ContainerModel<Loader> {
             items_loader: None,
             total_items: 0,
             total_duration: 0,
+            total_duration_exact: true,
             is_loading: false,
         }
     }
@@ -105,6 +107,7 @@ impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handl
         self.model.store.clear();
         self.model.total_items = 0;
         self.model.total_duration = 0;
+        self.model.total_duration_exact = true;
 
         let status_ctx = self.status_bar.get_context_id("totals");
         self.status_bar.remove_all(status_ctx);
@@ -149,9 +152,14 @@ where
 
         let totals = if self.model.total_duration > 0 {
             format!(
-                "Total items: {}, total duration: {}",
+                "Total items: {}, total duration: {}{}",
                 self.model.total_items,
-                crate::utils::humanize_time(self.model.total_duration)
+                crate::utils::humanize_time(self.model.total_duration),
+                if self.model.total_duration_exact {
+                    ""
+                } else {
+                    "+"
+                }
             )
         } else {
             format!("Total items: {}", self.model.total_items)
@@ -257,10 +265,12 @@ where
                     );
 
                     let mut page_duration = 0;
+                    let mut page_duration_exact = true;
                     for item in items {
                         let pos = item.append_to_store(store);
 
                         page_duration += item.duration();
+                        page_duration_exact = page_duration_exact && item.duration_exact();
 
                         let image = self.model.image_loader.find_best_thumb(item.images());
 
@@ -270,6 +280,9 @@ where
                     }
 
                     self.model.total_duration += page_duration;
+                    if !page_duration_exact {
+                        self.model.total_duration_exact = false;
+                    }
 
                     if let Some(next_offset) = page.next_offset() {
                         stream.emit(LoadPage(next_offset, epoch).into());
