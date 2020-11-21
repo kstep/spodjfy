@@ -147,12 +147,18 @@ impl Widget for MediaControls {
             }
             UseDevice(device_id) => {
                 if let Some(id) = device_id {
-                    if let Some(state) = self.model.state.as_mut() {
+                    let play = if let Some(state) = self.model.state.as_mut() {
+                        if state.device.id == id {
+                            return;
+                        }
                         state.device.id = id.clone();
-                    }
+                        state.is_playing
+                    } else {
+                        false
+                    };
                     self.model
                         .spotify
-                        .tell(SpotifyCmd::UseDevice { id })
+                        .tell(SpotifyCmd::UseDevice { id, play })
                         .unwrap();
                 }
             }

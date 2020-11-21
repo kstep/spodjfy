@@ -140,7 +140,7 @@ impl Widget for DevicesTab {
 
                     self.model
                         .spotify
-                        .tell(SpotifyCmd::UseDevice { id })
+                        .tell(SpotifyCmd::UseDevice { id, play: false })
                         .unwrap();
                 }
             }
