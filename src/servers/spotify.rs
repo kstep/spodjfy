@@ -23,6 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use derivative::Derivative;
 
 const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
@@ -88,16 +89,21 @@ impl SpotifyProxy {
 
 pub type ResultSender<T> = relm::Sender<ClientResult<T>>;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub enum SpotifyCmd {
     SetupClient {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<String>,
         id: String,
         secret: String,
     },
     GetAuthorizeUrl {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<String>,
     },
     AuthorizeUser {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<()>,
         code: String,
     },
@@ -107,32 +113,38 @@ pub enum SpotifyCmd {
     PlayPrevTrack,
     PlayNextTrack,
     GetMyShows {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<Show>>,
         offset: u32,
         limit: u32,
     },
     GetShowEpisodes {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedEpisode>>,
         limit: u32,
         offset: u32,
         uri: String,
     },
     GetMyArtists {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<CursorBasedPage<FullArtist>>,
         cursor: Option<String>,
         limit: u32,
     },
     GetMyAlbums {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SavedAlbum>>,
         offset: u32,
         limit: u32,
     },
     GetMyPlaylists {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedPlaylist>>,
         offset: u32,
         limit: u32,
     },
     GetMyTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SavedTrack>>,
         offset: u32,
         limit: u32,
@@ -145,10 +157,12 @@ pub enum SpotifyCmd {
         start_uri: Option<String>,
     },
     GetTracksFeatures {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<AudioFeatures>>,
         uris: Vec<String>,
     },
     GetMyDevices {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<Device>>,
     },
     UseDevice {
@@ -164,15 +178,18 @@ pub enum SpotifyCmd {
         mode: RepeatState,
     },
     GetPlaybackState {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Option<CurrentPlaybackContext>>,
     },
     GetPlaylistTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<PlaylistTrack>>,
         limit: u32,
         offset: u32,
         uri: String,
     },
     GetAlbumTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedTrack>>,
         limit: u32,
         offset: u32,
@@ -182,28 +199,34 @@ pub enum SpotifyCmd {
         pos: u32,
     },
     GetPlaylist {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<FullPlaylist>,
         uri: String,
     },
     GetAlbum {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<FullAlbum>,
         uri: String,
     },
     GetArtist {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<FullArtist>,
         uri: String,
     },
     GetArtistAlbums {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedAlbum>>,
         uri: String,
         offset: u32,
         limit: u32,
     },
     GetShow {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<FullShow>,
         uri: String,
     },
     GetRecentTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<PlayHistory>>,
         limit: u32,
     },
@@ -220,44 +243,53 @@ pub enum SpotifyCmd {
         uris: Vec<String>,
     },
     GetQueueTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<FullTrack>>,
     },
     GetCategories {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<Category>>,
         offset: u32,
         limit: u32,
     },
     GetCategoryPlaylists {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedPlaylist>>,
         category_id: String,
         offset: u32,
         limit: u32,
     },
     GetFeaturedPlaylists {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedPlaylist>>,
         offset: u32,
         limit: u32,
     },
     GetNewReleases {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<SimplifiedAlbum>>,
         offset: u32,
         limit: u32,
     },
     GetMyTopTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<FullTrack>>,
         offset: u32,
         limit: u32,
     },
     GetMyTopArtists {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Page<FullArtist>>,
         offset: u32,
         limit: u32,
     },
     GetArtistTopTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<FullTrack>>,
         uri: String,
     },
     GetRecommendedTracks {
+        #[derivative(Debug="ignore")]
         tx: ResultSender<Vec<SimplifiedTrack>>,
         limit: u32,
         seed_artists: Option<Vec<String>>,
@@ -333,6 +365,8 @@ impl SpotifyServer {
 
     async fn handle(client: Arc<Mutex<Spotify>>, msg: SpotifyCmd) -> Result<(), SpotifyError> {
         use SpotifyCmd::*;
+        debug!("serving message: {:?}", msg);
+
         match msg {
             SetupClient { tx, id, secret } => {
                 let url = client.lock().await.setup_client(id, secret).await;

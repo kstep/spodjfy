@@ -29,7 +29,7 @@ impl Widget for AlbumsTab {
         use AlbumsMsg::*;
         match event {
             ShowTab => {
-                self.albums_view.emit(ContainerMsg::Reload);
+                self.albums_view.emit(ContainerMsg::Load(()));
             }
             OpenAlbum(uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());
