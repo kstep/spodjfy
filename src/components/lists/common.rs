@@ -374,7 +374,7 @@ where
         let context_menu = items_view.context_menu(relm.stream().clone());
         context_menu.show_all();
 
-        root.add(&context_menu);
+        //root.add(&context_menu);
 
         root.show_all();
 
