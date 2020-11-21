@@ -1,6 +1,4 @@
-use crate::loaders::common::{ContainerLoader, HasImages, COL_ITEM_THUMB};
-use crate::loaders::image::ImageLoader;
-use crate::loaders::paged::{PageLike, RowLike};
+use crate::loaders::{ContainerLoader, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB};
 use crate::servers::spotify::SpotifyProxy;
 use glib::{IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;

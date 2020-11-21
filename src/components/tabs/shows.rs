@@ -1,8 +1,5 @@
-use crate::components::lists::common::ContainerMsg;
-use crate::components::lists::playlist::PlaylistList;
-use crate::components::lists::track::{TrackList, TrackMsg};
-use crate::loaders::playlist::ShowsLoader;
-use crate::loaders::track::ShowLoader;
+use crate::components::lists::{ContainerMsg, PlaylistList, TrackList, TrackMsg};
+use crate::loaders::{ShowLoader, ShowsLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{EventStream, Relm, Widget};

@@ -2,17 +2,12 @@ pub mod handler;
 pub mod item_view;
 pub mod message;
 
-use crate::components::lists::common::{ContainerList, ContainerMsg, GetSelectedRows};
-use crate::loaders::common::ContainerLoader;
+use crate::components::lists::{ContainerList, GetSelectedRows};
 use crate::loaders::track::*;
-use crate::servers::spotify::SpotifyCmd;
+use crate::loaders::ContainerLoader;
 use gtk::TreeModelExt;
 use handler::TrackMsgHandler;
 use item_view::TrackView;
-use relm_derive::Msg;
-use rspotify::model::audio::AudioFeatures;
-use serde_json::Map;
-use std::convert::TryFrom;
 
 pub use message::TrackMsg;
 

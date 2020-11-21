@@ -193,7 +193,7 @@ impl Widget for MediaControls {
                 if let Some(item) = state.as_ref().as_ref().and_then(|s| s.item.as_ref()) {
                     let (cover_url, duration_ms, track_uri) = match item {
                         PlayingItem::Track(track) => (
-                            crate::loaders::image::find_best_thumb(
+                            crate::loaders::find_best_thumb(
                                 track.album.images.iter(),
                                 TRACK_COVER_SIZE,
                             ),
@@ -201,7 +201,7 @@ impl Widget for MediaControls {
                             &*track.uri,
                         ),
                         PlayingItem::Episode(episode) => (
-                            crate::loaders::image::find_best_thumb(
+                            crate::loaders::find_best_thumb(
                                 episode.images.iter(),
                                 TRACK_COVER_SIZE,
                             ),
@@ -252,7 +252,7 @@ impl Widget for MediaControls {
                 self.model.state = *state;
             }
             LoadCover(url, is_for_track) => {
-                let pixbuf = crate::loaders::image::pixbuf_from_url(
+                let pixbuf = crate::loaders::pixbuf_from_url(
                     &url,
                     if is_for_track {
                         TRACK_COVER_SIZE
@@ -405,8 +405,7 @@ impl Widget for MediaControls {
             }
             NewContext(context) => {
                 let images = context.images();
-                if let Some(cover_url) =
-                    crate::loaders::image::find_best_thumb(images, CONTEXT_COVER_SIZE)
+                if let Some(cover_url) = crate::loaders::find_best_thumb(images, CONTEXT_COVER_SIZE)
                 {
                     self.model
                         .stream

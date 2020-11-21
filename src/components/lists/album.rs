@@ -13,11 +13,11 @@
 //!# macro_rules! view { ($body:tt*) => {} }
 //!# let (tx, rx) = channel();
 //!# let spotify = Arc::new(SpotifyProxy::new(tx));
-//! use spodjfy::components::lists::album::AlbumList;
-//! use spodjfy::loaders::album::SavedLoader;
+//! use spodjfy::components::lists::AlbumList;
+//! use spodjfy::loaders::SavedAlbumsLoader;
 //!
 //! view! {
-//!     AlbumList::<SavedLoader>(spotify.clone())
+//!     AlbumList::<SavedAlbumsLoader>(spotify.clone())
 //! }
 //! ```
 
@@ -25,7 +25,7 @@ use crate::components::lists::common::{
     ContainerList, ContainerMsg, GetSelectedRows, ItemsListView,
 };
 use crate::loaders::album::*;
-use crate::loaders::common::{ContainerLoader, MissingColumns};
+use crate::loaders::{ContainerLoader, MissingColumns};
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};

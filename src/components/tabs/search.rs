@@ -1,5 +1,5 @@
-use crate::components::lists::track::TrackList;
-use crate::loaders::track::RecommendLoader;
+use crate::components::lists::TrackList;
+use crate::loaders::RecommendLoader;
 use crate::servers::spotify::SpotifyProxy;
 use gtk::{ButtonExt, LabelExt};
 use relm::{EventStream, Relm, Widget};

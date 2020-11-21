@@ -1,9 +1,5 @@
-use crate::components::lists::common::ContainerMsg;
-use crate::components::lists::playlist::PlaylistList;
-use crate::components::lists::track::{TrackList, TrackMsg};
-use crate::loaders::image::ImageLoader;
-use crate::loaders::playlist::CategoryLoader;
-use crate::loaders::track::PlaylistLoader;
+use crate::components::lists::{ContainerMsg, PlaylistList, TrackList, TrackMsg};
+use crate::loaders::{CategoryLoader, ImageLoader, PlaylistLoader};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use glib::StaticType;
 use gtk::prelude::*;

@@ -20,11 +20,9 @@
 //!     PlaylistList::<SavedLoader>(spotify.clone())
 //! }
 //! ```
-use crate::components::lists::common::{
-    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView,
-};
-use crate::loaders::common::{ContainerLoader, MissingColumns};
+use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
 use crate::loaders::playlist::*;
+use crate::loaders::{ContainerLoader, MissingColumns};
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};

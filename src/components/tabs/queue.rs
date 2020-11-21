@@ -1,6 +1,5 @@
-use crate::components::lists::common::ContainerMsg;
-use crate::components::lists::track::{TrackList, TrackMsg};
-use crate::loaders::track::QueueLoader;
+use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
+use crate::loaders::QueueLoader;
 use crate::servers::spotify::SpotifyProxy;
 use relm::Widget;
 use relm_derive::{widget, Msg};

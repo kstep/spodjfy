@@ -1,13 +1,14 @@
-use crate::components::lists::common::{ContainerMsg, GetSelectedRows, MessageHandler};
-use crate::components::lists::track::{TrackList, TrackMsg};
-use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
-use crate::loaders::paged::{PageLike, RowLike};
+use crate::components::lists::{
+    ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
+};
 use crate::loaders::track::*;
+use crate::loaders::{ContainerLoader, HasImages, MissingColumns, PageLike, RowLike};
 use crate::servers::spotify::SpotifyCmd;
 use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,
 };
+use serde_json::Map;
 
 pub struct TrackMsgHandler;
 

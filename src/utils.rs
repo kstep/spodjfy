@@ -1,4 +1,4 @@
-use crate::loaders::common::{COL_ITEM_NAME, COL_ITEM_URI};
+use crate::loaders::{COL_ITEM_NAME, COL_ITEM_URI};
 use gtk::TreeModelExt;
 
 pub fn humanize_time(time_ms: u32) -> String {

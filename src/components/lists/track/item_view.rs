@@ -1,7 +1,6 @@
-use crate::components::lists::common::{ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::components::lists::track::TrackMsg;
-use crate::loaders::common::{ContainerLoader, MissingColumns};
+use crate::components::lists::{ContainerMsg, GetSelectedRows, ItemsListView, TrackMsg};
 use crate::loaders::track::*;
+use crate::loaders::{ContainerLoader, MissingColumns};
 use glib::signal::Inhibit;
 use glib::{Cast, IsA, ObjectExt};
 use gtk::{

@@ -1,7 +1,8 @@
 use crate::components::lists::common::ContainerMsg;
-use crate::loaders::common::ContainerLoader;
-use glib::bitflags::_core::convert::TryFrom;
+use crate::loaders::ContainerLoader;
+use relm_derive::Msg;
 use rspotify::model::AudioFeatures;
+use std::convert::TryFrom;
 
 #[derive(Msg)]
 pub enum TrackMsg<Loader: ContainerLoader> {

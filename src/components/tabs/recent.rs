@@ -1,6 +1,5 @@
-use crate::components::lists::common::ContainerMsg;
-use crate::components::lists::track::{TrackList, TrackMsg};
-use crate::loaders::track::RecentLoader;
+use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
+use crate::loaders::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
 use glib::IsA;
 use relm::Widget;
