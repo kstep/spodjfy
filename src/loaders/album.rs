@@ -11,13 +11,17 @@ use rspotify::model::{
     AlbumType, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist,
 };
 
+const NAME: &str = "albums";
+
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
+
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
     type Item = SavedAlbum;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         SavedLoader
@@ -38,11 +42,13 @@ impl ContainerLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct NewReleasesLoader;
+
 impl ContainerLoader for NewReleasesLoader {
     type ParentId = ();
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         NewReleasesLoader
@@ -70,6 +76,7 @@ impl ContainerLoader for ArtistLoader {
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(uri: Self::ParentId) -> Self {
         ArtistLoader { uri }

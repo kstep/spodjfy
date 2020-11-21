@@ -18,6 +18,8 @@ use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::PlayingItem;
 use serde_json::{Map, Value};
 
+const NAME: &str = "tracks";
+
 #[derive(Clone, Copy)]
 pub struct Seed<Val: Copy> {
     min: Option<Val>,
@@ -82,6 +84,7 @@ impl ContainerLoader for RecommendLoader {
     type Item = SimplifiedTrack;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 100;
+    const NAME: &'static str = NAME;
 
     fn new(mut tunables: Self::ParentId) -> Self {
         let seed_artists = Self::extract_vec_string(&mut tunables, "seed_artists", 5);
@@ -186,6 +189,7 @@ impl ContainerLoader for SavedLoader {
     type Item = SavedTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         SavedLoader
@@ -212,6 +216,7 @@ impl ContainerLoader for RecentLoader {
     type Item = PlayHistory;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 50;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         RecentLoader
@@ -237,6 +242,7 @@ impl ContainerLoader for QueueLoader {
     type Item = FullTrack;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 0;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         QueueLoader
@@ -261,6 +267,7 @@ impl ContainerLoader for AlbumLoader {
     type Item = SimplifiedTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
+    const NAME: &'static str = NAME;
 
     fn new(uri: Self::ParentId) -> Self {
         AlbumLoader { uri }
@@ -291,6 +298,7 @@ impl ContainerLoader for PlaylistLoader {
     type Item = PlaylistTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
+    const NAME: &'static str = NAME;
 
     fn new(uri: Self::ParentId) -> Self {
         PlaylistLoader { uri }
@@ -319,6 +327,7 @@ impl ContainerLoader for MyTopTracksLoader {
     type Item = FullTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_uri: Self::ParentId) -> Self {
         MyTopTracksLoader
@@ -347,6 +356,7 @@ impl ContainerLoader for ShowLoader {
     type Item = SimplifiedEpisode;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
+    const NAME: &'static str = NAME;
 
     fn new(uri: Self::ParentId) -> Self {
         ShowLoader { uri }

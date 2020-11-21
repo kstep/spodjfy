@@ -9,6 +9,8 @@ use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{CursorBasedPage, FullArtist, Image, Page, SimplifiedArtist};
 
+const NAME: &str = "artists";
+
 pub trait ArtistLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
@@ -129,6 +131,7 @@ impl ContainerLoader for SavedLoader {
     type Item = FullArtist;
     type Page = CursorBasedPage<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         SavedLoader
@@ -160,6 +163,7 @@ impl ContainerLoader for MyTopArtistsLoader {
     type Item = FullArtist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         MyTopArtistsLoader

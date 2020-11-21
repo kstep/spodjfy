@@ -11,6 +11,8 @@ pub trait ContainerLoader {
     type Item;
     type Page: PageLike<Self::Item>;
     const PAGE_LIMIT: u32;
+    const NAME: &'static str = "items";
+
     fn new(id: Self::ParentId) -> Self;
     fn parent_id(&self) -> &Self::ParentId;
     fn load_page(

@@ -18,6 +18,8 @@ pub const COL_PLAYLIST_DURATION: u32 = 4;
 pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
 pub const COL_PLAYLIST_PUBLISHER: u32 = 6;
 
+const NAME: &str = "playlists";
+
 pub trait PlaylistLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
@@ -347,11 +349,13 @@ impl RowLike for Show {
 
 #[derive(Clone, Copy)]
 pub struct FeaturedLoader;
+
 impl ContainerLoader for FeaturedLoader {
     type ParentId = ();
     type Item = SimplifiedPlaylist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         FeaturedLoader
@@ -372,11 +376,13 @@ impl ContainerLoader for FeaturedLoader {
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
+
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
     type Item = SimplifiedPlaylist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         SavedLoader
@@ -397,11 +403,13 @@ impl ContainerLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct ShowsLoader;
+
 impl ContainerLoader for ShowsLoader {
     type ParentId = ();
     type Item = Show;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
         ShowsLoader
@@ -424,11 +432,13 @@ impl ContainerLoader for ShowsLoader {
 pub struct CategoryLoader {
     id: String,
 }
+
 impl ContainerLoader for CategoryLoader {
     type ParentId = String;
     type Item = SimplifiedPlaylist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
 
     fn new(id: Self::ParentId) -> Self {
         CategoryLoader { id }

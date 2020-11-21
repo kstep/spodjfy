@@ -152,7 +152,8 @@ where
 
         let totals = if self.model.total_duration > 0 {
             format!(
-                "Total items: {}, total duration: {}{}",
+                "Total {}: {}, total duration: {}{}",
+                Loader::NAME,
                 self.model.total_items,
                 crate::utils::humanize_time(self.model.total_duration),
                 if self.model.total_duration_exact {
@@ -162,7 +163,7 @@ where
                 }
             )
         } else {
-            format!("Total items: {}", self.model.total_items)
+            format!("Total {}: {}", Loader::NAME, self.model.total_items)
         };
 
         self.status_bar.push(status_ctx, &totals);
