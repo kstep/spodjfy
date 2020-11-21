@@ -1,5 +1,5 @@
 use crate::components::lists::common::{ContainerMsg, GetSelectedRows, MessageHandler};
-use crate::components::lists::track::{PlayContextCmd, TrackList, TrackMsg};
+use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns};
 use crate::loaders::paged::{PageLike, RowLike};
 use crate::loaders::track::*;
@@ -20,7 +20,7 @@ where
     ContainerMsg<Loader>: Into<TrackMsg<Loader>>,
 {
     fn handle(this: &mut TrackList<Loader>, message: TrackMsg<Loader>) -> Option<TrackMsg<Loader>> {
-        use TrackMsg::*;
+        use crate::components::lists::track::message::TrackMsg::*;
 
         match message {
             Parent(ContainerMsg::NewPage(page, epoch)) => {
@@ -226,5 +226,30 @@ where
             }
         }
         None
+    }
+}
+
+pub trait PlayContextCmd {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd;
+}
+
+impl PlayContextCmd for () {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayTracks { uris }
+    }
+}
+
+impl<K, V> PlayContextCmd for Map<K, V> {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayTracks { uris }
+    }
+}
+
+impl PlayContextCmd for String {
+    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+        SpotifyCmd::PlayContext {
+            uri: self,
+            start_uri: uris.first().cloned(),
+        }
     }
 }
