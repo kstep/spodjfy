@@ -365,6 +365,7 @@ where
 
         let refresh_btn =
             gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
+        refresh_btn.set_tooltip_text(Some("Reload list"));
         let stream = relm.stream().clone();
         refresh_btn.connect_clicked(move |_| stream.emit(ContainerMsg::Reload.into()));
         status_bar.pack_start(&refresh_btn, false, false, 0);
