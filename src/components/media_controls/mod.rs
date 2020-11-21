@@ -26,12 +26,14 @@ mod play_context;
 use self::play_context::PlayContext;
 use crate::config::Settings;
 use crate::loaders::track::TrackLike;
+use crate::loaders::{HasDuration, HasImages, ImageLoader};
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use notify_rust::Notification;
+use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::context::Context;
@@ -77,6 +79,7 @@ pub struct MediaControlsModel {
     context: Option<PlayContext>,
     track_cover: Option<Pixbuf>,
     context_cover: Option<Pixbuf>,
+    image_loaders: [ImageLoader; 2],
     settings: Arc<RwLock<Settings>>,
 }
 
@@ -109,11 +112,15 @@ impl Widget for MediaControls {
 
         let devices = gtk::ListStore::new(&[String::static_type(), String::static_type()]);
 
+        let track_image_loader = ImageLoader::new_with_resize(TRACK_COVER_SIZE);
+        let context_image_loader = ImageLoader::new_with_resize(CONTEXT_COVER_SIZE);
+
         MediaControlsModel {
             stream,
             spotify,
             devices,
             settings,
+            image_loaders: [context_image_loader, track_image_loader],
             state: None,
             context: None,
             track_cover: None,
@@ -197,24 +204,11 @@ impl Widget for MediaControls {
                 };
 
                 if let Some(item) = state.as_ref().as_ref().and_then(|s| s.item.as_ref()) {
-                    let (cover_url, duration_ms, track_uri) = match item {
-                        PlayingItem::Track(track) => (
-                            crate::loaders::find_best_thumb(
-                                track.album.images.iter(),
-                                TRACK_COVER_SIZE,
-                            ),
-                            track.duration_ms,
-                            &*track.uri,
-                        ),
-                        PlayingItem::Episode(episode) => (
-                            crate::loaders::find_best_thumb(
-                                episode.images.iter(),
-                                TRACK_COVER_SIZE,
-                            ),
-                            episode.duration_ms,
-                            &*episode.uri,
-                        ),
-                    };
+                    let (cover_url, duration_ms, track_uri) = (
+                        self.model.image_loaders[1].find_best_thumb(item.images()),
+                        item.duration(),
+                        item.uri(),
+                    );
 
                     if track_uri != old_track_uri {
                         self.model.track_cover = None;
@@ -258,17 +252,13 @@ impl Widget for MediaControls {
                 self.model.state = *state;
             }
             LoadCover(url, is_for_track) => {
-                let pixbuf = crate::loaders::pixbuf_from_url(
-                    &url,
-                    if is_for_track {
-                        TRACK_COVER_SIZE
-                    } else {
-                        CONTEXT_COVER_SIZE
-                    },
-                );
-                if let Ok(cover) = pixbuf {
-                    self.model.stream.emit(NewCover(cover, is_for_track));
-                }
+                let stream = Fragile::new(self.model.stream.clone());
+                let loader = &mut self.model.image_loaders[is_for_track as usize];
+                loader.load_from_url(&url, move |reply| {
+                    if let Ok(Some(cover)) = reply {
+                        stream.into_inner().emit(NewCover(cover, is_for_track));
+                    }
+                });
             }
             NewCover(cover, is_for_track) => {
                 if is_for_track {
@@ -411,8 +401,7 @@ impl Widget for MediaControls {
             }
             NewContext(context) => {
                 let images = context.images();
-                if let Some(cover_url) = crate::loaders::find_best_thumb(images, CONTEXT_COVER_SIZE)
-                {
+                if let Some(cover_url) = self.model.image_loaders[0].find_best_thumb(images) {
                     self.model
                         .stream
                         .emit(LoadCover(cover_url.to_owned(), false));
