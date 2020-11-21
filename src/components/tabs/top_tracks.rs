@@ -1,15 +1,10 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
+use crate::components::tabs::MusicTabMsg;
 use crate::loaders::MyTopTracksLoader;
 use crate::servers::spotify::SpotifyProxy;
 use relm::Widget;
-use relm_derive::{widget, Msg};
+use relm_derive::widget;
 use std::sync::Arc;
-
-#[derive(Msg)]
-pub enum TopTracksMsg {
-    ShowTab,
-    GoToTrack(String),
-}
 
 pub struct TopTracksModel {
     spotify: Arc<SpotifyProxy>,
@@ -21,14 +16,16 @@ impl Widget for TopTracksTab {
         TopTracksModel { spotify }
     }
 
-    fn update(&mut self, event: TopTracksMsg) {
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
         match event {
-            TopTracksMsg::ShowTab => {
+            ShowTab => {
                 self.tracks.emit(ContainerMsg::Load(()).into());
             }
-            TopTracksMsg::GoToTrack(uri) => {
+            GoToTrack(uri) => {
                 self.tracks.emit(TrackMsg::GoToTrack(uri));
             }
+            _ => {}
         }
     }
 

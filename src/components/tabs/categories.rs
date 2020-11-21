@@ -1,45 +1,36 @@
 use crate::components::lists::{CategoryList, ContainerMsg, PlaylistList, TrackList, TrackMsg};
+use crate::components::tabs::MusicTabMsg;
 use crate::loaders::{CategoriesLoader, CategoryLoader, PlaylistLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
-use relm::{EventStream, Relm, Widget};
-use relm_derive::{widget, Msg};
+use relm::{Relm, Widget};
+use relm_derive::widget;
 use std::sync::Arc;
 
-#[derive(Msg)]
-pub enum CategoriesMsg {
-    ShowTab,
-    OpenCategory(String, String),
-    OpenPlaylist(String, String),
-    GoToTrack(String),
-}
-
 pub struct CategoriesModel {
-    stream: EventStream<CategoriesMsg>,
     spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for CategoriesTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> CategoriesModel {
-        let stream = relm.stream().clone();
-        CategoriesModel { stream, spotify }
+    fn model(spotify: Arc<SpotifyProxy>) -> CategoriesModel {
+        CategoriesModel { spotify }
     }
 
-    fn update(&mut self, event: CategoriesMsg) {
-        use CategoriesMsg::*;
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
         match event {
             ShowTab => {
                 self.categories_view.emit(ContainerMsg::Load(()));
             }
-            OpenCategory(id, name) => {
+            OpenContainer(0, id, name) => {
                 self.playlists_view.emit(ContainerMsg::Load(id));
 
                 let playlists_tab = self.playlists_view.widget();
                 self.stack.set_child_title(playlists_tab, Some(&name));
                 self.stack.set_visible_child(playlists_tab);
             }
-            OpenPlaylist(uri, name) => {
+            OpenContainer(1, uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());
 
                 let tracks_tab = self.tracks_view.widget();
@@ -49,6 +40,7 @@ impl Widget for CategoriesTab {
             GoToTrack(uri) => {
                 self.tracks_view.emit(TrackMsg::GoToTrack(uri));
             }
+            _ => {}
         }
     }
 
@@ -79,18 +71,20 @@ impl Widget for CategoriesTab {
 
     fn init_view(&mut self) {
         self.breadcrumb.set_stack(Some(&self.stack));
+    }
 
-        let stream = self.model.stream.clone();
+    fn subscriptions(&mut self, relm: &Relm<Self>) {
+        let stream = relm.stream().clone();
         self.categories_view.stream().observe(move |msg| {
             if let ContainerMsg::ActivateItem(uri, name) = msg {
-                stream.emit(CategoriesMsg::OpenCategory(uri.clone(), name.clone()));
+                stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
             }
         });
 
-        let stream = self.model.stream.clone();
+        let stream = relm.stream().clone();
         self.playlists_view.stream().observe(move |msg| {
             if let ContainerMsg::ActivateItem(uri, name) = msg {
-                stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
+                stream.emit(MusicTabMsg::OpenContainer(1, uri.clone(), name.clone()));
             }
         });
     }

@@ -1,16 +1,10 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
+use crate::components::tabs::MusicTabMsg;
 use crate::loaders::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
-use glib::IsA;
 use relm::Widget;
-use relm_derive::{widget, Msg};
+use relm_derive::widget;
 use std::sync::Arc;
-
-#[derive(Msg)]
-pub enum RecentMsg {
-    ShowTab,
-    GoToTrack(String),
-}
 
 pub struct RecentModel {
     spotify: Arc<SpotifyProxy>,
@@ -22,8 +16,8 @@ impl Widget for RecentTab {
         RecentModel { spotify }
     }
 
-    fn update(&mut self, event: RecentMsg) {
-        use RecentMsg::*;
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
         match event {
             ShowTab => {
                 self.recent_view.emit(ContainerMsg::Load(()).into());
@@ -31,15 +25,12 @@ impl Widget for RecentTab {
             GoToTrack(uri) => {
                 self.recent_view.emit(TrackMsg::GoToTrack(uri));
             }
+            _ => {}
         }
     }
 
     view! {
         #[name="recent_view"]
         TrackList::<RecentLoader>(self.model.spotify.clone()),
-    }
-
-    fn on_add<W: IsA<gtk::Widget> + IsA<glib::Object>>(&self, _parent: W) {
-        //self.recent_view.emit(ContainerListMsg::Reload);
     }
 }

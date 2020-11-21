@@ -1,15 +1,10 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
+use crate::components::tabs::MusicTabMsg;
 use crate::loaders::SavedTracksLoader as SavedLoader;
 use crate::servers::spotify::SpotifyProxy;
 use relm::Widget;
-use relm_derive::{widget, Msg};
+use relm_derive::widget;
 use std::sync::Arc;
-
-#[derive(Msg)]
-pub enum FavoritesMsg {
-    ShowTab,
-    GoToTrack(String),
-}
 
 pub struct FavoritesModel {
     spotify: Arc<SpotifyProxy>,
@@ -21,15 +16,17 @@ impl Widget for FavoritesTab {
         FavoritesModel { spotify }
     }
 
-    fn update(&mut self, event: FavoritesMsg) {
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
         match event {
-            FavoritesMsg::ShowTab => {
+            ShowTab => {
                 self.tracks.emit(ContainerMsg::Load(()).into());
             }
-            FavoritesMsg::GoToTrack(uri) => {
+            GoToTrack(uri) => {
                 self.tracks.emit(ContainerMsg::Load(()).into());
                 self.tracks.emit(TrackMsg::GoToTrack(uri));
             }
+            _ => {}
         }
     }
 

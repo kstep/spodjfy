@@ -1,37 +1,29 @@
 use crate::components::lists::{ContainerMsg, PlaylistList, TrackList, TrackMsg};
+use crate::components::tabs::MusicTabMsg;
 use crate::loaders::{ShowLoader, ShowsLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
-use relm::{EventStream, Relm, Widget};
-use relm_derive::{widget, Msg};
+use relm::{Relm, Widget};
+use relm_derive::widget;
 use std::sync::Arc;
 
-#[derive(Msg)]
-pub enum ShowsMsg {
-    ShowTab,
-    OpenShow(String, String),
-    GoToTrack(String),
-}
-
 pub struct ShowsModel {
-    stream: EventStream<ShowsMsg>,
     spotify: Arc<SpotifyProxy>,
 }
 
 #[widget]
 impl Widget for ShowsTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> ShowsModel {
-        let stream = relm.stream().clone();
-        ShowsModel { stream, spotify }
+    fn model(spotify: Arc<SpotifyProxy>) -> ShowsModel {
+        ShowsModel { spotify }
     }
 
-    fn update(&mut self, event: ShowsMsg) {
-        use ShowsMsg::*;
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
         match event {
             ShowTab => {
                 self.shows_view.emit(ContainerMsg::Load(()));
             }
-            OpenShow(uri, name) => {
+            OpenContainer(0, uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());
 
                 let show_widget = self.tracks_view.widget();
@@ -41,6 +33,7 @@ impl Widget for ShowsTab {
             GoToTrack(uri) => {
                 self.tracks_view.emit(TrackMsg::GoToTrack(uri));
             }
+            _ => {}
         }
     }
 
@@ -66,11 +59,13 @@ impl Widget for ShowsTab {
 
     fn init_view(&mut self) {
         self.breadcrumb.set_stack(Some(&self.stack));
+    }
 
-        let stream = self.model.stream.clone();
+    fn subscriptions(&mut self, relm: &Relm<Self>) {
+        let stream = relm.stream().clone();
         self.shows_view.stream().observe(move |msg| {
             if let ContainerMsg::ActivateItem(uri, name) = msg {
-                stream.emit(ShowsMsg::OpenShow(uri.clone(), name.clone()));
+                stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
             }
         });
     }

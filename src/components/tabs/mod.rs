@@ -13,3 +13,13 @@ pub mod settings;
 pub mod shows;
 pub mod top_artists;
 pub mod top_tracks;
+
+use relm_derive::Msg;
+
+#[derive(Msg)]
+pub enum MusicTabMsg {
+    ShowTab,
+    OpenContainer(u8, String, String),
+    GoToTrack(String),
+    PlaybackUpdate,
+}

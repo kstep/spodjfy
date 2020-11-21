@@ -8,21 +8,22 @@ use std::sync::{Arc, RwLock};
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::{Notifier, NotifierMsg};
-use crate::components::tabs::albums::{AlbumsMsg, AlbumsTab};
-use crate::components::tabs::artists::{ArtistsMsg, ArtistsTab};
-use crate::components::tabs::categories::{CategoriesMsg, CategoriesTab};
+use crate::components::tabs::albums::AlbumsTab;
+use crate::components::tabs::artists::ArtistsTab;
+use crate::components::tabs::categories::CategoriesTab;
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
-use crate::components::tabs::favorites::{FavoritesMsg, FavoritesTab};
-use crate::components::tabs::featured::{FeaturedMsg, FeaturedTab};
-use crate::components::tabs::new_releases::{NewReleasesMsg, NewReleasesTab};
-use crate::components::tabs::playlists::{PlaylistsMsg, PlaylistsTab};
-use crate::components::tabs::queue::{QueueMsg, QueueTab};
-use crate::components::tabs::recent::{RecentMsg, RecentTab};
+use crate::components::tabs::favorites::FavoritesTab;
+use crate::components::tabs::featured::FeaturedTab;
+use crate::components::tabs::new_releases::NewReleasesTab;
+use crate::components::tabs::playlists::PlaylistsTab;
+use crate::components::tabs::queue::QueueTab;
+use crate::components::tabs::recent::RecentTab;
 use crate::components::tabs::search::{SearchMsg, SearchTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
-use crate::components::tabs::shows::{ShowsMsg, ShowsTab};
-use crate::components::tabs::top_artists::{TopArtistsMsg, TopArtistsTab};
-use crate::components::tabs::top_tracks::{TopTracksMsg, TopTracksTab};
+use crate::components::tabs::shows::ShowsTab;
+use crate::components::tabs::top_artists::TopArtistsTab;
+use crate::components::tabs::top_tracks::TopTracksTab;
+use crate::components::tabs::MusicTabMsg;
 use crate::config::Settings;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
 use rspotify::model::Type;
@@ -160,46 +161,46 @@ impl Widget for Win {
             }
             ChangeTab(widget_name) => match widget_name.as_deref() {
                 Some("recent_tab") => {
-                    self.recent_tab.emit(RecentMsg::ShowTab);
+                    self.recent_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("queue_tab") => {
-                    self.queue_tab.emit(QueueMsg::ShowTab);
+                    self.queue_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("settings_tab") => {
                     self.settings_tab.emit(SettingsMsg::ShowTab);
                 }
                 Some("albums_tab") => {
-                    self.albums_tab.emit(AlbumsMsg::ShowTab);
+                    self.albums_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("artists_tab") => {
-                    self.artists_tab.emit(ArtistsMsg::ShowTab);
+                    self.artists_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("playlists_tab") => {
-                    self.playlists_tab.emit(PlaylistsMsg::ShowTab);
+                    self.playlists_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("devices_tab") => {
                     self.devices_tab.emit(DevicesMsg::ShowTab);
                 }
                 Some("favorites_tab") => {
-                    self.favorites_tab.emit(FavoritesMsg::ShowTab);
+                    self.favorites_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("shows_tab") => {
-                    self.shows_tab.emit(ShowsMsg::ShowTab);
+                    self.shows_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("new_releases_tab") => {
-                    self.new_releases_tab.emit(NewReleasesMsg::ShowTab);
+                    self.new_releases_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("featured_tab") => {
-                    self.featured_tab.emit(FeaturedMsg::ShowTab);
+                    self.featured_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("categories_tab") => {
-                    self.categories_tab.emit(CategoriesMsg::ShowTab);
+                    self.categories_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("top_tracks_tab") => {
-                    self.top_tracks_tab.emit(TopTracksMsg::ShowTab);
+                    self.top_tracks_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("top_artists_tab") => {
-                    self.top_artists_tab.emit(TopArtistsMsg::ShowTab);
+                    self.top_artists_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("search_tab") => {
                     self.search_tab.emit(SearchMsg::ShowTab);
@@ -385,11 +386,14 @@ impl Widget for Win {
 
     fn init_view(&mut self) {
         self.sidebar.set_stack(&self.stack);
+
         let notifier = self.model.notifier.widget();
         self.overlay.add_overlay(notifier);
         self.overlay.set_overlay_pass_through(notifier, true);
+    }
 
-        let stream = self.model.stream.clone();
+    fn subscriptions(&mut self, relm: &Relm<Self>) {
+        let stream = relm.stream().clone();
         let notifier = self.model.notifier.stream().clone();
         let spotify = self.model.spotify.clone();
         self.model.spotify_errors.observe(move |err| {
@@ -427,36 +431,29 @@ impl Widget for Win {
         let stream = self.model.stream.clone();
         self.media_controls.stream().observe(move |msg| {
             if let MediaControlsMsg::GoToTrack(kind, uri, context_info) = msg {
+                let (tab, tab_stream) = match kind {
+                    Type::Album => (Tab::Albums, &albums_stream),
+                    Type::Playlist => (Tab::Playlists, &playlists_stream),
+                    Type::Show => (Tab::Shows, &shows_stream),
+                    Type::Track => (Tab::Favorites, &favorites_stream),
+                    _ => return,
+                };
+
+                stream.emit(Msg::GoToTab(tab));
+
                 let uri = uri.clone();
                 let context_info = context_info.clone();
-                match kind {
-                    Type::Album => {
-                        stream.emit(Msg::GoToTab(Tab::Albums));
-                        if let Some((uri, name)) = context_info {
-                            albums_stream.emit(AlbumsMsg::OpenAlbum(uri, name));
-                        }
-                        albums_stream.emit(AlbumsMsg::GoToTrack(uri));
-                    }
-                    Type::Playlist => {
-                        stream.emit(Msg::GoToTab(Tab::Playlists));
-                        if let Some((uri, name)) = context_info {
-                            playlists_stream.emit(PlaylistsMsg::OpenPlaylist(uri, name));
-                        }
-                        playlists_stream.emit(PlaylistsMsg::GoToTrack(uri));
-                    }
-                    Type::Show => {
-                        stream.emit(Msg::GoToTab(Tab::Shows));
-                        if let Some((uri, name)) = context_info {
-                            shows_stream.emit(ShowsMsg::OpenShow(uri, name));
-                        }
-                        shows_stream.emit(ShowsMsg::GoToTrack(uri));
-                    }
-                    Type::Track => {
-                        stream.emit(Msg::GoToTab(Tab::Favorites));
-                        favorites_stream.emit(FavoritesMsg::GoToTrack(uri))
-                    }
-                    _ => (),
+                if let Some((uri, name)) = context_info {
+                    tab_stream.emit(MusicTabMsg::OpenContainer(0, uri, name));
                 }
+                tab_stream.emit(MusicTabMsg::GoToTrack(uri));
+            }
+        });
+
+        let media_controls_stream = self.media_controls.stream().clone();
+        self.albums_tab.stream().observe(move |msg| {
+            if let MusicTabMsg::PlaybackUpdate = msg {
+                media_controls_stream.emit(MediaControlsMsg::LoadState);
             }
         });
     }
