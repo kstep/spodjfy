@@ -124,7 +124,7 @@ pub const COL_ARTIST_NAME: u32 = COL_ITEM_NAME;
 pub const COL_ARTIST_GENRES: u32 = 3;
 
 #[derive(Clone, Copy)]
-pub struct SavedLoader;
+pub struct SavedLoader(usize);
 
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
@@ -134,7 +134,7 @@ impl ContainerLoader for SavedLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        SavedLoader
+        SavedLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -153,10 +153,14 @@ impl ContainerLoader for SavedLoader {
             limit: Self::PAGE_LIMIT,
         }
     }
+
+    fn epoch(&self) -> usize {
+        self.0
+    }
 }
 
 #[derive(Clone, Copy)]
-pub struct MyTopArtistsLoader;
+pub struct MyTopArtistsLoader(usize);
 
 impl ContainerLoader for MyTopArtistsLoader {
     type ParentId = ();
@@ -166,7 +170,7 @@ impl ContainerLoader for MyTopArtistsLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        MyTopArtistsLoader
+        MyTopArtistsLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -179,5 +183,9 @@ impl ContainerLoader for MyTopArtistsLoader {
             offset,
             limit: Self::PAGE_LIMIT,
         }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }

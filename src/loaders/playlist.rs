@@ -375,7 +375,7 @@ impl ContainerLoader for FeaturedLoader {
 }
 
 #[derive(Clone, Copy)]
-pub struct SavedLoader;
+pub struct SavedLoader(usize);
 
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
@@ -385,7 +385,7 @@ impl ContainerLoader for SavedLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        SavedLoader
+        SavedLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -399,10 +399,14 @@ impl ContainerLoader for SavedLoader {
             limit: Self::PAGE_LIMIT,
         }
     }
+
+    fn epoch(&self) -> usize {
+        self.0
+    }
 }
 
 #[derive(Clone, Copy)]
-pub struct ShowsLoader;
+pub struct ShowsLoader(usize);
 
 impl ContainerLoader for ShowsLoader {
     type ParentId = ();
@@ -412,7 +416,7 @@ impl ContainerLoader for ShowsLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        ShowsLoader
+        ShowsLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -425,6 +429,10 @@ impl ContainerLoader for ShowsLoader {
             offset,
             limit: Self::PAGE_LIMIT,
         }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }
 

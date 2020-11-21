@@ -1734,6 +1734,7 @@ dependencies = [
  "log",
  "notify-rust",
  "pango",
+ "rand",
  "relm",
  "relm-derive",
  "rspotify",

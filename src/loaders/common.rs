@@ -20,7 +20,7 @@ pub trait ContainerLoader {
         tx: ResultSender<Self::Page>,
         offset: <<Self as ContainerLoader>::Page as PageLike<Self::Item>>::Offset,
     ) -> SpotifyCmd;
-    fn uuid(&self) -> usize {
+    fn epoch(&self) -> usize {
         self as *const _ as *const () as usize
     }
 }

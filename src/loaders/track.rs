@@ -182,7 +182,7 @@ impl ContainerLoader for RecommendLoader {
 }
 
 #[derive(Clone, Copy)]
-pub struct SavedLoader;
+pub struct SavedLoader(usize);
 
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
@@ -192,7 +192,7 @@ impl ContainerLoader for SavedLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        SavedLoader
+        SavedLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -206,10 +206,14 @@ impl ContainerLoader for SavedLoader {
             limit: Self::PAGE_LIMIT,
         }
     }
+
+    fn epoch(&self) -> usize {
+        self.0
+    }
 }
 
 #[derive(Clone, Copy)]
-pub struct RecentLoader;
+pub struct RecentLoader(usize);
 
 impl ContainerLoader for RecentLoader {
     type ParentId = ();
@@ -219,7 +223,7 @@ impl ContainerLoader for RecentLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        RecentLoader
+        RecentLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -232,10 +236,14 @@ impl ContainerLoader for RecentLoader {
             limit: Self::PAGE_LIMIT,
         }
     }
+
+    fn epoch(&self) -> usize {
+        self.0
+    }
 }
 
 #[derive(Clone, Copy)]
-pub struct QueueLoader;
+pub struct QueueLoader(usize);
 
 impl ContainerLoader for QueueLoader {
     type ParentId = ();
@@ -245,7 +253,7 @@ impl ContainerLoader for QueueLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        QueueLoader
+        QueueLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -254,6 +262,10 @@ impl ContainerLoader for QueueLoader {
 
     fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
         SpotifyCmd::GetQueueTracks { tx }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }
 
@@ -320,7 +332,7 @@ impl ContainerLoader for PlaylistLoader {
 }
 
 #[derive(Clone, Copy)]
-pub struct MyTopTracksLoader;
+pub struct MyTopTracksLoader(usize);
 
 impl ContainerLoader for MyTopTracksLoader {
     type ParentId = ();
@@ -330,7 +342,7 @@ impl ContainerLoader for MyTopTracksLoader {
     const NAME: &'static str = NAME;
 
     fn new(_uri: Self::ParentId) -> Self {
-        MyTopTracksLoader
+        MyTopTracksLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -343,6 +355,10 @@ impl ContainerLoader for MyTopTracksLoader {
             offset,
             limit: Self::PAGE_LIMIT,
         }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }
 

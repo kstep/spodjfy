@@ -38,7 +38,7 @@ impl RowLike for Category {
 }
 
 #[derive(Clone, Copy)]
-pub struct CategoriesLoader;
+pub struct CategoriesLoader(usize);
 
 impl ContainerLoader for CategoriesLoader {
     type ParentId = ();
@@ -48,7 +48,7 @@ impl ContainerLoader for CategoriesLoader {
     const NAME: &'static str = "categories";
 
     fn new(_id: Self::ParentId) -> Self {
-        CategoriesLoader
+        CategoriesLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -61,6 +61,10 @@ impl ContainerLoader for CategoriesLoader {
             offset,
             limit: Self::PAGE_LIMIT,
         }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }
 

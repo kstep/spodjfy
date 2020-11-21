@@ -118,7 +118,10 @@ where
     Loader: ContainerLoader,
 {
     pub fn current_epoch(&self) -> usize {
-        self.model.items_loader.as_ref().map_or(0, |ldr| ldr.uuid())
+        self.model
+            .items_loader
+            .as_ref()
+            .map_or(0, |ldr| ldr.epoch())
     }
 }
 
@@ -132,7 +135,7 @@ where
         if let Some(ref mut loader) = self.model.items_loader {
             self.model.is_loading = true;
             *loader = Loader::new(loader.parent_id().clone());
-            let epoch = loader.uuid();
+            let epoch = loader.epoch();
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);

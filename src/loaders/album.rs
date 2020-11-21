@@ -14,7 +14,7 @@ use rspotify::model::{
 const NAME: &str = "albums";
 
 #[derive(Clone, Copy)]
-pub struct SavedLoader;
+pub struct SavedLoader(usize);
 
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
@@ -24,7 +24,11 @@ impl ContainerLoader for SavedLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        SavedLoader
+        SavedLoader(rand::random())
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -41,7 +45,7 @@ impl ContainerLoader for SavedLoader {
 }
 
 #[derive(Clone, Copy)]
-pub struct NewReleasesLoader;
+pub struct NewReleasesLoader(usize);
 
 impl ContainerLoader for NewReleasesLoader {
     type ParentId = ();
@@ -51,7 +55,11 @@ impl ContainerLoader for NewReleasesLoader {
     const NAME: &'static str = NAME;
 
     fn new(_id: Self::ParentId) -> Self {
-        NewReleasesLoader
+        NewReleasesLoader(rand::random())
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 
     fn parent_id(&self) -> &Self::ParentId {
