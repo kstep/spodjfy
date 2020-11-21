@@ -30,10 +30,10 @@ impl Widget for CategoriesTab {
         use CategoriesMsg::*;
         match event {
             ShowTab => {
-                self.categories_view.emit(ContainerMsg::Reset((), true));
+                self.categories_view.emit(ContainerMsg::Reload);
             }
             OpenCategory(id, name) => {
-                self.playlists_view.emit(ContainerMsg::Reset(id, true));
+                self.playlists_view.emit(ContainerMsg::Load(id));
 
                 let playlists_tab = self.playlists_view.widget();
                 self.stack.set_child_title(playlists_tab, Some(&name));

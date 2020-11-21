@@ -29,10 +29,10 @@ impl Widget for ArtistsTab {
         use ArtistsMsg::*;
         match event {
             ShowTab => {
-                self.artists_view.emit(ContainerMsg::Reset((), true));
+                self.artists_view.emit(ContainerMsg::Reload);
             }
             OpenArtist(uri, name) => {
-                self.albums_view.emit(ContainerMsg::Reset(uri, true));
+                self.albums_view.emit(ContainerMsg::Load(uri));
 
                 let albums_tab = self.albums_view.widget();
                 self.stack.set_child_title(albums_tab, Some(&name));

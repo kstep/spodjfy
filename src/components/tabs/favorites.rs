@@ -24,7 +24,7 @@ impl Widget for FavoritesTab {
     fn update(&mut self, event: FavoritesMsg) {
         match event {
             FavoritesMsg::ShowTab => {
-                self.tracks.emit(ContainerMsg::Reset((), true).into());
+                self.tracks.emit(ContainerMsg::Reload.into());
             }
             FavoritesMsg::GoToTrack(uri) => {
                 self.tracks.emit(ContainerMsg::Load(()).into());

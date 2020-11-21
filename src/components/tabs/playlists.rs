@@ -29,7 +29,7 @@ impl Widget for PlaylistsTab {
         use PlaylistsMsg::*;
         match event {
             ShowTab => {
-                self.playlists_view.emit(ContainerMsg::Reset((), true));
+                self.playlists_view.emit(ContainerMsg::Reload);
             }
             OpenPlaylist(uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());

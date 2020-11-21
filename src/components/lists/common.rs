@@ -18,7 +18,6 @@ use std::sync::Arc;
 #[derive(Msg)]
 pub enum ContainerMsg<Loader: ContainerLoader> {
     Clear,
-    Reset(Loader::ParentId, bool),
     Load(Loader::ParentId),
     Reload,
     LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset, usize),
@@ -211,13 +210,6 @@ where
                 Clear => {
                     self.clear_store();
                 }
-                Reset(artist_id, reload) => {
-                    self.model.items_loader = Some(Loader::new(artist_id));
-                    self.clear_store();
-                    if reload {
-                        self.start_load();
-                    }
-                }
                 Load(parent_id) => {
                     if self
                         .model
@@ -232,8 +224,11 @@ where
                     }
                 }
                 Reload => {
-                    self.clear_store();
-                    self.start_load();
+                    if let Some(ref mut loader) = self.model.items_loader {
+                        *loader = Loader::new(loader.parent_id().clone());
+                        self.clear_store();
+                        self.start_load();
+                    }
                 }
                 LoadPage(offset, epoch) => {
                     if epoch != self.current_epoch() {
