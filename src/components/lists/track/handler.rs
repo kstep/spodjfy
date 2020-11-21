@@ -97,16 +97,9 @@ where
                     store.set(pos, &[COL_TRACK_BPM], &[&info[idx].tempo]);
                 }
             }
-            GoToTrack(track_id) if this.model.is_loading => {
-                let stream = this.stream.clone();
-                glib::timeout_add_local(500, move || {
-                    stream.emit(GoToTrack(track_id.clone()));
-                    Continue(false)
-                });
-            }
             GoToTrack(track_id) => {
                 let store = &this.model.store;
-                if let Some(pos) = store.get_iter_first() {
+                let found = if let Some(pos) = store.get_iter_first() {
                     loop {
                         if let Ok(Some(uri)) =
                             store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>()
@@ -124,13 +117,25 @@ where
                                     0.0,
                                 );
 
-                                break;
+                                break true;
                             }
                         }
                         if !store.iter_next(&pos) {
-                            break;
+                            break false;
                         }
                     }
+                } else {
+                    false
+                };
+
+                // If the track was not found in the list, and the list is still loading,
+                // try looking for it a little later
+                if !found && this.model.is_loading {
+                    let stream = this.stream.clone();
+                    glib::timeout_add_local(500, move || {
+                        stream.emit(GoToTrack(track_id.clone()));
+                        Continue(false)
+                    });
                 }
             }
             PlayChosenTracks => {
