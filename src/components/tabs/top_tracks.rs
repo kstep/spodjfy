@@ -2,7 +2,7 @@ use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
 use crate::components::tabs::MusicTabMsg;
 use crate::loaders::MyTopTracksLoader;
 use crate::servers::spotify::SpotifyProxy;
-use relm::Widget;
+use relm::{Relm, Widget};
 use relm_derive::widget;
 use std::sync::Arc;
 
@@ -20,17 +20,26 @@ impl Widget for TopTracksTab {
         use MusicTabMsg::*;
         match event {
             ShowTab => {
-                self.tracks.emit(ContainerMsg::Load(()).into());
+                self.tracks_view.emit(ContainerMsg::Load(()).into());
             }
             GoToTrack(uri) => {
-                self.tracks.emit(TrackMsg::GoToTrack(uri));
+                self.tracks_view.emit(TrackMsg::GoToTrack(uri));
             }
             _ => {}
         }
     }
 
     view! {
-        #[name="tracks"]
+        #[name="tracks_view"]
         TrackList::<MyTopTracksLoader>(self.model.spotify.clone())
+    }
+
+    fn subscriptions(&mut self, relm: &Relm<Self>) {
+        let stream = relm.stream().clone();
+        self.tracks_view.stream().observe(move |msg| {
+            if let TrackMsg::PlayingNewTrack = msg {
+                stream.emit(MusicTabMsg::PlaybackUpdate);
+            }
+        });
     }
 }

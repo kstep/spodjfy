@@ -68,7 +68,7 @@ impl Widget for AlbumsTab {
             if let TrackMsg::PlayingNewTrack = msg {
                 stream.emit(MusicTabMsg::PlaybackUpdate);
             }
-        })
+        });
     }
 
     fn init_view(&mut self) {

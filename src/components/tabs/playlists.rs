@@ -67,5 +67,12 @@ impl Widget for PlaylistsTab {
                 stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
             }
         });
+
+        let stream = relm.stream().clone();
+        self.tracks_view.stream().observe(move |msg| {
+            if let TrackMsg::PlayingNewTrack = msg {
+                stream.emit(MusicTabMsg::PlaybackUpdate);
+            }
+        });
     }
 }

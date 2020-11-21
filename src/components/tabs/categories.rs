@@ -87,5 +87,12 @@ impl Widget for CategoriesTab {
                 stream.emit(MusicTabMsg::OpenContainer(1, uri.clone(), name.clone()));
             }
         });
+
+        let stream = relm.stream().clone();
+        self.tracks_view.stream().observe(move |msg| {
+            if let TrackMsg::PlayingNewTrack = msg {
+                stream.emit(MusicTabMsg::PlaybackUpdate);
+            }
+        });
     }
 }

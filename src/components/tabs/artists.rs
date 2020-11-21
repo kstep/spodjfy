@@ -1,4 +1,4 @@
-use crate::components::lists::{AlbumList, ArtistList, ContainerMsg, TrackList};
+use crate::components::lists::{AlbumList, ArtistList, ContainerMsg, TrackList, TrackMsg};
 use crate::components::tabs::MusicTabMsg;
 use crate::loaders::{AlbumLoader, ArtistLoader, SavedArtistsLoader as SavedLoader};
 use crate::servers::spotify::SpotifyProxy;
@@ -82,6 +82,13 @@ impl Widget for ArtistsTab {
         self.albums_view.stream().observe(move |msg| {
             if let ContainerMsg::ActivateItem(uri, name) = msg {
                 stream.emit(MusicTabMsg::OpenContainer(1, uri.clone(), name.clone()));
+            }
+        });
+
+        let stream = relm.stream().clone();
+        self.tracks_view.stream().observe(move |msg| {
+            if let TrackMsg::PlayingNewTrack = msg {
+                stream.emit(MusicTabMsg::PlaybackUpdate);
             }
         });
     }

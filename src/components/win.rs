@@ -450,11 +450,23 @@ impl Widget for Win {
             }
         });
 
-        let media_controls_stream = self.media_controls.stream().clone();
-        self.albums_tab.stream().observe(move |msg| {
-            if let MusicTabMsg::PlaybackUpdate = msg {
-                media_controls_stream.emit(MediaControlsMsg::LoadState);
-            }
-        });
+        macro_rules! connect_playback_update {
+            ($media_controls:ident => ($($tab:ident),+)) => {{
+                $(
+                let media_controls_stream = self.$media_controls.stream().clone();
+                self.$tab.stream().observe(move |msg| {
+                    if let MusicTabMsg::PlaybackUpdate = msg {
+                        media_controls_stream.emit(MediaControlsMsg::LoadState);
+                    }
+                });
+                )+
+            }}
+        }
+
+        connect_playback_update!(media_controls => (
+            albums_tab, artists_tab, categories_tab, favorites_tab,
+            featured_tab, new_releases_tab, queue_tab, recent_tab, shows_tab,
+            top_artists_tab, top_tracks_tab, playlists_tab
+        ));
     }
 }
