@@ -83,7 +83,7 @@ impl Widget for TopArtistsTab {
         let stream = self.model.stream.clone();
         self.albums_view.stream().observe(move |msg| {
             if let ContainerMsg::ActivateItem(uri, name) = msg {
-                stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
+                stream.emit(MusicTabMsg::OpenContainer(1, uri.clone(), name.clone()));
             }
         });
 
