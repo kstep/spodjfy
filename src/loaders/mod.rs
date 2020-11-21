@@ -3,10 +3,12 @@ mod image;
 mod paged;
 
 pub mod album;
+pub mod artist;
 pub mod playlist;
 pub mod track;
 
 pub use album::{SavedLoader as SavedAlbumsLoader, *};
+pub use artist::{SavedLoader as SavedArtistsLoader, *};
 pub use common::*;
 pub use image::{find_best_thumb, pixbuf_from_url, ImageLoader};
 pub use paged::*;

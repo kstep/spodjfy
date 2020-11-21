@@ -180,6 +180,7 @@ impl ContainerLoader for RecommendLoader {
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader;
+
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
     type Item = SavedTrack;
@@ -205,6 +206,7 @@ impl ContainerLoader for SavedLoader {
 
 #[derive(Clone, Copy)]
 pub struct RecentLoader;
+
 impl ContainerLoader for RecentLoader {
     type ParentId = ();
     type Item = PlayHistory;
@@ -309,7 +311,7 @@ impl ContainerLoader for PlaylistLoader {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct MyTopTracksLoader;
 
 impl ContainerLoader for MyTopTracksLoader {
