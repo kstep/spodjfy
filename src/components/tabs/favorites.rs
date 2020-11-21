@@ -1,4 +1,4 @@
-use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::common::ContainerMsg;
 use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::track::SavedLoader;
 use crate::servers::spotify::SpotifyProxy;
@@ -25,12 +25,11 @@ impl Widget for FavoritesTab {
     fn update(&mut self, event: FavoritesMsg) {
         match event {
             FavoritesMsg::ShowTab => {
-                self.tracks.emit(ContainerListMsg::Reset((), true));
+                self.tracks.emit(ContainerMsg::Reset((), true).into());
             }
             FavoritesMsg::GoToTrack(uri) => {
-                self.tracks.emit(ContainerListMsg::Load(()));
-                self.tracks
-                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
+                self.tracks.emit(ContainerMsg::Load(()).into());
+                self.tracks.emit(TrackMsg::GoToTrack(uri));
             }
         }
     }

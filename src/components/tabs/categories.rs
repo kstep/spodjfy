@@ -1,4 +1,4 @@
-use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::common::ContainerMsg;
 use crate::components::lists::playlist::PlaylistList;
 use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::image::ImageLoader;
@@ -115,7 +115,7 @@ impl Widget for CategoriesTab {
                 self.model.store.set_value(&pos, 0, &thumb.to_value());
             }
             OpenCategory(Some((id, name))) => {
-                self.playlists_view.emit(ContainerListMsg::Reset(id, true));
+                self.playlists_view.emit(ContainerMsg::Reset(id, true));
 
                 let playlists_tab = self.playlists_view.widget();
                 self.stack.set_child_title(playlists_tab, Some(&name));
@@ -123,15 +123,14 @@ impl Widget for CategoriesTab {
             }
             OpenCategory(None) => {}
             OpenPlaylist(uri, name) => {
-                self.tracks_view.emit(ContainerListMsg::Load(uri));
+                self.tracks_view.emit(ContainerMsg::Load(uri).into());
 
                 let tracks_tab = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_tab, Some(&name));
                 self.stack.set_visible_child(tracks_tab);
             }
             GoToTrack(uri) => {
-                self.tracks_view
-                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
+                self.tracks_view.emit(TrackMsg::GoToTrack(uri));
             }
         }
     }
@@ -179,7 +178,7 @@ impl Widget for CategoriesTab {
 
         let stream = self.model.stream.clone();
         self.playlists_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::ActivateItem(uri, name) => {
+            ContainerMsg::ActivateItem(uri, name) => {
                 stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
             _ => {}

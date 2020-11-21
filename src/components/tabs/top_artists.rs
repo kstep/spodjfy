@@ -1,5 +1,5 @@
 use crate::components::lists::album::AlbumList;
-use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::common::ContainerMsg;
 use crate::components::lists::track::TrackList;
 use crate::loaders::album::ArtistLoader;
 use crate::loaders::image::ImageLoader;
@@ -138,7 +138,7 @@ impl Widget for TopArtistsTab {
 
                  */
 
-                self.albums_view.emit(ContainerListMsg::Reset(uri, true));
+                self.albums_view.emit(ContainerMsg::Reset(uri, true));
 
                 let albums_tab = self.albums_view.widget();
                 self.stack.set_child_title(albums_tab, Some(&name));
@@ -146,7 +146,7 @@ impl Widget for TopArtistsTab {
             }
             OpenArtist(None) => {}
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(ContainerListMsg::Load(uri));
+                self.tracks_view.emit(ContainerMsg::Load(uri).into());
 
                 let tracks_tab = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_tab, Some(&name));
@@ -205,7 +205,7 @@ impl Widget for TopArtistsTab {
 
         let stream = self.model.stream.clone();
         self.albums_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::ActivateItem(uri, name) => {
+            ContainerMsg::ActivateItem(uri, name) => {
                 stream.emit(TopArtistsMsg::OpenAlbum(uri.clone(), name.clone()));
             }
             _ => {}

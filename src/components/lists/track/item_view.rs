@@ -1,4 +1,4 @@
-use crate::components::lists::common::{ContainerListMsg, GetSelectedRows, ItemsListView};
+use crate::components::lists::common::{ContainerMsg, GetSelectedRows, ItemsListView};
 use crate::components::lists::track::TrackMsg;
 use crate::loaders::common::{ContainerLoader, MissingColumns};
 use crate::loaders::track::*;
@@ -41,17 +41,12 @@ impl GetSelectedRows for TrackView {
     }
 }
 
-impl<Loader> ItemsListView<Loader> for TrackView
+impl<Loader> ItemsListView<Loader, TrackMsg<Loader>> for TrackView
 where
-    Loader: ContainerLoader,
+    Loader: ContainerLoader + 'static,
     Loader::Item: MissingColumns,
 {
-    type CustomMsg = TrackMsg;
-
-    fn create<S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader, TrackMsg>>,
-        store: &S,
-    ) -> Self {
+    fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<TrackMsg<Loader>>, store: &S) -> Self {
         let items_view = gtk::TreeViewBuilder::new()
             .model(store)
             .expand(true)
@@ -172,7 +167,7 @@ where
                     let stream = stream.clone();
                     text_cell.connect_edited(move |_, path, new_text| {
                         if let Ok(bpm) = new_text.parse::<f32>() {
-                            stream.emit(ContainerListMsg::Custom(TrackMsg::NewBpm(path, bpm)));
+                            stream.emit(TrackMsg::NewBpm(path, bpm));
                         }
                     });
                 }
@@ -250,7 +245,9 @@ where
             let stream = stream.clone();
             items_view.connect_button_press_event(move |_, event| {
                 if event.get_button() == 3 {
-                    stream.emit(ContainerListMsg::OpenContextMenu(event.clone()));
+                    stream.emit(TrackMsg::Parent(ContainerMsg::OpenContextMenu(
+                        event.clone(),
+                    )));
                     Inhibit(true)
                 } else {
                     Inhibit(false)
@@ -282,9 +279,7 @@ where
                             .flatten()
                     })
                 }) {
-                    stream.emit(ContainerListMsg::Custom(TrackMsg::PlayTracks(vec![
-                        track_uri,
-                    ])));
+                    stream.emit(TrackMsg::PlayTracks(vec![track_uri]));
                 }
             });
         }
@@ -292,7 +287,7 @@ where
         TrackView(items_view)
     }
 
-    fn context_menu(&self, stream: EventStream<ContainerListMsg<Loader, TrackMsg>>) -> gtk::Menu {
+    fn context_menu(&self, stream: EventStream<TrackMsg<Loader>>) -> gtk::Menu {
         let context_menu = gtk::Menu::new();
 
         macro_rules! menu {
@@ -304,7 +299,7 @@ where
             (@ $stream:ident, ($title:literal => $msg:ident)) => {{
                 let item = gtk::MenuItem::with_label($title);
                 let stream = $stream.clone();
-                item.connect_activate(move |_| stream.emit(ContainerListMsg::Custom(TrackMsg::$msg)));
+                item.connect_activate(move |_| stream.emit(TrackMsg::$msg));
                 item
             }};
             (@ $stream:ident, (===)) => {

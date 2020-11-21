@@ -21,7 +21,7 @@
 //! }
 //! ```
 use crate::components::lists::common::{
-    ContainerList, ContainerListMsg, GetSelectedRows, ItemsListView,
+    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView,
 };
 use crate::loaders::common::{ContainerLoader, MissingColumns};
 use crate::loaders::playlist::*;
@@ -51,12 +51,16 @@ impl AsRef<gtk::Widget> for PlaylistView {
 }
 
 impl PlaylistView {
-    fn build_icon_view<Loader: ContainerLoader, S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader>>,
-        store: &S,
+    fn build_icon_view<Loader, Message, Store>(
+        stream: EventStream<Message>,
+        store: &Store,
     ) -> gtk::IconView
     where
+        Loader: ContainerLoader,
         Loader::Item: MissingColumns,
+        Store: IsA<gtk::TreeModel>,
+        ContainerMsg<Loader>: Into<Message>,
+        Message: 'static,
     {
         let playlists_view = gtk::IconViewBuilder::new()
             .model(store)
@@ -103,19 +107,23 @@ impl PlaylistView {
                 .get_model()
                 .and_then(|model| crate::utils::extract_uri_name(&model, path))
             {
-                stream.emit(ContainerListMsg::ActivateItem(uri, name));
+                stream.emit(ContainerMsg::ActivateItem(uri, name).into());
             }
         });
 
         playlists_view
     }
 
-    fn build_tree_view<Loader: ContainerLoader, S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader>>,
-        store: &S,
+    fn build_tree_view<Loader, Message, Store>(
+        stream: EventStream<Message>,
+        store: &Store,
     ) -> gtk::TreeView
     where
+        Loader: ContainerLoader,
         Loader::Item: MissingColumns,
+        Store: IsA<gtk::TreeModel>,
+        ContainerMsg<Loader>: Into<Message>,
+        Message: 'static,
     {
         let playlists_view = gtk::TreeViewBuilder::new()
             .model(store)
@@ -128,7 +136,7 @@ impl PlaylistView {
                 .get_model()
                 .and_then(|model| crate::utils::extract_uri_name(&model, path))
             {
-                stream.emit(ContainerListMsg::ActivateItem(uri, name));
+                stream.emit(ContainerMsg::ActivateItem(uri, name).into());
             }
         });
 
@@ -259,21 +267,18 @@ impl From<gtk::IconView> for PlaylistView {
     }
 }
 
-impl<Loader> ItemsListView<Loader> for PlaylistView
+impl<Loader, Message> ItemsListView<Loader, Message> for PlaylistView
 where
     Loader: ContainerLoader,
     Loader::Item: MissingColumns,
+    ContainerMsg<Loader>: Into<Message>,
+    Message: 'static,
 {
-    type CustomMsg = ();
-
-    fn create<S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader>>,
-        store: &S,
-    ) -> Self {
+    fn create<Store: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &Store) -> Self {
         if Loader::Item::missing_columns().is_empty() {
-            PlaylistView::build_tree_view::<Loader, S>(stream, store).into()
+            PlaylistView::build_tree_view::<Loader, Message, Store>(stream, store).into()
         } else {
-            PlaylistView::build_icon_view::<Loader, S>(stream, store).into()
+            PlaylistView::build_icon_view::<Loader, Message, Store>(stream, store).into()
         }
     }
 

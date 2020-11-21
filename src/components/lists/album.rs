@@ -22,7 +22,7 @@
 //! ```
 
 use crate::components::lists::common::{
-    ContainerList, ContainerListMsg, GetSelectedRows, ItemsListView,
+    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView,
 };
 use crate::loaders::album::*;
 use crate::loaders::common::{ContainerLoader, MissingColumns};
@@ -31,7 +31,8 @@ use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};
 use relm::EventStream;
 
-#[doc(hidden)]
+pub type AlbumList<Loader> = ContainerList<Loader, AlbumView>;
+
 const THUMB_SIZE: i32 = 48;
 
 pub struct AlbumView(gtk::TreeView);
@@ -51,17 +52,14 @@ impl GetSelectedRows for AlbumView {
     }
 }
 
-impl<Loader> ItemsListView<Loader> for AlbumView
+impl<Loader, Message> ItemsListView<Loader, Message> for AlbumView
 where
     Loader: ContainerLoader,
     Loader::Item: MissingColumns,
+    Message: 'static,
+    ContainerMsg<Loader>: Into<Message>,
 {
-    type CustomMsg = ();
-
-    fn create<S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader>>,
-        store: &S,
-    ) -> Self {
+    fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &S) -> Self {
         let albums_view = gtk::TreeViewBuilder::new()
             .model(store)
             .expand(true)
@@ -85,7 +83,7 @@ where
                         )
                 })
             }) {
-                stream.emit(ContainerListMsg::ActivateItem(uri, name));
+                stream.emit(ContainerMsg::ActivateItem(uri, name).into());
             }
         });
 
@@ -247,5 +245,3 @@ where
         THUMB_SIZE
     }
 }
-
-pub type AlbumList<Loader> = ContainerList<Loader, AlbumView>;

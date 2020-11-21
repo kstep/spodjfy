@@ -1,4 +1,4 @@
-use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::common::ContainerMsg;
 use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::track::RecentLoader;
 use crate::servers::spotify::SpotifyProxy;
@@ -27,11 +27,10 @@ impl Widget for RecentTab {
         use RecentMsg::*;
         match event {
             ShowTab => {
-                self.recent_view.emit(ContainerListMsg::Reset((), true));
+                self.recent_view.emit(ContainerMsg::Reset((), true).into());
             }
             GoToTrack(uri) => {
-                self.recent_view
-                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
+                self.recent_view.emit(TrackMsg::GoToTrack(uri));
             }
         }
     }

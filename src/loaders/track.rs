@@ -453,7 +453,11 @@ impl<T: TrackLike> RowLike for T {
                 &self.release_date(),
                 &self.description(),
                 &self.album().and_then(|album| album.uri.as_deref()),
-                &self.artists().iter().next().and_then(|artist| artist.uri.as_deref()),
+                &self
+                    .artists()
+                    .iter()
+                    .next()
+                    .and_then(|artist| artist.uri.as_deref()),
             ],
         )
     }

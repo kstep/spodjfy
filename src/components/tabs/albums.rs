@@ -1,5 +1,5 @@
 use crate::components::lists::album::AlbumList;
-use crate::components::lists::common::ContainerListMsg;
+use crate::components::lists::common::ContainerMsg;
 use crate::components::lists::track::{TrackList, TrackMsg};
 use crate::loaders::album::SavedLoader;
 use crate::loaders::track::AlbumLoader;
@@ -32,18 +32,17 @@ impl Widget for AlbumsTab {
         use AlbumsMsg::*;
         match event {
             ShowTab => {
-                self.albums_view.emit(ContainerListMsg::Reset((), true));
+                self.albums_view.emit(ContainerMsg::Reset((), true));
             }
             OpenAlbum(uri, name) => {
-                self.tracks_view.emit(ContainerListMsg::Load(uri));
+                self.tracks_view.emit(ContainerMsg::Load(uri).into());
 
                 let tracks_widget = self.tracks_view.widget();
                 self.stack.set_child_title(tracks_widget, Some(&name));
                 self.stack.set_visible_child(tracks_widget);
             }
             GoToTrack(uri) => {
-                self.tracks_view
-                    .emit(ContainerListMsg::Custom(TrackMsg::GoToTrack(uri)));
+                self.tracks_view.emit(TrackMsg::GoToTrack(uri));
             }
         }
     }
@@ -71,7 +70,7 @@ impl Widget for AlbumsTab {
 
         let stream = self.model.stream.clone();
         self.albums_view.stream().observe(move |msg| match msg {
-            ContainerListMsg::ActivateItem(uri, name) => {
+            ContainerMsg::ActivateItem(uri, name) => {
                 stream.emit(AlbumsMsg::OpenAlbum(uri.clone(), name.clone()));
             }
             _ => {}

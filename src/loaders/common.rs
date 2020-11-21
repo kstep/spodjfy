@@ -6,8 +6,8 @@ pub const COL_ITEM_THUMB: u32 = 0;
 pub const COL_ITEM_URI: u32 = 1;
 pub const COL_ITEM_NAME: u32 = 2;
 
-pub trait ContainerLoader: Clone + 'static {
-    type ParentId: Clone;
+pub trait ContainerLoader {
+    type ParentId;
     type Item;
     type Page: PageLike<Self::Item>;
     const PAGE_LIMIT: u32;

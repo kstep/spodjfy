@@ -1,4 +1,4 @@
-use crate::loaders::common::{ContainerLoader, HasImages, MissingColumns, COL_ITEM_THUMB};
+use crate::loaders::common::{ContainerLoader, HasImages, COL_ITEM_THUMB};
 use crate::loaders::image::ImageLoader;
 use crate::loaders::paged::{PageLike, RowLike};
 use crate::servers::spotify::SpotifyProxy;
@@ -9,11 +9,14 @@ use gtk::{
     StatusbarExt, TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
-use relm::{DisplayVariant, EventStream, IntoOption, Relm, Update, Widget};
+use relm::{EventStream, Relm, Update, Widget};
+use relm_derive::Msg;
+use std::convert::TryInto;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-#[derive(Clone)]
-pub enum ContainerListMsg<Loader: ContainerLoader, Other = ()> {
+#[derive(Msg)]
+pub enum ContainerMsg<Loader: ContainerLoader> {
     Clear,
     Reset(Loader::ParentId, bool),
     Load(Loader::ParentId),
@@ -26,55 +29,18 @@ pub enum ContainerListMsg<Loader: ContainerLoader, Other = ()> {
     ActivateItem(String, String),
     ActivateItems(Vec<String>),
     OpenContextMenu(gdk::EventButton),
-    Custom(Other),
 }
 
-impl<Loader: ContainerLoader, Other> IntoOption<Self> for ContainerListMsg<Loader, Other> {
-    fn into_option(self) -> Option<Self> {
-        Some(self)
-    }
-}
-
-impl<Loader: ContainerLoader, Other> DisplayVariant for ContainerListMsg<Loader, Other> {
-    fn display_variant(&self) -> &'static str {
-        use ContainerListMsg::*;
-        match self {
-            Clear => "Clear",
-            Reset(_, _) => "Reset",
-            Load(_) => "Load",
-            Reload => "Reload",
-            LoadPage(_, _) => "LoadPage",
-            NewPage(_, _) => "NewPage",
-            LoadThumb(_, _) => "LoadThumb",
-            NewThumb(_, _) => "NewThumb",
-            ActivateChosenItems => "ActivateChosenItems",
-            ActivateItem(_, _) => "ActivateItem",
-            ActivateItems(_) => "ActivateItems",
-            OpenContextMenu(_) => "OpenContextMenu",
-            Custom(_) => "Custom",
-        }
-    }
-}
-
-pub trait ItemsListView<Loader: ContainerLoader> {
-    type CustomMsg: 'static;
-
-    fn create<S: IsA<gtk::TreeModel>>(
-        stream: EventStream<ContainerListMsg<Loader, Self::CustomMsg>>,
-        store: &S,
-    ) -> Self;
-    fn context_menu(
-        &self,
-        _stream: EventStream<ContainerListMsg<Loader, Self::CustomMsg>>,
-    ) -> gtk::Menu {
+pub trait ItemsListView<Loader, Message> {
+    fn create<Store: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &Store) -> Self;
+    fn context_menu(&self, _stream: EventStream<Message>) -> gtk::Menu {
         gtk::Menu::new()
     }
     fn thumb_size(&self) -> i32;
 }
 
 #[doc(hidden)]
-pub struct ContainerListModel<Loader: ContainerLoader, Message> {
-    pub stream: EventStream<Message>,
+pub struct ContainerModel<Loader> {
     pub spotify: Arc<SpotifyProxy>,
     pub store: gtk::ListStore,
     pub items_loader: Option<Loader>,
@@ -84,23 +50,15 @@ pub struct ContainerListModel<Loader: ContainerLoader, Message> {
     pub is_loading: bool,
 }
 
-impl<Loader: ContainerLoader, Message> ContainerListModel<Loader, Message> {
-    pub fn from_row<R: RowLike>(
-        stream: EventStream<Message>,
-        spotify: Arc<SpotifyProxy>,
-    ) -> Self {
-        Self::new(stream, spotify, &R::content_types())
+impl<Loader> ContainerModel<Loader> {
+    pub fn from_row<R: RowLike>(spotify: Arc<SpotifyProxy>) -> Self {
+        Self::new(spotify, &R::content_types())
     }
-    pub fn new(
-        stream: EventStream<Message>,
-        spotify: Arc<SpotifyProxy>,
-        column_types: &[Type],
-    ) -> Self {
+    pub fn new(spotify: Arc<SpotifyProxy>, column_types: &[Type]) -> Self {
         let store = gtk::ListStore::new(column_types);
         let image_loader = ImageLoader::new();
 
         Self {
-            stream,
             store,
             spotify,
             image_loader,
@@ -130,22 +88,19 @@ impl GetSelectedRows for gtk::IconView {
     }
 }
 
-pub struct ContainerList<Loader: ContainerLoader, ItemsView: ItemsListView<Loader>> {
+pub struct ContainerList<Loader, ItemsView, Handler = (), Message = ContainerMsg<Loader>> {
     pub root: gtk::Box,
     pub items_view: ItemsView,
     pub status_bar: gtk::Statusbar,
-    pub model: ContainerListModel<Loader, ContainerListMsg<Loader, ItemsView::CustomMsg>>,
+    pub stream: EventStream<Message>,
+    pub model: ContainerModel<Loader>,
     pub progress_bar: gtk::ProgressBar,
     pub refresh_btn: gtk::Button,
     pub context_menu: gtk::Menu,
+    handler: PhantomData<Handler>,
 }
 
-impl<Loader, ItemsView> ContainerList<Loader, ItemsView>
-where
-    Loader: ContainerLoader,
-    Loader::Item: RowLike,
-    ItemsView: ItemsListView<Loader>,
-{
+impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handler, Message> {
     pub fn clear_store(&mut self) {
         self.model.store.clear();
         self.model.total_items = 0;
@@ -153,7 +108,23 @@ where
         let status_ctx = self.status_bar.get_context_id("totals");
         self.status_bar.remove_all(status_ctx);
     }
+}
 
+impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handler, Message>
+where
+    Loader: ContainerLoader,
+{
+    pub fn current_epoch(&self) -> usize {
+        self.model.items_loader.as_ref().map_or(0, |ldr| ldr.uuid())
+    }
+}
+
+impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handler, Message>
+where
+    Loader: ContainerLoader,
+    Loader::ParentId: Clone,
+    ContainerMsg<Loader>: Into<Message>,
+{
     pub fn start_load(&mut self) {
         if let Some(ref mut loader) = self.model.items_loader {
             self.model.is_loading = true;
@@ -163,10 +134,8 @@ where
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);
             self.progress_bar.pulse();
-            self.model.stream.emit(ContainerListMsg::LoadPage(
-                Loader::Page::init_offset(),
-                epoch,
-            ));
+            self.stream
+                .emit(ContainerMsg::LoadPage(Loader::Page::init_offset(), epoch).into());
         }
     }
 
@@ -189,145 +158,167 @@ where
 
         self.status_bar.push(status_ctx, &totals);
     }
+}
 
-    pub fn current_epoch(&self) -> usize {
-        self.model.items_loader.as_ref().map_or(0, |ldr| ldr.uuid())
+pub trait MessageHandler<Component, Message> {
+    fn handle(component: &mut Component, message: Message) -> Option<Message>;
+}
+impl<Component, Message> MessageHandler<Component, Message> for () {
+    fn handle(_component: &mut Component, message: Message) -> Option<Message> {
+        Some(message)
     }
 }
 
-impl<Loader, ItemsView> Update for ContainerList<Loader, ItemsView>
+impl<Loader, ItemsView, Handler, Message> Update
+    for ContainerList<Loader, ItemsView, Handler, Message>
 where
-    Loader: ContainerLoader,
+    Loader: ContainerLoader + Clone + 'static,
     Loader::Item: RowLike + HasImages,
-    Loader::ParentId: PartialEq,
-    ItemsView: ItemsListView<Loader> + GetSelectedRows + AsRef<gtk::Widget>,
+    Loader::Page: PageLike<Loader::Item>,
+    Loader::ParentId: Clone + PartialEq,
+    ItemsView: GetSelectedRows,
+    Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
+    ContainerMsg<Loader>: Into<Message>,
+    Handler: MessageHandler<Self, Message>,
 {
-    type Model = ContainerListModel<Loader, Self::Msg>;
+    type Model = ContainerModel<Loader>;
     type ModelParam = Arc<SpotifyProxy>;
-    type Msg = ContainerListMsg<Loader, ItemsView::CustomMsg>;
+    type Msg = Message;
 
-    fn model(relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        ContainerListModel::from_row::<Loader::Item>(relm.stream().clone(), spotify)
+    fn model(_relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
+        ContainerModel::from_row::<Loader::Item>(spotify)
     }
 
     fn update(&mut self, event: Self::Msg) {
-        use crate::utils;
-        use ContainerListMsg::*;
-        match event {
-            Clear => {
-                self.clear_store();
-            }
-            Reset(artist_id, reload) => {
-                self.model.items_loader = Some(Loader::new(artist_id));
-                self.clear_store();
-                if reload {
+        use ContainerMsg::*;
+        let event = match Handler::handle(self, event) {
+            Some(ev) => ev,
+            None => return,
+        };
+
+        if let Ok(msg) = event.try_into() {
+            match msg {
+                Clear => {
+                    self.clear_store();
+                }
+                Reset(artist_id, reload) => {
+                    self.model.items_loader = Some(Loader::new(artist_id));
+                    self.clear_store();
+                    if reload {
+                        self.start_load();
+                    }
+                }
+                Load(parent_id) => {
+                    if self
+                        .model
+                        .items_loader
+                        .as_ref()
+                        .filter(|loader| loader.parent_id() == &parent_id)
+                        .is_none()
+                    {
+                        self.model.items_loader = Some(Loader::new(parent_id));
+                        self.clear_store();
+                        self.start_load()
+                    }
+                }
+                Reload => {
+                    self.clear_store();
                     self.start_load();
                 }
-            }
-            Load(parent_id) => {
-                if self
-                    .model
-                    .items_loader
-                    .as_ref()
-                    .filter(|loader| loader.parent_id() == &parent_id)
-                    .is_none()
-                {
-                    self.model.items_loader = Some(Loader::new(parent_id));
-                    self.clear_store();
-                    self.start_load()
-                }
-            }
-            Reload => {
-                self.clear_store();
-                self.start_load();
-            }
-            LoadPage(offset, epoch) => {
-                if epoch != self.current_epoch() {
-                    return;
-                }
+                LoadPage(offset, epoch) => {
+                    if epoch != self.current_epoch() {
+                        return;
+                    }
 
-                if let Some(ref loader) = self.model.items_loader {
-                    let loader = loader.clone();
+                    if let Some(ref loader) = self.model.items_loader {
+                        let loader = loader.clone();
+                        self.model
+                            .spotify
+                            .ask(
+                                self.stream.clone(),
+                                move |tx| loader.load_page(tx, offset),
+                                move |page| NewPage(page, epoch).into(),
+                            )
+                            .unwrap();
+                    }
+                }
+                NewPage(page, epoch) => {
+                    if epoch != self.current_epoch() {
+                        return;
+                    }
+
+                    let stream = &self.stream;
+                    let store = &self.model.store;
+                    let items = page.items();
+
+                    self.progress_bar.set_fraction(
+                        (page.num_offset() as f64 + items.len() as f64) / page.total() as f64,
+                    );
+
+                    for item in items {
+                        let pos = item.append_to_store(store);
+
+                        let image = self.model.image_loader.find_best_thumb(item.images());
+
+                        if let Some(url) = image {
+                            stream.emit(LoadThumb(url.to_owned(), pos).into());
+                        }
+                    }
+
+                    if let Some(next_offset) = page.next_offset() {
+                        stream.emit(LoadPage(next_offset, epoch).into());
+                    } else {
+                        self.model.total_items = page.total();
+                        self.finish_load();
+                    }
+                }
+                LoadThumb(url, pos) => {
+                    let stream = Fragile::new(self.stream.clone());
+                    let pos = Fragile::new(pos);
+                    self.model.image_loader.load_from_url(&url, move |loaded| {
+                        if let Ok(Some(pb)) = loaded {
+                            stream
+                                .into_inner()
+                                .emit(NewThumb(pb, pos.into_inner()).into());
+                        }
+                    });
+                }
+                NewThumb(thumb, pos) => {
                     self.model
-                        .spotify
-                        .ask(
-                            self.model.stream.clone(),
-                            move |tx| loader.load_page(tx, offset),
-                            move |page| NewPage(page, epoch),
-                        )
-                        .unwrap();
+                        .store
+                        .set_value(&pos, COL_ITEM_THUMB, &thumb.to_value());
                 }
-            }
-            NewPage(page, epoch) => {
-                if epoch != self.current_epoch() {
-                    return;
-                }
+                ActivateChosenItems => {
+                    let (rows, model) = self.items_view.get_selected_rows();
 
-                let stream = &self.model.stream;
-                let store = &self.model.store;
-                let items = page.items();
-
-                self.progress_bar.set_fraction(
-                    (page.num_offset() as f64 + items.len() as f64) / page.total() as f64,
-                );
-
-                for item in items {
-                    let pos = item.append_to_store(store);
-
-                    let image = self.model.image_loader.find_best_thumb(item.images());
-
-                    if let Some(url) = image {
-                        stream.emit(LoadThumb(url.to_owned(), pos));
+                    if let Some((uri, name)) = rows
+                        .first()
+                        .and_then(|path| crate::utils::extract_uri_name(&model, path))
+                    {
+                        self.stream.emit(ActivateItem(uri, name).into());
                     }
                 }
-
-                if let Some(next_offset) = page.next_offset() {
-                    stream.emit(LoadPage(next_offset, epoch));
-                } else {
-                    self.model.total_items = page.total();
-                    self.finish_load();
+                ActivateItem(_, _) => {}
+                ActivateItems(_) => {}
+                OpenContextMenu(event) => {
+                    self.context_menu.popup_at_pointer(Some(&event));
                 }
             }
-            LoadThumb(url, pos) => {
-                let stream = Fragile::new(self.model.stream.clone());
-                let pos = Fragile::new(pos);
-                self.model.image_loader.load_from_url(&url, move |loaded| {
-                    if let Ok(Some(pb)) = loaded {
-                        stream.into_inner().emit(NewThumb(pb, pos.into_inner()));
-                    }
-                });
-            }
-            NewThumb(thumb, pos) => {
-                self.model
-                    .store
-                    .set_value(&pos, COL_ITEM_THUMB, &thumb.to_value());
-            }
-            ActivateChosenItems => {
-                let (rows, model) = self.items_view.get_selected_rows();
-
-                if let Some((uri, name)) = rows
-                    .first()
-                    .and_then(|path| utils::extract_uri_name(&model, path))
-                {
-                    self.model.stream.emit(ActivateItem(uri, name));
-                }
-            }
-            ActivateItem(_, _) => {}
-            ActivateItems(_) => {}
-            OpenContextMenu(event) => {
-                self.context_menu.popup_at_pointer(Some(&event));
-            }
-            Custom(_) => {}
         }
     }
 }
 
-impl<Loader, ItemsView> Widget for ContainerList<Loader, ItemsView>
+impl<Loader, ItemsView, Handler, Message> Widget
+    for ContainerList<Loader, ItemsView, Handler, Message>
 where
-    Loader: ContainerLoader,
-    Loader::Item: RowLike + HasImages + MissingColumns,
-    Loader::ParentId: PartialEq,
-    ItemsView: AsRef<gtk::Widget> + ItemsListView<Loader> + GetSelectedRows,
+    Loader: ContainerLoader + Clone + 'static,
+    Loader::Item: RowLike + HasImages,
+    Loader::Page: PageLike<Loader::Item>,
+    Loader::ParentId: Clone + PartialEq,
+    ItemsView: GetSelectedRows + AsRef<gtk::Widget> + ItemsListView<Loader, Message>,
+    Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
+    ContainerMsg<Loader>: Into<Message>,
+    Handler: MessageHandler<Self, Message>,
 {
     type Root = gtk::Box;
 
@@ -360,7 +351,7 @@ where
         let refresh_btn =
             gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
         let stream = relm.stream().clone();
-        refresh_btn.connect_clicked(move |_| stream.emit(ContainerListMsg::Reload));
+        refresh_btn.connect_clicked(move |_| stream.emit(ContainerMsg::Reload.into()));
         status_bar.pack_start(&refresh_btn, false, false, 0);
 
         root.add(&status_bar);
@@ -372,14 +363,18 @@ where
 
         root.show_all();
 
+        let stream = relm.stream().clone();
+
         ContainerList {
             root,
+            stream,
             items_view,
             status_bar,
             progress_bar,
             refresh_btn,
             context_menu,
             model,
+            handler: PhantomData,
         }
     }
 }
