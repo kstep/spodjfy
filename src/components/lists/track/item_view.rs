@@ -46,6 +46,7 @@ where
     Loader: ContainerLoader + 'static,
     Loader::Item: MissingColumns,
 {
+    #[allow(clippy::redundant_clone)]
     fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<TrackMsg<Loader>>, store: &S) -> Self {
         let items_view = gtk::TreeViewBuilder::new()
             .model(store)

@@ -177,11 +177,10 @@ impl Widget for CategoriesTab {
         self.breadcrumb.set_stack(Some(&self.stack));
 
         let stream = self.model.stream.clone();
-        self.playlists_view.stream().observe(move |msg| match msg {
-            ContainerMsg::ActivateItem(uri, name) => {
+        self.playlists_view.stream().observe(move |msg| {
+            if let ContainerMsg::ActivateItem(uri, name) = msg {
                 stream.emit(CategoriesMsg::OpenPlaylist(uri.clone(), name.clone()));
             }
-            _ => {}
         })
     }
 }

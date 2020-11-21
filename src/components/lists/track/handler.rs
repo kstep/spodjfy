@@ -73,7 +73,6 @@ where
                 if let Some(next_offset) = page.next_offset() {
                     stream.emit(LoadPage(next_offset, epoch).into());
                 } else {
-                    drop(stream);
                     this.model.total_items = page.total();
                     this.finish_load();
                 }

@@ -30,6 +30,12 @@ pub struct Config {
     dirs: ProjectDirs,
 }
 
+impl Default for Config {
+    fn default() -> Config {
+        Config::new()
+    }
+}
+
 impl Config {
     pub fn new() -> Config {
         let dirs = ProjectDirs::from("me", "kstep", "spodjfy").unwrap();

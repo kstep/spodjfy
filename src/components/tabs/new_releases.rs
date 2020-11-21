@@ -71,11 +71,10 @@ impl Widget for NewReleasesTab {
         self.breadcrumb.set_stack(Some(&self.stack));
 
         let stream = self.model.stream.clone();
-        self.albums_view.stream().observe(move |msg| match msg {
-            ContainerMsg::ActivateItem(uri, name) => {
+        self.albums_view.stream().observe(move |msg| {
+            if let ContainerMsg::ActivateItem(uri, name) = msg {
                 stream.emit(NewReleasesMsg::OpenAlbum(uri.clone(), name.clone()));
             }
-            _ => {}
         });
     }
 }

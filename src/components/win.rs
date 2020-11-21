@@ -93,21 +93,6 @@ impl Widget for Win {
                     font-family: "Noto Color Emoji";
                 }
 
-                /*
-                infobar.info > revealer > box {
-                    background-color: #90caf9;
-                }
-                infobar.warning > revealer > box {
-                    background-color: #ffcc80;
-                }
-                infobar.question > revealer > box {
-                    background-color: #ce93d8;
-                }
-                infobar.error > revealer > box {
-                    background-color: #ef9a9a;
-                }
-                */
-
                 #media_controls button.link#track_name_label,
                 #media_controls label#context_name_label {
                     padding: 0;

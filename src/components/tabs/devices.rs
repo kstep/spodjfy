@@ -222,11 +222,6 @@ impl Widget for DevicesTab {
     view! {
         gtk::ScrolledWindow {
             #[name="devices_view"]
-            /*
-            gtk::TreeView {
-                model: Some(&self.model.store)),
-            }
-             */
             gtk::IconView {
                 item_width: ICON_SIZE,
                 pixbuf_column: COL_DEVICE_ICON as i32,

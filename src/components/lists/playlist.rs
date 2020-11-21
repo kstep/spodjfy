@@ -114,6 +114,7 @@ impl PlaylistView {
         playlists_view
     }
 
+    #[allow(clippy::redundant_clone)]
     fn build_tree_view<Loader, Message, Store>(
         stream: EventStream<Message>,
         store: &Store,

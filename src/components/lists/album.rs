@@ -59,6 +59,7 @@ where
     Message: 'static,
     ContainerMsg<Loader>: Into<Message>,
 {
+    #[allow(clippy::redundant_clone)]
     fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &S) -> Self {
         let albums_view = gtk::TreeViewBuilder::new()
             .model(store)

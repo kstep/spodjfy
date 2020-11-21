@@ -858,7 +858,7 @@ impl Spotify {
         futures::future::try_join_all(
             uris.iter()
                 .cloned()
-                .map(|uri| self.client.add_item_to_queue(uri.clone(), None)),
+                .map(|uri| self.client.add_item_to_queue(uri, None)),
         )
         .await?;
         self.queue.extend(uris);

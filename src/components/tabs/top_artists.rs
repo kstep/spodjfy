@@ -114,30 +114,6 @@ impl Widget for TopArtistsTab {
                     .set_value(&pos, COL_ARTIST_THUMB, &thumb.to_value());
             }
             OpenArtist(Some((uri, name))) => {
-                /*
-                let icon_view: &gtk::IconView = &self.artists_view;
-                let store: &gtk::ListStore = &self.model.store;
-                if let Some((Some(_uri), Some(_name))) = icon_view
-                    .get_selected_items()
-                    .first()
-                    .and_then(|path| store.get_iter(path))
-                    .map(|iter| {
-                        (
-                            store
-                                .get_value(&iter, COL_ARTIST_URI as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten(),
-                            store
-                                .get_value(&iter, COL_ARTIST_NAME as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten(),
-                        )
-                    })
-
-                 */
-
                 self.albums_view.emit(ContainerMsg::Reset(uri, true));
 
                 let albums_tab = self.albums_view.widget();
@@ -171,11 +147,6 @@ impl Widget for TopArtistsTab {
                     },
 
                     #[name="artists_view"]
-                    /*
-                    gtk::TreeView {
-                        model: Some(&self.model.store)),
-                    }
-                     */
                     gtk::IconView {
                         item_width: THUMB_SIZE,
                         pixbuf_column: COL_ARTIST_THUMB as i32,
@@ -204,49 +175,10 @@ impl Widget for TopArtistsTab {
         self.breadcrumb.set_stack(Some(&self.stack));
 
         let stream = self.model.stream.clone();
-        self.albums_view.stream().observe(move |msg| match msg {
-            ContainerMsg::ActivateItem(uri, name) => {
+        self.albums_view.stream().observe(move |msg| {
+            if let ContainerMsg::ActivateItem(uri, name) = msg {
                 stream.emit(TopArtistsMsg::OpenAlbum(uri.clone(), name.clone()));
             }
-            _ => {}
         });
-
-        /*
-        let tree: &TreeView = &self.artists_view;
-
-        let text_cell = gtk::CellRendererText::new();
-        let image_cell = gtk::CellRendererPixbuf::new();
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .expand(true)
-                .build();
-            column.pack_start(&image_cell, true);
-            column.add_attribute(&image_cell, "pixbuf", 0);
-            column
-        });
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .title("Title")
-                .expand(true)
-                .sort_column_id(1)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 1);
-            column
-        });
-
-        tree.append_column(&{
-            let column = TreeViewColumnBuilder::new()
-                .title("Release date")
-                .expand(true)
-                .sort_column_id(2)
-                .build();
-            column.pack_start(&text_cell, true);
-            column.add_attribute(&text_cell, "text", 2);
-            column
-        });
-         */
     }
 }
