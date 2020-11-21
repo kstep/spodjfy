@@ -29,7 +29,7 @@ impl Widget for FeaturedTab {
         use FeaturedMsg::*;
         match event {
             ShowTab => {
-                self.playlists_view.emit(ContainerMsg::Reload);
+                self.playlists_view.emit(ContainerMsg::Load(()));
             }
             OpenPlaylist(uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());

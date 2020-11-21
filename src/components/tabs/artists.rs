@@ -29,7 +29,7 @@ impl Widget for ArtistsTab {
         use ArtistsMsg::*;
         match event {
             ShowTab => {
-                self.artists_view.emit(ContainerMsg::Reload);
+                self.artists_view.emit(ContainerMsg::Load(()));
             }
             OpenArtist(uri, name) => {
                 self.albums_view.emit(ContainerMsg::Load(uri));

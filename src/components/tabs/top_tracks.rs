@@ -24,7 +24,7 @@ impl Widget for TopTracksTab {
     fn update(&mut self, event: TopTracksMsg) {
         match event {
             TopTracksMsg::ShowTab => {
-                self.tracks.emit(ContainerMsg::Reload.into());
+                self.tracks.emit(ContainerMsg::Load(()).into());
             }
             TopTracksMsg::GoToTrack(uri) => {
                 self.tracks.emit(TrackMsg::GoToTrack(uri));

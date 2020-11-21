@@ -26,7 +26,7 @@ impl Widget for RecentTab {
         use RecentMsg::*;
         match event {
             ShowTab => {
-                self.recent_view.emit(ContainerMsg::Reload.into());
+                self.recent_view.emit(ContainerMsg::Load(()).into());
             }
             GoToTrack(uri) => {
                 self.recent_view.emit(TrackMsg::GoToTrack(uri));

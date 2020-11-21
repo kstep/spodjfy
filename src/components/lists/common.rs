@@ -227,11 +227,8 @@ where
                     }
                 }
                 Reload => {
-                    if let Some(ref mut loader) = self.model.items_loader {
-                        *loader = Loader::new(loader.parent_id().clone());
-                        self.clear_store();
-                        self.start_load();
-                    }
+                    self.clear_store();
+                    self.start_load();
                 }
                 LoadPage(offset, epoch) => {
                     if epoch != self.current_epoch() {

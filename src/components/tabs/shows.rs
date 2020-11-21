@@ -29,7 +29,7 @@ impl Widget for ShowsTab {
         use ShowsMsg::*;
         match event {
             ShowTab => {
-                self.shows_view.emit(ContainerMsg::Reload);
+                self.shows_view.emit(ContainerMsg::Load(()));
             }
             OpenShow(uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());

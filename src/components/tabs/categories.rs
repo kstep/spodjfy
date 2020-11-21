@@ -30,7 +30,7 @@ impl Widget for CategoriesTab {
         use CategoriesMsg::*;
         match event {
             ShowTab => {
-                self.categories_view.emit(ContainerMsg::Reload);
+                self.categories_view.emit(ContainerMsg::Load(()));
             }
             OpenCategory(id, name) => {
                 self.playlists_view.emit(ContainerMsg::Load(id));

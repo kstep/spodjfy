@@ -24,7 +24,7 @@ impl Widget for QueueTab {
     fn update(&mut self, event: QueueMsg) {
         match event {
             QueueMsg::ShowTab => {
-                self.tracks.emit(ContainerMsg::Reload.into());
+                self.tracks.emit(ContainerMsg::Load(()).into());
             }
             QueueMsg::GoToTrack(uri) => {
                 self.tracks.emit(TrackMsg::GoToTrack(uri));
