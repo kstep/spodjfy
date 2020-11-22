@@ -1,5 +1,5 @@
 use crate::config::Config;
-use cairo::{Error, Format, ImageSurface};
+use cairo::Format;
 use gdk::prelude::*;
 use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
@@ -184,7 +184,12 @@ pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a Image>>(
     images: I,
     size: i32,
 ) -> Option<&'b str> {
+    if size == 0 {
+        return images.into_iter().next().map(|img| &*img.url);
+    }
+
     let key = |img: &&Image| match img.height.unwrap_or(0).max(img.width.unwrap_or(0)) as i32 {
+        0 => i32::MAX,
         dim if dim > size => dim / size,
         dim => size / dim + 1,
     };
