@@ -1,6 +1,6 @@
 use crate::components::lists::{AlbumList, ArtistList, ContainerMsg, TrackList, TrackMsg};
 use crate::components::tabs::MusicTabMsg;
-use crate::loaders::{AlbumLoader, ArtistLoader, MyTopArtistsLoader};
+use crate::loaders::{AlbumLoader, ArtistLoader, ArtistTopTracksLoader, MyTopArtistsLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{EventStream, Relm, Widget};
@@ -26,11 +26,12 @@ impl Widget for TopArtistsTab {
                 self.artists_view.emit(ContainerMsg::Load(()));
             }
             OpenContainer(0, uri, name) => {
-                self.albums_view.emit(ContainerMsg::Load(uri));
+                self.albums_view.emit(ContainerMsg::Load(uri.clone()));
+                self.top_tracks_view.emit(ContainerMsg::Load(uri).into());
 
-                let albums_tab = self.albums_view.widget();
-                self.stack.set_child_title(albums_tab, Some(&name));
-                self.stack.set_visible_child(albums_tab);
+                let artist_tab = &self.artist_view;
+                self.stack.set_child_title(artist_tab, Some(&name));
+                self.stack.set_visible_child(artist_tab);
             }
             OpenContainer(1, uri, name) => {
                 self.tracks_view.emit(ContainerMsg::Load(uri).into());
@@ -59,8 +60,13 @@ impl Widget for TopArtistsTab {
                     }
                 },
 
-                #[name="albums_view"]
-                AlbumList::<ArtistLoader>(self.model.spotify.clone()),
+                #[name="artist_view"]
+                gtk::Paned(gtk::Orientation::Vertical) {
+                    #[name="top_tracks_view"]
+                    TrackList::<ArtistTopTracksLoader>(self.model.spotify.clone()),
+                    #[name="albums_view"]
+                    AlbumList::<ArtistLoader>(self.model.spotify.clone()),
+                },
 
                 #[name="tracks_view"]
                 TrackList::<AlbumLoader>(self.model.spotify.clone()),
