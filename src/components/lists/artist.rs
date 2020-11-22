@@ -6,7 +6,6 @@ use crate::loaders::{
     CairoSurfaceToPixbuf, ContainerLoader, HasDuration, HasImages, MissingColumns, MyPixbufExt,
     PageLike, RowLike,
 };
-use gdk_pixbuf::PixbufLoaderExt;
 use glib::{Cast, IsA, ToValue};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
@@ -35,7 +34,7 @@ where
         use ContainerMsg::*;
         match message {
             NewThumb(pixbuf, pos) => {
-                let image = pixbuf; //.round_corners().ok().and_then(|img| img.to_pixbuf());
+                let image = pixbuf.rounded().ok().and_then(|img| img.to_pixbuf());
                 this.model
                     .store
                     .set_value(&pos, COL_ARTIST_THUMB, &image.to_value());

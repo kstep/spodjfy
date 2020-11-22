@@ -193,13 +193,13 @@ pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a Image>>(
 }
 
 pub trait MyPixbufExt {
-    fn round_corners(&self) -> Result<cairo::ImageSurface, cairo::Error>;
+    fn rounded(&self) -> Result<cairo::ImageSurface, cairo::Error>;
     fn resize(&self, size: i32) -> Option<Pixbuf>;
     fn resize_cutup(&self, size: i32) -> Option<Pixbuf>;
 }
 
 impl MyPixbufExt for Pixbuf {
-    fn round_corners(&self) -> Result<cairo::ImageSurface, cairo::Error> {
+    fn rounded(&self) -> Result<cairo::ImageSurface, cairo::Error> {
         let width = self.get_width();
         let height = self.get_height();
 
