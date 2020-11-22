@@ -89,9 +89,12 @@ impl PlaylistView {
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
                         let info = if tracks > 0 {
-                            format!("{} by {}\n<i>Tracks: {}</i>", name, publisher, tracks)
+                            format!(
+                                "<big>{}</big>\nby {}\n<i>Tracks: {}</i>",
+                                name, publisher, tracks
+                            )
                         } else {
-                            format!("{} by {}", name, publisher)
+                            format!("<big>{}</big>\nby {}", name, publisher)
                         };
 
                         cell.set_property_markup(Some(&info));

@@ -5,7 +5,7 @@ use glib::signal::Inhibit;
 use glib::{Cast, IsA, ObjectExt};
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererPixbufExt, CellRendererTextExt, GtkMenuItemExt,
-    MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewColumnExt, TreeViewExt,
+    MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewExt,
     WidgetExt,
 };
 use relm::EventStream;
@@ -51,6 +51,7 @@ where
             .model(store)
             .expand(true)
             .reorderable(true)
+            .has_tooltip(true)
             .build();
 
         items_view
@@ -109,20 +110,6 @@ where
             });
         }
 
-        if !missing_columns.contains(&COL_TRACK_DESCRIPTION) {
-            items_view.append_column(&{
-                let text_cell = gtk::CellRendererText::new();
-                let column = base_column
-                    .clone()
-                    .title("Description")
-                    .sort_column_id(COL_TRACK_DESCRIPTION as i32)
-                    .build();
-                column.pack_start(&text_cell, true);
-                column.add_attribute(&text_cell, "text", COL_TRACK_DESCRIPTION as i32);
-                column
-            });
-        }
-
         if !missing_columns.contains(&COL_TRACK_DURATION) {
             items_view.append_column(&{
                 let text_cell = gtk::CellRendererText::new();
@@ -177,7 +164,7 @@ where
                     .title("BPM")
                     .sort_column_id(COL_TRACK_BPM as i32)
                     .build();
-                <TreeViewColumn as TreeViewColumnExt>::set_cell_data_func(
+                gtk::TreeViewColumnExt::set_cell_data_func(
                     &column,
                     &text_cell,
                     Some(Box::new(|_layout, cell, model, iter| {
@@ -193,6 +180,69 @@ where
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_TRACK_BPM as i32);
                 column
+            });
+        }
+
+        if !missing_columns.contains(&COL_TRACK_RATE) {
+            let column_index = items_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Rate")
+                    .sort_column_id(COL_TRACK_RATE as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_RATE as i32);
+
+                gtk::TreeViewColumnExt::set_cell_data_func(
+                    &column,
+                    &text_cell,
+                    Some(Box::new(move |_layout, cell, model, pos| {
+                        if let (Ok(Some(rate)), Some(cell)) = (
+                            model.get_value(pos, COL_TRACK_RATE as i32).get::<u32>(),
+                            cell.downcast_ref::<gtk::CellRendererText>(),
+                        ) {
+                            let stars = rate / 21 + 1;
+                            cell.set_property_text(Some(&"\u{2B50}".repeat(stars as usize)));
+                        }
+                    })),
+                );
+                column
+            }) - 1;
+
+            items_view.connect_query_tooltip(move |tree, mut x, mut y, kbd, tooltip| {
+                let column = match tree.get_column(column_index) {
+                    Some(column) => column,
+                    None => return false,
+                };
+
+                if let Some((Some(model), path, pos)) =
+                    tree.get_tooltip_context(&mut x, &mut y, kbd)
+                {
+                    let (col_x0, col_x1) = {
+                        let rect = tree.get_cell_area(Some(&path), Some(&column));
+                        (rect.x, rect.x + rect.width)
+                    };
+
+                    if x <= col_x0 || col_x1 <= x {
+                        return false;
+                    }
+
+                    if let Ok(Some(rate)) =
+                        model.get_value(&pos, COL_TRACK_RATE as i32).get::<u32>()
+                    {
+                        tooltip.set_text(Some(&format!("Rating: {}", rate)));
+                        tree.set_tooltip_cell(
+                            &tooltip,
+                            Some(&path),
+                            Some(&column),
+                            None::<&gtk::CellRendererText>,
+                        );
+                        return true;
+                    }
+                }
+
+                false
             });
         }
 
@@ -237,6 +287,20 @@ where
                     .build();
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_TRACK_ALBUM as i32);
+                column
+            });
+        }
+
+        if !missing_columns.contains(&COL_TRACK_DESCRIPTION) {
+            items_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .title("Description")
+                    .sort_column_id(COL_TRACK_DESCRIPTION as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_TRACK_DESCRIPTION as i32);
                 column
             });
         }

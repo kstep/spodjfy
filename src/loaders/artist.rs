@@ -15,6 +15,7 @@ pub trait ArtistLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
+    fn rate(&self) -> u32;
 
     fn genres(&self) -> &[String] {
         &[]
@@ -33,6 +34,10 @@ impl ArtistLike for SimplifiedArtist {
     fn name(&self) -> &str {
         &self.name
     }
+
+    fn rate(&self) -> u32 {
+        0
+    }
 }
 
 impl HasDuration for SimplifiedArtist {
@@ -49,7 +54,7 @@ impl HasImages for SimplifiedArtist {
 
 impl MissingColumns for SimplifiedArtist {
     fn missing_columns() -> &'static [u32] {
-        &[COL_ARTIST_THUMB, COL_ARTIST_GENRES]
+        &[COL_ARTIST_THUMB, COL_ARTIST_GENRES, COL_ARTIST_RATE]
     }
 }
 
@@ -83,6 +88,10 @@ impl ArtistLike for FullArtist {
     fn genres(&self) -> &[String] {
         &self.genres
     }
+
+    fn rate(&self) -> u32 {
+        self.popularity
+    }
 }
 
 impl HasDuration for FullArtist {
@@ -104,14 +113,25 @@ impl RowLike for FullArtist {
             String::static_type(), // uri
             String::static_type(), // name
             String::static_type(), // genres
+            u32::static_type(),    // rate (a.k.a. popularity)
         ]
     }
 
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         store.insert_with_values(
             None,
-            &[COL_ARTIST_URI, COL_ARTIST_NAME, COL_ARTIST_GENRES],
-            &[&self.uri, &self.name, &self.genres.iter().join(", ")],
+            &[
+                COL_ARTIST_URI,
+                COL_ARTIST_NAME,
+                COL_ARTIST_GENRES,
+                COL_ARTIST_RATE,
+            ],
+            &[
+                &self.uri,
+                &self.name,
+                &self.genres.iter().join(", "),
+                &self.popularity,
+            ],
         )
     }
 }
@@ -122,6 +142,7 @@ pub const COL_ARTIST_THUMB: u32 = COL_ITEM_THUMB;
 pub const COL_ARTIST_URI: u32 = COL_ITEM_URI;
 pub const COL_ARTIST_NAME: u32 = COL_ITEM_NAME;
 pub const COL_ARTIST_GENRES: u32 = 3;
+pub const COL_ARTIST_RATE: u32 = 4;
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader(usize);

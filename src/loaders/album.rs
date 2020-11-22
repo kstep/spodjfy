@@ -116,6 +116,7 @@ pub trait AlbumLike: HasDuration + HasImages {
         &[]
     }
     fn kind(&self) -> AlbumType;
+    fn rate(&self) -> u32;
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         store.insert_with_values(
@@ -129,6 +130,7 @@ pub trait AlbumLike: HasDuration + HasImages {
                 COL_ALBUM_GENRES,
                 COL_ALBUM_TYPE,
                 COL_ALBUM_DURATION,
+                COL_ALBUM_RATE,
             ],
             &[
                 &self.uri(),
@@ -139,6 +141,7 @@ pub trait AlbumLike: HasDuration + HasImages {
                 &self.genres().iter().join(", "),
                 &(self.kind() as u8),
                 &self.duration(),
+                &self.rate(),
             ],
         )
     }
@@ -154,6 +157,7 @@ pub trait AlbumLike: HasDuration + HasImages {
             String::static_type(),             // genres
             u8::static_type(),                 // type
             u32::static_type(),                // duration
+            u32::static_type(),                // rate/popularity
         ]
     }
 }
@@ -185,6 +189,10 @@ impl AlbumLike for FullAlbum {
 
     fn kind(&self) -> AlbumType {
         self.album_type
+    }
+
+    fn rate(&self) -> u32 {
+        self.popularity
     }
 }
 
@@ -247,6 +255,10 @@ impl AlbumLike for SimplifiedAlbum {
                 _ => AlbumType::Album,
             })
     }
+
+    fn rate(&self) -> u32 {
+        0
+    }
 }
 
 impl HasDuration for SimplifiedAlbum {
@@ -260,7 +272,12 @@ impl MissingColumns for SimplifiedAlbum {
     where
         Self: Sized,
     {
-        &[COL_ALBUM_DURATION, COL_ALBUM_TOTAL_TRACKS, COL_ALBUM_GENRES]
+        &[
+            COL_ALBUM_DURATION,
+            COL_ALBUM_TOTAL_TRACKS,
+            COL_ALBUM_GENRES,
+            COL_ALBUM_RATE,
+        ]
     }
 }
 
@@ -308,6 +325,10 @@ impl AlbumLike for SavedAlbum {
     fn kind(&self) -> AlbumType {
         self.album.kind()
     }
+
+    fn rate(&self) -> u32 {
+        self.album.popularity
+    }
 }
 
 impl HasDuration for SavedAlbum {
@@ -347,3 +368,4 @@ pub const COL_ALBUM_ARTISTS: u32 = 5;
 pub const COL_ALBUM_GENRES: u32 = 6;
 pub const COL_ALBUM_TYPE: u32 = 7;
 pub const COL_ALBUM_DURATION: u32 = 8;
+pub const COL_ALBUM_RATE: u32 = 9;

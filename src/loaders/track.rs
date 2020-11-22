@@ -412,6 +412,7 @@ pub trait TrackLike: HasDuration + HasImages {
     fn is_playable(&self) -> bool {
         true
     }
+    fn rate(&self) -> u32;
     fn release_date(&self) -> Option<&str> {
         self.album().and_then(|album| album.release_date.as_deref())
     }
@@ -432,6 +433,7 @@ pub const COL_TRACK_RELEASE_DATE: u32 = 11;
 pub const COL_TRACK_DESCRIPTION: u32 = 12;
 pub const COL_TRACK_ALBUM_URI: u32 = 13;
 pub const COL_TRACK_ARTIST_URI: u32 = 14;
+pub const COL_TRACK_RATE: u32 = 15;
 
 impl<T: TrackLike> RowLike for T {
     fn content_types() -> Vec<Type> {
@@ -451,6 +453,7 @@ impl<T: TrackLike> RowLike for T {
             String::static_type(),             // description
             String::static_type(),             // album uri
             String::static_type(),             // first artist uri
+            u32::static_type(),                // rate/popularity
         ]
     }
 
@@ -469,6 +472,7 @@ impl<T: TrackLike> RowLike for T {
                 COL_TRACK_DESCRIPTION,
                 COL_TRACK_ALBUM_URI,
                 COL_TRACK_ARTIST_URI,
+                COL_TRACK_RATE,
             ],
             &[
                 &self.uri(),
@@ -486,6 +490,7 @@ impl<T: TrackLike> RowLike for T {
                     .iter()
                     .next()
                     .and_then(|artist| artist.uri.as_deref()),
+                &self.rate(),
             ],
         )
     }
@@ -522,6 +527,10 @@ impl TrackLike for PlayHistory {
 
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
+    }
+
+    fn rate(&self) -> u32 {
+        self.track.popularity
     }
 }
 
@@ -581,6 +590,10 @@ impl TrackLike for PlaylistTrack {
     fn release_date(&self) -> Option<&str> {
         self.track.as_ref().and_then(FullTrack::release_date)
     }
+
+    fn rate(&self) -> u32 {
+        self.track.as_ref().map_or(0, |track| track.popularity)
+    }
 }
 
 impl HasDuration for PlaylistTrack {
@@ -639,6 +652,10 @@ impl TrackLike for FullTrack {
     fn release_date(&self) -> Option<&str> {
         self.album.release_date.as_deref()
     }
+
+    fn rate(&self) -> u32 {
+        self.popularity
+    }
 }
 
 impl HasDuration for FullTrack {
@@ -682,6 +699,10 @@ impl TrackLike for SimplifiedTrack {
     fn number(&self) -> u32 {
         self.track_number
     }
+
+    fn rate(&self) -> u32 {
+        0
+    }
 }
 
 impl HasDuration for SimplifiedTrack {
@@ -706,6 +727,7 @@ impl MissingColumns for SimplifiedTrack {
             COL_TRACK_THUMB,
             COL_TRACK_RELEASE_DATE,
             COL_TRACK_DESCRIPTION,
+            COL_TRACK_RATE,
         ]
     }
 }
@@ -741,6 +763,10 @@ impl TrackLike for SavedTrack {
 
     fn release_date(&self) -> Option<&str> {
         self.track.release_date()
+    }
+
+    fn rate(&self) -> u32 {
+        self.track.popularity
     }
 }
 
@@ -789,6 +815,10 @@ impl TrackLike for FullEpisode {
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
     }
+
+    fn rate(&self) -> u32 {
+        0
+    }
 }
 
 impl HasDuration for FullEpisode {
@@ -808,7 +838,7 @@ impl MissingColumns for FullEpisode {
     where
         Self: Sized,
     {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM]
+        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_RATE]
     }
 }
 
@@ -836,6 +866,10 @@ impl TrackLike for SimplifiedEpisode {
     fn release_date(&self) -> Option<&str> {
         Some(&self.release_date)
     }
+
+    fn rate(&self) -> u32 {
+        0
+    }
 }
 
 impl HasDuration for SimplifiedEpisode {
@@ -855,7 +889,12 @@ impl MissingColumns for SimplifiedEpisode {
     where
         Self: Sized,
     {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_BPM]
+        &[
+            COL_TRACK_ARTISTS,
+            COL_TRACK_ALBUM,
+            COL_TRACK_BPM,
+            COL_TRACK_RATE,
+        ]
     }
 }
 
@@ -896,5 +935,6 @@ impl_track_like_for_playing_item! {
     artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
     release_date -> Option<&str>,
-    description -> Option<&str>
+    description -> Option<&str>,
+    rate -> u32
 }
