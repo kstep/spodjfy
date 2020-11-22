@@ -548,8 +548,20 @@ impl Widget for MediaControls {
                             gtk::Label {
                                 halign: gtk::Align::Start,
                                 selectable: true,
+                                line_wrap: true,
                                 text: self.model.context.as_ref()
                                     .and_then(|ctx| ctx.artists())
+                                    .as_deref()
+                                    .unwrap_or("")
+                            },
+                            #[name="context_genres_label"]
+                            gtk::Label {
+                                halign: gtk::Align::Start,
+                                selectable: true,
+                                line_wrap: true,
+                                text: self.model.context.as_ref()
+                                    .and_then(|c| c.genres())
+                                    .map(|gs| gs.iter().join(", "))
                                     .as_deref()
                                     .unwrap_or("")
                             },
@@ -578,16 +590,6 @@ impl Widget for MediaControls {
                                         .unwrap_or("")
                                 },
                             //},
-                            #[name="context_genres_label"]
-                            gtk::Label {
-                                halign: gtk::Align::Start,
-                                selectable: true,
-                                text: self.model.context.as_ref()
-                                    .and_then(|c| c.genres())
-                                    .map(|gs| gs.iter().join(", "))
-                                    .as_deref()
-                                    .unwrap_or("")
-                            },
                         }
                     },
                 },
