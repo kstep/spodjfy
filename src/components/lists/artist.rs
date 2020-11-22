@@ -133,7 +133,7 @@ where
                         unsafe { String::from_utf8_unchecked(info) }
                     };
 
-                    tooltip.set_text(Some(&info));
+                    tooltip.set_text(Some(info.trim_end()));
                     view.set_tooltip_cell(&tooltip, &path, view.get_cells().last());
                     return true;
                 }
