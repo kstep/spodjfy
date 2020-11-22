@@ -1,7 +1,7 @@
 use crate::config::Config;
 use cairo::{Format, ImageSurface};
 use gdk::prelude::*;
-use gdk_pixbuf::{Pixbuf, PixbufLoader, PixbufLoaderExt};
+use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::PI;
@@ -64,7 +64,7 @@ impl ImageLoader {
         let mut cache_file = std::fs::File::open(self.cache_file_path(url)?).ok()?;
         let mut buf = Vec::with_capacity(1024);
         cache_file.read_to_end(&mut buf).ok()?;
-        pixbuf_from_raw_bytes(&buf, self.resize).ok()?
+        pixbuf_from_raw_bytes(&buf).ok()?
     }
 
     pub fn load_from_url<F>(&mut self, url: &str, callback: F)
@@ -74,20 +74,36 @@ impl ImageLoader {
         self.process_queue();
 
         if let Some(pixbuf) = self.cache.get(url) {
-            return callback(Ok(Some(pixbuf.clone())));
+            let pixbuf = if self.resize > 0 {
+                resize_image(pixbuf, self.resize)
+            } else {
+                Some(pixbuf.clone())
+            };
+            return callback(Ok(pixbuf));
         }
 
         if let Some(pixbuf) = self.load_from_file(url) {
             self.cache.insert(url.to_owned(), pixbuf.clone());
-            return callback(Ok(Some(pixbuf)));
+            let pixbuf = if self.resize > 0 {
+                resize_image(&pixbuf, self.resize)
+            } else {
+                Some(pixbuf)
+            };
+            return callback(Ok(pixbuf));
         }
 
         let queue = self.queue.clone();
         let key = url.to_owned();
-        pixbuf_from_url_async(url, self.resize, move |reply| match reply {
+        let resize = self.resize;
+        pixbuf_from_url_async(url, move |reply| match reply {
             Ok((Some(pixbuf), data)) => {
                 queue.lock().unwrap().push((key, data));
-                callback(Ok(Some(pixbuf)));
+                let pixbuf = if resize > 0 {
+                    resize_image(&pixbuf, resize)
+                } else {
+                    Some(pixbuf)
+                };
+                callback(Ok(pixbuf));
             }
             Ok((None, _)) => {
                 callback(Ok(None));
@@ -103,7 +119,7 @@ impl ImageLoader {
         if !queue.is_empty() {
             for (url, data) in queue.drain(..) {
                 let _ = self.save_to_file(&url, &data);
-                if let Ok(Some(pb)) = pixbuf_from_raw_bytes(&data, self.resize) {
+                if let Ok(Some(pb)) = pixbuf_from_raw_bytes(&data) {
                     self.cache.insert(url, pb);
                 }
             }
@@ -126,17 +142,14 @@ impl ImageLoader {
     }
 }
 
-fn pixbuf_from_raw_bytes(data: &[u8], resize: i32) -> Result<Option<Pixbuf>, glib::Error> {
+fn pixbuf_from_raw_bytes(data: &[u8]) -> Result<Option<Pixbuf>, glib::Error> {
     let loader = PixbufLoader::new();
-    if resize > 0 {
-        loader.set_size(resize, resize);
-    }
     loader.write(data)?;
     loader.close()?;
     Ok(loader.get_pixbuf())
 }
 
-pub fn pixbuf_from_url_async<F>(url: &str, resize: i32, callback: F) -> gio::Cancellable
+pub fn pixbuf_from_url_async<F>(url: &str, callback: F) -> gio::Cancellable
 where
     F: FnOnce(Result<(Option<Pixbuf>, Vec<u8>), glib::Error>) + Send + 'static,
 {
@@ -144,7 +157,7 @@ where
     let cancel = gio::Cancellable::new();
     image_file.load_contents_async(Some(&cancel), move |reply| match reply {
         Ok((data, _)) => {
-            let result = pixbuf_from_raw_bytes(&data, resize);
+            let result = pixbuf_from_raw_bytes(&data);
             callback(result.map(|pixbuf| (pixbuf, data)));
         }
         Err(err) => {
@@ -180,20 +193,30 @@ pub fn round_corners(pixbuf: &Pixbuf) -> Result<cairo::ImageSurface, cairo::Erro
     let width = pixbuf.get_width();
     let height = pixbuf.get_height();
 
-    let surface = cairo::ImageSurface::create(Format::ARgb32, width, height)?;
+    let size = width.max(height);
+    let surface = cairo::ImageSurface::create(Format::ARgb32, size, size)?;
     let context = cairo::Context::new(&surface);
-    let radius = width.min(height) >> 1;
-    context.arc(
-        (width >> 1) as f64,
-        (height >> 1) as f64,
-        radius as f64,
-        0.0,
-        2.0 * PI,
-    );
+    let radius = (size >> 1) as f64;
+    context.arc(radius, radius, radius, 0.0, 2.0 * PI);
     context.clip();
 
-    context.set_source_pixbuf(&pixbuf, 0.0, 0.0);
+    context.set_source_pixbuf(
+        &pixbuf,
+        radius - (width >> 1) as f64,
+        radius - (height >> 1) as f64,
+    );
     context.paint();
 
     Ok(surface)
+}
+
+fn resize_image(pixbuf: &Pixbuf, size: i32) -> Option<Pixbuf> {
+    let width = pixbuf.get_width();
+    let height = pixbuf.get_height();
+    let (new_width, new_height) = if width > height {
+        (size, height * size / width)
+    } else {
+        (width * size / height, size)
+    };
+    pixbuf.scale_simple(new_width, new_height, InterpType::Nearest)
 }
