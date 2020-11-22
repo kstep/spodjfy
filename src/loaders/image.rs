@@ -1,7 +1,10 @@
 use crate::config::Config;
+use cairo::{Format, ImageSurface};
+use gdk::prelude::*;
 use gdk_pixbuf::{Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::io::{ErrorKind, Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -171,4 +174,26 @@ pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a rspotify::model::i
         .into_iter()
         .min_by_key(|img| (size - img.width.unwrap_or(0) as i32).abs())
         .map(|img| &*img.url)
+}
+
+pub fn round_corners(pixbuf: &Pixbuf) -> Result<cairo::ImageSurface, cairo::Error> {
+    let width = pixbuf.get_width();
+    let height = pixbuf.get_height();
+
+    let surface = cairo::ImageSurface::create(Format::ARgb32, width, height)?;
+    let context = cairo::Context::new(&surface);
+    let radius = width.min(height) >> 1;
+    context.arc(
+        (width >> 1) as f64,
+        (height >> 1) as f64,
+        radius as f64,
+        0.0,
+        2.0 * PI,
+    );
+    context.clip();
+
+    context.set_source_pixbuf(&pixbuf, 0.0, 0.0);
+    context.paint();
+
+    Ok(surface)
 }

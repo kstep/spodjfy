@@ -1726,6 +1726,7 @@ dependencies = [
 name = "spodjfy"
 version = "0.1.0"
 dependencies = [
+ "cairo-rs",
  "derivative",
  "directories",
  "env_logger",
