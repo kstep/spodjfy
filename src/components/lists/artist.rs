@@ -1,17 +1,50 @@
-use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
+use crate::components::lists::{
+    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, MessageHandler,
+};
 use crate::loaders::artist::*;
-use crate::loaders::ContainerLoader;
-use glib::{Cast, IsA};
+use crate::loaders::{
+    CairoSurfaceToPixbuf, ContainerLoader, HasDuration, HasImages, MissingColumns, MyPixbufExt,
+    PageLike, RowLike,
+};
+use gdk_pixbuf::PixbufLoaderExt;
+use glib::{Cast, IsA, ToValue};
+use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt, WidgetExt,
 };
 use relm::EventStream;
 use std::io::Write;
 
-pub type ArtistList<Loader> = ContainerList<Loader, ArtistView>;
+pub type ArtistList<Loader> = ContainerList<Loader, ArtistView, ArtistsHandler>;
 
 const THUMB_SIZE: i32 = 128;
 const ITEM_SIZE: i32 = (THUMB_SIZE as f32 * 2.25) as i32;
+
+pub struct ArtistsHandler;
+
+impl<Loader> MessageHandler<ArtistList<Loader>, ContainerMsg<Loader>> for ArtistsHandler
+where
+    Loader: ContainerLoader + 'static,
+    Loader::Page: PageLike<Loader::Item>,
+    Loader::Item: RowLike + HasImages + ArtistLike + HasDuration + MissingColumns,
+{
+    fn handle(
+        this: &mut ArtistList<Loader>,
+        message: ContainerMsg<Loader>,
+    ) -> Option<ContainerMsg<Loader>> {
+        use ContainerMsg::*;
+        match message {
+            NewThumb(pixbuf, pos) => {
+                let image = pixbuf; //.round_corners().ok().and_then(|img| img.to_pixbuf());
+                this.model
+                    .store
+                    .set_value(&pos, COL_ARTIST_THUMB, &image.to_value());
+                None
+            }
+            other => Some(other),
+        }
+    }
+}
 
 pub struct ArtistView(gtk::IconView);
 

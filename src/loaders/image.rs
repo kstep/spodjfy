@@ -1,8 +1,9 @@
 use crate::config::Config;
-use cairo::{Format, ImageSurface};
+use cairo::{Error, Format, ImageSurface};
 use gdk::prelude::*;
 use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
+use rspotify::model::Image;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::io::{ErrorKind, Read, Write};
@@ -75,7 +76,7 @@ impl ImageLoader {
 
         if let Some(pixbuf) = self.cache.get(url) {
             let pixbuf = if self.resize > 0 {
-                resize_image(pixbuf, self.resize)
+                pixbuf.resize_cutup(self.resize)
             } else {
                 Some(pixbuf.clone())
             };
@@ -85,7 +86,7 @@ impl ImageLoader {
         if let Some(pixbuf) = self.load_from_file(url) {
             self.cache.insert(url.to_owned(), pixbuf.clone());
             let pixbuf = if self.resize > 0 {
-                resize_image(&pixbuf, self.resize)
+                pixbuf.resize_cutup(self.resize)
             } else {
                 Some(pixbuf)
             };
@@ -99,7 +100,7 @@ impl ImageLoader {
             Ok((Some(pixbuf), data)) => {
                 queue.lock().unwrap().push((key, data));
                 let pixbuf = if resize > 0 {
-                    resize_image(&pixbuf, resize)
+                    pixbuf.resize_cutup(resize)
                 } else {
                     Some(pixbuf)
                 };
@@ -179,44 +180,110 @@ pub fn pixbuf_from_url(url: &str, resize: i32) -> Result<Pixbuf, glib::Error> {
     })
 }
 
-pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a rspotify::model::image::Image>>(
+pub fn find_best_thumb<'b, 'a: 'b, I: IntoIterator<Item = &'a Image>>(
     images: I,
     size: i32,
 ) -> Option<&'b str> {
-    images
-        .into_iter()
-        .min_by_key(|img| (size - img.width.unwrap_or(0) as i32).abs())
-        .map(|img| &*img.url)
-}
-
-pub fn round_corners(pixbuf: &Pixbuf) -> Result<cairo::ImageSurface, cairo::Error> {
-    let width = pixbuf.get_width();
-    let height = pixbuf.get_height();
-
-    let size = width.max(height);
-    let surface = cairo::ImageSurface::create(Format::ARgb32, size, size)?;
-    let context = cairo::Context::new(&surface);
-    let radius = (size >> 1) as f64;
-    context.arc(radius, radius, radius, 0.0, 2.0 * PI);
-    context.clip();
-
-    context.set_source_pixbuf(
-        &pixbuf,
-        radius - (width >> 1) as f64,
-        radius - (height >> 1) as f64,
-    );
-    context.paint();
-
-    Ok(surface)
-}
-
-fn resize_image(pixbuf: &Pixbuf, size: i32) -> Option<Pixbuf> {
-    let width = pixbuf.get_width();
-    let height = pixbuf.get_height();
-    let (new_width, new_height) = if width > height {
-        (size, height * size / width)
-    } else {
-        (width * size / height, size)
+    let key = |img: &&Image| match img.height.unwrap_or(0).max(img.width.unwrap_or(0)) as i32 {
+        dim if dim > size => dim / size,
+        dim => size / dim + 1,
     };
-    pixbuf.scale_simple(new_width, new_height, InterpType::Nearest)
+
+    images.into_iter().min_by_key(key).map(|img| &*img.url)
+}
+
+pub trait MyPixbufExt {
+    fn round_corners(&self) -> Result<cairo::ImageSurface, cairo::Error>;
+    fn resize(&self, size: i32) -> Option<Pixbuf>;
+    fn resize_cutup(&self, size: i32) -> Option<Pixbuf>;
+}
+
+impl MyPixbufExt for Pixbuf {
+    fn round_corners(&self) -> Result<cairo::ImageSurface, cairo::Error> {
+        let width = self.get_width();
+        let height = self.get_height();
+
+        let size = width.max(height);
+        let surface = cairo::ImageSurface::create(Format::ARgb32, size, size)?;
+        let context = cairo::Context::new(&surface);
+        let radius = (size >> 1) as f64;
+        context.arc(radius, radius, radius, 0.0, 2.0 * PI);
+        context.clip();
+
+        context.set_source_pixbuf(
+            self,
+            radius - (width >> 1) as f64,
+            radius - (height >> 1) as f64,
+        );
+        context.paint();
+
+        Ok(surface)
+    }
+
+    fn resize(&self, size: i32) -> Option<Pixbuf> {
+        let width = self.get_width();
+        let height = self.get_height();
+        let (new_width, new_height) = if width > height {
+            (size, height * size / width)
+        } else {
+            (width * size / height, size)
+        };
+        self.scale_simple(new_width, new_height, InterpType::Nearest)
+    }
+
+    fn resize_cutup(&self, size: i32) -> Option<Pixbuf> {
+        let width = self.get_width();
+        let height = self.get_height();
+        if width == height {
+            return self.scale_simple(size, size, InterpType::Nearest);
+        }
+
+        let (new_width, new_height) = if width < height {
+            (size, height * size / width)
+        } else {
+            (width * size / height, size)
+        };
+
+        let new_pixbuf = Pixbuf::new(
+            self.get_colorspace(),
+            self.get_has_alpha(),
+            self.get_bits_per_sample(),
+            size,
+            size,
+        )?;
+
+        let mid_x = new_width / 2;
+        let mid_y = new_height / 2;
+        let half_size = size / 2;
+
+        self.scale(
+            &new_pixbuf,
+            0,
+            0,
+            size,
+            size,
+            (mid_x - half_size) as f64,
+            (mid_y - half_size) as f64,
+            new_width as f64 / width as f64,
+            new_height as f64 / height as f64,
+            InterpType::Nearest,
+        );
+
+        Some(new_pixbuf)
+    }
+}
+
+pub trait CairoSurfaceToPixbuf {
+    fn to_pixbuf(&self) -> Option<Pixbuf>;
+}
+
+impl CairoSurfaceToPixbuf for cairo::ImageSurface {
+    fn to_pixbuf(&self) -> Option<Pixbuf> {
+        let mut data = Vec::new();
+        self.write_to_png(&mut data).ok()?;
+        let loader = gdk_pixbuf::PixbufLoader::with_type("png").ok()?;
+        loader.write(&data).ok()?;
+        loader.close().ok()?;
+        loader.get_pixbuf()
+    }
 }
