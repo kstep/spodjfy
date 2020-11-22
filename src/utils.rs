@@ -16,7 +16,7 @@ pub fn humanize_inexact_time(time_ms: u32) -> String {
     let seconds = time_ms / 1000;
 
     match seconds {
-        0 => format!("less than a second"),
+        0 => "less than a second".to_owned(),
         1 => "1 second".to_owned(),
         2..=59 => format!("{} seconds", seconds),
         60 => "1 minute".to_owned(),
@@ -24,6 +24,12 @@ pub fn humanize_inexact_time(time_ms: u32) -> String {
         3600 => "1 hour".to_owned(),
         _ => format!("{} hours", seconds / 3600),
     }
+}
+
+#[inline]
+pub fn rate_to_stars(rate: u32) -> String {
+    let stars = rate / 21 + 1;
+    "\u{2B50}".repeat(stars as usize)
 }
 
 pub fn extract_uri_name(model: &gtk::TreeModel, path: &gtk::TreePath) -> Option<(String, String)> {

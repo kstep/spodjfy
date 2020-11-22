@@ -65,6 +65,7 @@ where
             .model(store)
             .expand(true)
             .reorderable(true)
+            .has_tooltip(true)
             .build();
 
         albums_view.connect_row_activated(move |view, path, _| {
@@ -192,6 +193,69 @@ where
                     })),
                 );
                 col
+            });
+        }
+
+        if !missing_columns.contains(&COL_ALBUM_RATE) {
+            let column_index = albums_view.append_column(&{
+                let text_cell = gtk::CellRendererText::new();
+                let column = base_column
+                    .clone()
+                    .expand(false)
+                    .title("Rate")
+                    .sort_column_id(COL_ALBUM_RATE as i32)
+                    .build();
+                column.pack_start(&text_cell, true);
+                column.add_attribute(&text_cell, "text", COL_ALBUM_RATE as i32);
+
+                gtk::TreeViewColumnExt::set_cell_data_func(
+                    &column,
+                    &text_cell,
+                    Some(Box::new(move |_layout, cell, model, pos| {
+                        if let (Ok(Some(rate)), Some(cell)) = (
+                            model.get_value(pos, COL_ALBUM_RATE as i32).get::<u32>(),
+                            cell.downcast_ref::<gtk::CellRendererText>(),
+                        ) {
+                            cell.set_property_text(Some(&crate::utils::rate_to_stars(rate)));
+                        }
+                    })),
+                );
+                column
+            }) - 1;
+
+            albums_view.connect_query_tooltip(move |tree, mut x, mut y, kbd, tooltip| {
+                let column = match tree.get_column(column_index) {
+                    Some(column) => column,
+                    None => return false,
+                };
+
+                if let Some((Some(model), path, pos)) =
+                    tree.get_tooltip_context(&mut x, &mut y, kbd)
+                {
+                    let (col_x0, col_x1) = {
+                        let rect = tree.get_cell_area(Some(&path), Some(&column));
+                        (rect.x, rect.x + rect.width)
+                    };
+
+                    if x <= col_x0 || col_x1 <= x {
+                        return false;
+                    }
+
+                    if let Ok(Some(rate)) =
+                        model.get_value(&pos, COL_ALBUM_RATE as i32).get::<u32>()
+                    {
+                        tooltip.set_text(Some(&format!("Rating: {}", rate)));
+                        tree.set_tooltip_cell(
+                            &tooltip,
+                            Some(&path),
+                            Some(&column),
+                            None::<&gtk::CellRendererText>,
+                        );
+                        return true;
+                    }
+                }
+
+                false
             });
         }
 

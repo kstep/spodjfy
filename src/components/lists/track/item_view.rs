@@ -5,8 +5,7 @@ use glib::signal::Inhibit;
 use glib::{Cast, IsA, ObjectExt};
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererPixbufExt, CellRendererTextExt, GtkMenuItemExt,
-    MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewExt,
-    WidgetExt,
+    MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewExt, WidgetExt,
 };
 use relm::EventStream;
 use std::ops::Deref;
@@ -188,6 +187,7 @@ where
                 let text_cell = gtk::CellRendererText::new();
                 let column = base_column
                     .clone()
+                    .expand(false)
                     .title("Rate")
                     .sort_column_id(COL_TRACK_RATE as i32)
                     .build();
@@ -202,8 +202,7 @@ where
                             model.get_value(pos, COL_TRACK_RATE as i32).get::<u32>(),
                             cell.downcast_ref::<gtk::CellRendererText>(),
                         ) {
-                            let stars = rate / 21 + 1;
-                            cell.set_property_text(Some(&"\u{2B50}".repeat(stars as usize)));
+                            cell.set_property_text(Some(&crate::utils::rate_to_stars(rate)));
                         }
                     })),
                 );

@@ -139,7 +139,6 @@ impl Widget for SettingsTab {
                     #[name="client_auth_url_btn"]
                     gtk::LinkButton {
                         cell: { left_attach: 1, top_attach: 2, width: 2, },
-                        visible: false,
                         label: "Open authorization URL",
                         halign: gtk::Align::Start,
                     },

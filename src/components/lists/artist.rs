@@ -2,8 +2,11 @@ use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, Ite
 use crate::loaders::artist::*;
 use crate::loaders::ContainerLoader;
 use glib::{Cast, IsA};
-use gtk::{CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt};
+use gtk::{
+    CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt, WidgetExt,
+};
 use relm::EventStream;
+use std::io::Write;
 
 pub type ArtistList<Loader> = ContainerList<Loader, ArtistView>;
 
@@ -45,6 +48,7 @@ where
             .item_orientation(gtk::Orientation::Horizontal)
             .text_column(COL_ARTIST_NAME as i32)
             .pixbuf_column(COL_ARTIST_THUMB as i32)
+            .has_tooltip(true)
             .item_padding(10)
             .item_width(ITEM_SIZE)
             .build();
@@ -71,9 +75,9 @@ where
                         model.get_value(pos, COL_ARTIST_RATE as i32).get::<u32>(),
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
-                        let rate = "\u{2B50}".repeat(rate as usize / 21 + 1);
+                        let stars = crate::utils::rate_to_stars(rate);
                         let info = if genres.is_empty() {
-                            format!("<big>{}</big>\n{}", name, rate)
+                            format!("<big>{}</big>\n{}", name, stars)
                         } else {
                             let (genres, ellip) = if genres.len() < 35 {
                                 (genres, "")
@@ -92,7 +96,7 @@ where
                                     "…",
                                 )
                             };
-                            format!("<big>{}</big>\n<i>{}{}</i>\n{}", name, genres, ellip, rate)
+                            format!("<big>{}</big>\n<i>{}{}</i>\n{}", name, genres, ellip, stars)
                         };
 
                         cell.set_property_markup(Some(&info));
@@ -100,6 +104,42 @@ where
                 })),
             );
         }
+
+        artist_view.connect_query_tooltip(|view, mut x, mut y, kbd, tooltip| {
+            if let Some((model, path, pos)) = view.get_tooltip_context(&mut x, &mut y, kbd) {
+                if let (Ok(Some(rate)), Ok(Some(genres)), Ok(Some(followers))) = (
+                    model.get_value(&pos, COL_ARTIST_RATE as i32).get::<u32>(),
+                    model
+                        .get_value(&pos, COL_ARTIST_GENRES as i32)
+                        .get::<&str>(),
+                    model
+                        .get_value(&pos, COL_ARTIST_FOLLOWERS as i32)
+                        .get::<u64>(),
+                ) {
+                    let info = {
+                        let mut info = Vec::with_capacity(100);
+                        if !genres.is_empty() {
+                            writeln!(&mut info, "Genres: {}", genres).unwrap();
+                        }
+                        if rate > 0 {
+                            writeln!(&mut info, "Rating: {}", rate).unwrap();
+                        }
+                        if followers > 0 {
+                            writeln!(&mut info, "Followers: {}", followers).unwrap();
+                        }
+
+                        info.shrink_to_fit();
+
+                        unsafe { String::from_utf8_unchecked(info) }
+                    };
+
+                    tooltip.set_text(Some(&info));
+                    view.set_tooltip_cell(&tooltip, &path, view.get_cells().last());
+                    return true;
+                }
+            }
+            false
+        });
 
         ArtistView(artist_view)
     }

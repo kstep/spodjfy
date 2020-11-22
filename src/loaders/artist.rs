@@ -8,6 +8,7 @@ use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{CursorBasedPage, FullArtist, Image, Page, SimplifiedArtist};
+use serde_json::Value;
 
 const NAME: &str = "artists";
 
@@ -16,6 +17,7 @@ pub trait ArtistLike: HasDuration + HasImages {
     fn uri(&self) -> &str;
     fn name(&self) -> &str;
     fn rate(&self) -> u32;
+    fn followers(&self) -> u64;
 
     fn genres(&self) -> &[String] {
         &[]
@@ -38,6 +40,10 @@ impl ArtistLike for SimplifiedArtist {
     fn rate(&self) -> u32 {
         0
     }
+
+    fn followers(&self) -> u64 {
+        0
+    }
 }
 
 impl HasDuration for SimplifiedArtist {
@@ -54,7 +60,12 @@ impl HasImages for SimplifiedArtist {
 
 impl MissingColumns for SimplifiedArtist {
     fn missing_columns() -> &'static [u32] {
-        &[COL_ARTIST_THUMB, COL_ARTIST_GENRES, COL_ARTIST_RATE]
+        &[
+            COL_ARTIST_THUMB,
+            COL_ARTIST_GENRES,
+            COL_ARTIST_RATE,
+            COL_ARTIST_FOLLOWERS,
+        ]
     }
 }
 
@@ -85,12 +96,20 @@ impl ArtistLike for FullArtist {
         &self.name
     }
 
-    fn genres(&self) -> &[String] {
-        &self.genres
-    }
-
     fn rate(&self) -> u32 {
         self.popularity
+    }
+
+    fn followers(&self) -> u64 {
+        self.followers
+            .get("total")
+            .and_then(Option::as_ref)
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    }
+
+    fn genres(&self) -> &[String] {
+        &self.genres
     }
 }
 
@@ -113,7 +132,8 @@ impl RowLike for FullArtist {
             String::static_type(), // uri
             String::static_type(), // name
             String::static_type(), // genres
-            u32::static_type(),    // rate (a.k.a. popularity)
+            u32::static_type(),    // rate/popularity
+            u64::static_type(),    // followers
         ]
     }
 
@@ -125,12 +145,14 @@ impl RowLike for FullArtist {
                 COL_ARTIST_NAME,
                 COL_ARTIST_GENRES,
                 COL_ARTIST_RATE,
+                COL_ARTIST_FOLLOWERS,
             ],
             &[
                 &self.uri,
                 &self.name,
                 &self.genres.iter().join(", "),
                 &self.popularity,
+                &self.followers(),
             ],
         )
     }
@@ -143,6 +165,7 @@ pub const COL_ARTIST_URI: u32 = COL_ITEM_URI;
 pub const COL_ARTIST_NAME: u32 = COL_ITEM_NAME;
 pub const COL_ARTIST_GENRES: u32 = 3;
 pub const COL_ARTIST_RATE: u32 = 4;
+pub const COL_ARTIST_FOLLOWERS: u32 = 5;
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader(usize);
