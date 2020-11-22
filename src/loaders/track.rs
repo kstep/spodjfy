@@ -393,6 +393,34 @@ impl ContainerLoader for ShowLoader {
     }
 }
 
+#[derive(Clone)]
+pub struct ArtistTopTracksLoader {
+    artist_id: String,
+}
+
+impl ContainerLoader for ArtistTopTracksLoader {
+    type ParentId = String;
+    type Item = FullTrack;
+    type Page = Vec<Self::Item>;
+    const PAGE_LIMIT: u32 = 10;
+    const NAME: &'static str = NAME;
+
+    fn new(artist_id: Self::ParentId) -> Self {
+        ArtistTopTracksLoader { artist_id }
+    }
+
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.artist_id
+    }
+
+    fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
+        SpotifyCmd::GetArtistTopTracks {
+            tx,
+            uri: self.artist_id,
+        }
+    }
+}
+
 pub trait TrackLike: HasDuration + HasImages {
     fn id(&self) -> &str;
     fn uri(&self) -> &str;

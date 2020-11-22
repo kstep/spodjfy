@@ -233,3 +233,31 @@ impl ContainerLoader for MyTopArtistsLoader {
         self.0
     }
 }
+
+#[derive(Clone)]
+pub struct RelatedArtistsLoader {
+    artist_id: String,
+}
+
+impl ContainerLoader for RelatedArtistsLoader {
+    type ParentId = String;
+    type Item = FullArtist;
+    type Page = Vec<Self::Item>;
+    const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = NAME;
+
+    fn new(artist_id: Self::ParentId) -> Self {
+        RelatedArtistsLoader { artist_id }
+    }
+
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.artist_id
+    }
+
+    fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
+        SpotifyCmd::GetArtistRelatedArtists {
+            tx,
+            uri: self.artist_id,
+        }
+    }
+}

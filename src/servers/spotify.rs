@@ -289,6 +289,11 @@ pub enum SpotifyCmd {
         tx: ResultSender<Vec<FullTrack>>,
         uri: String,
     },
+    GetArtistRelatedArtists {
+        #[derivative(Debug = "ignore")]
+        tx: ResultSender<Vec<FullArtist>>,
+        uri: String,
+    },
     GetRecommendedTracks {
         #[derivative(Debug = "ignore")]
         tx: ResultSender<Vec<SimplifiedTrack>>,
@@ -577,6 +582,10 @@ impl SpotifyServer {
             }
             GetArtistTopTracks { tx, uri } => {
                 let reply = client.lock().await.get_artist_top_tracks(&uri).await;
+                tx.send(reply)?;
+            }
+            GetArtistRelatedArtists { tx, uri } => {
+                let reply = client.lock().await.get_artist_related_artists(&uri).await;
                 tx.send(reply)?;
             }
             GetRecommendedTracks {
@@ -986,6 +995,13 @@ impl Spotify {
             .artist_top_tracks(uri, None)
             .await
             .map(|reply| reply.tracks)
+    }
+
+    async fn get_artist_related_artists(&self, uri: &str) -> ClientResult<Vec<FullArtist>> {
+        self.client
+            .artist_related_artists(uri)
+            .await
+            .map(|reply| reply.artists)
     }
 
     async fn get_recommended_tracks(
