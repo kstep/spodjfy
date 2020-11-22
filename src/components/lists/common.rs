@@ -89,7 +89,7 @@ impl GetSelectedRows for gtk::IconView {
     }
 }
 
-pub struct ContainerList<Loader, ItemsView, Handler = (), Message = ContainerMsg<Loader>> {
+pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = ContainerMsg<Loader>> {
     pub root: gtk::Box,
     pub items_view: ItemsView,
     pub status_bar: gtk::Statusbar,
@@ -175,7 +175,10 @@ where
 pub trait MessageHandler<Component, Message> {
     fn handle(component: &mut Component, message: Message) -> Option<Message>;
 }
-impl<Component, Message> MessageHandler<Component, Message> for () {
+
+pub struct NoopHandler;
+
+impl<Component, Message> MessageHandler<Component, Message> for NoopHandler {
     fn handle(_component: &mut Component, message: Message) -> Option<Message> {
         Some(message)
     }

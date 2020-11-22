@@ -12,7 +12,6 @@ use crate::components::tabs::albums::AlbumsTab;
 use crate::components::tabs::artists::ArtistsTab;
 use crate::components::tabs::categories::CategoriesTab;
 use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
-use crate::components::tabs::favorites::FavoritesTab;
 use crate::components::tabs::featured::FeaturedTab;
 use crate::components::tabs::new_releases::NewReleasesTab;
 use crate::components::tabs::playlists::PlaylistsTab;
@@ -21,8 +20,7 @@ use crate::components::tabs::recent::RecentTab;
 use crate::components::tabs::search::{SearchMsg, SearchTab};
 use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::ShowsTab;
-use crate::components::tabs::top_artists::TopArtistsTab;
-use crate::components::tabs::top_tracks::TopTracksTab;
+use crate::components::tabs::tracks::TracksTab;
 use crate::components::tabs::MusicTabMsg;
 use crate::config::Settings;
 use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
@@ -51,13 +49,11 @@ pub enum Tab {
     Search,
     RecentlyPlayed,
     Queue,
-    Favorites,
+    Tracks,
     Playlists,
     Artists,
     Albums,
     Shows,
-    TopTracks,
-    TopArtists,
     Categories,
     Featured,
     NewReleases,
@@ -149,7 +145,7 @@ impl Widget for Win {
             GoToTab(tab) => {
                 self.stack.set_visible_child(match tab {
                     Tab::Search => self.search_tab.widget(),
-                    Tab::Favorites => self.favorites_tab.widget(),
+                    Tab::Tracks => self.tracks_tab.widget(),
                     Tab::Albums => self.albums_tab.widget(),
                     Tab::Playlists => self.playlists_tab.widget(),
                     Tab::Artists => self.artists_tab.widget(),
@@ -181,8 +177,8 @@ impl Widget for Win {
                 Some("devices_tab") => {
                     self.devices_tab.emit(DevicesMsg::ShowTab);
                 }
-                Some("favorites_tab") => {
-                    self.favorites_tab.emit(MusicTabMsg::ShowTab);
+                Some("tracks_tab") => {
+                    self.tracks_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("shows_tab") => {
                     self.shows_tab.emit(MusicTabMsg::ShowTab);
@@ -195,12 +191,6 @@ impl Widget for Win {
                 }
                 Some("categories_tab") => {
                     self.categories_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("top_tracks_tab") => {
-                    self.top_tracks_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("top_artists_tab") => {
-                    self.top_artists_tab.emit(MusicTabMsg::ShowTab);
                 }
                 Some("search_tab") => {
                     self.search_tab.emit(SearchMsg::ShowTab);
@@ -260,16 +250,16 @@ impl Widget for Win {
                                     widget_name: "queue_tab",
                                     child: {
                                         name: Some("queue_tab"),
-                                        title: Some("\u{1F3B5} Queue"),
+                                        title: Some("\u{25B6} Queue"),
                                     }
                                 },
 
-                                #[name="favorites_tab"]
-                                FavoritesTab(self.model.spotify.clone()) {
-                                    widget_name: "favorites_tab",
+                                #[name="tracks_tab"]
+                                TracksTab(self.model.spotify.clone()) {
+                                    widget_name: "tracks_tab",
                                     child: {
-                                        name: Some("favorites_tab"),
-                                        title: Some("\u{1F31F} Favorites"),
+                                        name: Some("tracks_tab"),
+                                        title: Some("\u{1F3B5} Tracks"),
                                     }
                                 },
 
@@ -306,24 +296,6 @@ impl Widget for Win {
                                     child: {
                                         name: Some("shows_tab"),
                                         title: Some("\u{1F399} Shows"),
-                                    }
-                                },
-
-                                #[name="top_tracks_tab"]
-                                TopTracksTab(self.model.spotify.clone()) {
-                                    widget_name: "top_tracks_tab",
-                                    child: {
-                                        name: Some("top_tracks_tab"),
-                                        title: Some("\u{1F3C5} Top tracks")
-                                    }
-                                },
-
-                                #[name="top_artists_tab"]
-                                TopArtistsTab(self.model.spotify.clone()) {
-                                    widget_name: "top_artists_tab",
-                                    child: {
-                                        name: Some("top_artists_tab"),
-                                        title: Some("\u{1F3C5} Top artists")
                                     }
                                 },
 
@@ -424,9 +396,10 @@ impl Widget for Win {
             }
         });
 
+        let artists_stream = self.artists_tab.stream().clone();
         let albums_stream = self.albums_tab.stream().clone();
         let playlists_stream = self.playlists_tab.stream().clone();
-        let favorites_stream = self.favorites_tab.stream().clone();
+        let tracks_stream = self.tracks_tab.stream().clone();
         let shows_stream = self.shows_tab.stream().clone();
         let stream = self.model.stream.clone();
         self.media_controls.stream().observe(move |msg| {
@@ -435,7 +408,8 @@ impl Widget for Win {
                     Type::Album => (Tab::Albums, &albums_stream),
                     Type::Playlist => (Tab::Playlists, &playlists_stream),
                     Type::Show => (Tab::Shows, &shows_stream),
-                    Type::Track => (Tab::Favorites, &favorites_stream),
+                    Type::Artist => (Tab::Artists, &artists_stream),
+                    Type::Track => (Tab::Tracks, &tracks_stream),
                     _ => return,
                 };
 
@@ -464,9 +438,9 @@ impl Widget for Win {
         }
 
         connect_playback_update!(media_controls => (
-            albums_tab, artists_tab, categories_tab, favorites_tab,
+            albums_tab, artists_tab, categories_tab, tracks_tab,
             featured_tab, new_releases_tab, queue_tab, recent_tab, shows_tab,
-            top_artists_tab, top_tracks_tab, playlists_tab
+            playlists_tab
         ));
     }
 }
