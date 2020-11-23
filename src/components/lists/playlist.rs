@@ -13,13 +13,14 @@
 //!# macro_rules! view { ($body:tt*) => {} }
 //!# let (tx, rx) = channel();
 //!# let spotify = Arc::new(SpotifyProxy::new(tx));
-//! use spodjfy::components::lists::playlist::PlaylistList;
+//! use spodjfy::components::lists::PlaylistList;
 //! use spodjfy::loaders::playlist::SavedLoader;
 //!
 //! view! {
 //!     PlaylistList::<SavedLoader>(spotify.clone())
 //! }
 //! ```
+use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
 use crate::loaders::playlist::*;
 use crate::loaders::{ContainerLoader, MissingColumns};
@@ -289,5 +290,13 @@ where
             PlaylistView::Icon(_) => ICON_THUMB_SIZE,
             PlaylistView::Tree(_) => TREE_THUMB_SIZE,
         }
+    }
+
+    fn setup_search(&self, entry: &gtk::Entry) -> bool {
+        match self {
+            PlaylistView::Tree(view) => view.setup_search(COL_PLAYLIST_NAME, Some(entry)),
+            PlaylistView::Icon(view) => view.setup_search(COL_PLAYLIST_NAME, Some(entry)),
+        };
+        true
     }
 }

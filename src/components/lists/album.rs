@@ -22,7 +22,7 @@
 //! ```
 
 use crate::components::lists::common::{
-    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView,
+    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch,
 };
 use crate::loaders::album::*;
 use crate::loaders::{ContainerLoader, MissingColumns};
@@ -308,5 +308,10 @@ where
 
     fn thumb_size(&self) -> i32 {
         THUMB_SIZE
+    }
+
+    fn setup_search(&self, entry: &gtk::Entry) -> bool {
+        self.0.setup_search(COL_ALBUM_NAME, Some(entry));
+        true
     }
 }

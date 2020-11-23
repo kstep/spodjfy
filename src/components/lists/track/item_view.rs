@@ -1,3 +1,4 @@
+use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerMsg, GetSelectedRows, ItemsListView, TrackMsg};
 use crate::loaders::track::*;
 use crate::loaders::{ContainerLoader, MissingColumns};
@@ -6,6 +7,7 @@ use glib::{Cast, IsA, ObjectExt};
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererPixbufExt, CellRendererTextExt, GtkMenuItemExt,
     MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewExt, WidgetExt,
+    NONE_ENTRY,
 };
 use relm::EventStream;
 use std::ops::Deref;
@@ -318,18 +320,6 @@ where
             });
         }
 
-        items_view.set_search_column(COL_TRACK_NAME as i32);
-        items_view.set_enable_search(true);
-        items_view.set_search_equal_func(|model, col, needle, pos| {
-            if let Ok(Some(haystack)) = model.get_value(pos, col).get::<&str>() {
-                let haystack = haystack.to_ascii_lowercase();
-                let needle = needle.to_ascii_lowercase();
-                !haystack.contains(&needle)
-            } else {
-                true
-            }
-        });
-
         {
             let stream = stream.clone();
             items_view.connect_row_activated(move |tree, path, _col| {
@@ -348,6 +338,11 @@ where
         }
 
         TrackView(items_view)
+    }
+
+    fn setup_search(&self, entry: &gtk::Entry) -> bool {
+        self.0.setup_search(COL_TRACK_NAME, Some(entry));
+        true
     }
 
     fn context_menu(&self, stream: EventStream<TrackMsg<Loader>>) -> gtk::Menu {

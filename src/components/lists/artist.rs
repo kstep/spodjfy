@@ -1,3 +1,4 @@
+use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{
     ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, MessageHandler,
 };
@@ -174,6 +175,11 @@ where
         });
 
         ArtistView(artist_view)
+    }
+
+    fn setup_search(&self, entry: &gtk::Entry) -> bool {
+        self.0.setup_search(COL_ARTIST_NAME, Some(entry));
+        true
     }
 
     fn thumb_size(&self) -> i32 {

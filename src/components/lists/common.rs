@@ -5,8 +5,9 @@ use crate::servers::spotify::SpotifyProxy;
 use glib::{IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
-    BoxExt, ButtonExt, ContainerExt, GtkListStoreExt, GtkMenuExt, IconViewExt, ProgressBarExt,
-    StatusbarExt, TreeSelectionExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
+    IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt,
+    TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
@@ -28,12 +29,17 @@ pub enum ContainerMsg<Loader: ContainerLoader> {
     ActivateItem(String, String),
     ActivateItems(Vec<String>),
     OpenContextMenu(gdk::EventButton),
+    StartSearch,
+    FinishSearch,
 }
 
 pub trait ItemsListView<Loader, Message> {
     fn create<Store: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &Store) -> Self;
     fn context_menu(&self, _stream: EventStream<Message>) -> gtk::Menu {
         gtk::Menu::new()
+    }
+    fn setup_search(&self, _entry: &gtk::Entry) -> bool {
+        false
     }
     fn thumb_size(&self) -> i32;
 }
@@ -97,6 +103,8 @@ pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = Con
     pub model: ContainerModel<Loader>,
     pub progress_bar: gtk::ProgressBar,
     pub refresh_btn: gtk::Button,
+    pub search_entry: gtk::Entry,
+    pub search_btn: gtk::Button,
     pub context_menu: gtk::Menu,
     handler: PhantomData<Handler>,
 }
@@ -136,10 +144,16 @@ where
             self.model.is_loading = true;
             *loader = Loader::new(loader.parent_id().clone());
             let epoch = loader.epoch();
+
+            self.search_btn.set_visible(false);
+            self.search_entry.set_text("");
+            self.search_entry.set_visible(false);
+
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);
             self.progress_bar.pulse();
+
             self.stream
                 .emit(ContainerMsg::LoadPage(Loader::Page::init_offset(), epoch).into());
         }
@@ -148,10 +162,14 @@ where
     pub fn finish_load(&mut self) {
         let status_ctx = self.status_bar.get_context_id("totals");
         self.model.is_loading = false;
+
         self.progress_bar.set_visible(false);
         self.refresh_btn.set_visible(true);
-        self.status_bar.remove_all(status_ctx);
 
+        self.search_btn.set_visible(true);
+        self.search_entry.set_visible(false);
+
+        self.status_bar.remove_all(status_ctx);
         let totals = if self.model.total_duration > 0 {
             format!(
                 "Total {}: {}, total duration: {}{}",
@@ -321,6 +339,17 @@ where
                 OpenContextMenu(event) => {
                     self.context_menu.popup_at_pointer(Some(&event));
                 }
+                StartSearch => {
+                    self.search_btn.set_visible(false);
+                    self.search_entry.set_text("");
+                    self.search_entry.set_visible(true);
+                    self.search_entry.grab_focus();
+                }
+                FinishSearch => {
+                    self.search_entry.set_text("");
+                    self.search_entry.set_visible(false);
+                    self.search_btn.set_visible(true);
+                }
             }
         }
     }
@@ -344,6 +373,7 @@ where
         self.root.clone()
     }
 
+    #[allow(non_upper_case_globals)]
     fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
 
@@ -365,6 +395,39 @@ where
             .show_text(true)
             .build();
         status_bar.pack_end(&progress_bar, false, true, 0);
+
+        let search_entry = gtk::Entry::new();
+        let stream = relm.stream().clone();
+        search_entry.connect_focus_out_event(move |_, _| {
+            stream.emit(ContainerMsg::FinishSearch.into());
+            Inhibit(false)
+        });
+        let stream = relm.stream().clone();
+        search_entry.connect_key_press_event(move |_, event| {
+            use gdk::keys::constants::*;
+            use gdk::EventType::*;
+            match (event.get_event_type(), event.get_keyval()) {
+                (KeyPress, Escape) => {
+                    stream.emit(ContainerMsg::FinishSearch.into());
+                }
+                _ => {}
+            }
+            Inhibit(false)
+        });
+
+        let search_btn =
+            gtk::Button::from_icon_name(Some("system-search"), gtk::IconSize::SmallToolbar);
+        search_btn.set_tooltip_text(Some("Search list"));
+        let stream = relm.stream().clone();
+        search_btn.connect_clicked(move |_| {
+            stream.emit(ContainerMsg::StartSearch.into());
+        });
+
+        if items_view.setup_search(&search_entry) {
+            status_bar.pack_start(&search_entry, false, false, 0);
+            status_bar.pack_start(&search_btn, false, false, 0);
+            search_entry.hide();
+        }
 
         let refresh_btn =
             gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
@@ -390,10 +453,75 @@ where
             items_view,
             status_bar,
             progress_bar,
+            search_btn,
+            search_entry,
             refresh_btn,
             context_menu,
             model,
             handler: PhantomData,
         }
+    }
+}
+
+pub trait SetupViewSearch {
+    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
+        &self,
+        column: u32,
+        entry: Option<&T>,
+    ) -> Option<()>;
+    fn tree_view_search(
+        model: &gtk::TreeModel,
+        column: i32,
+        needle: &str,
+        pos: &gtk::TreeIter,
+    ) -> bool {
+        if let Ok(Some(haystack)) = model.get_value(pos, column).get::<&str>() {
+            let haystack = haystack.to_ascii_lowercase();
+            let needle = needle.to_ascii_lowercase();
+            !haystack.contains(&needle)
+        } else {
+            true
+        }
+    }
+}
+
+impl SetupViewSearch for gtk::TreeView {
+    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
+        &self,
+        column: u32,
+        entry: Option<&T>,
+    ) -> Option<()> {
+        self.set_search_column(column as i32);
+        self.set_enable_search(true);
+        self.set_search_entry(entry);
+        self.set_search_equal_func(Self::tree_view_search);
+        Some(())
+    }
+}
+
+impl SetupViewSearch for gtk::IconView {
+    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
+        &self,
+        column: u32,
+        entry: Option<&T>,
+    ) -> Option<()> {
+        let model = self.get_model()?;
+        let entry = entry?;
+        let buffer = entry.get_buffer();
+
+        let filter = gtk::TreeModelFilter::new(&model, None);
+        filter.set_visible_func(move |model, pos| {
+            let needle = buffer.get_text();
+            if needle.is_empty() {
+                true
+            } else {
+                !Self::tree_view_search(model, column as i32, &needle, pos)
+            }
+        });
+
+        self.set_model(Some(&filter));
+
+        entry.connect_changed(move |_| filter.refilter());
+        Some(())
     }
 }
