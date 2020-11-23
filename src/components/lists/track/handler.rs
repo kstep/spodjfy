@@ -253,12 +253,14 @@ impl<K, V> PlayContextCmd for Map<K, V> {
 
 impl PlayContextCmd for String {
     fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
-        let start_uri =
-            if self.starts_with("spotify:album:") || self.starts_with("spotify:playlist:") {
-                uris.first().cloned()
-            } else {
-                None
-            };
+        let start_uri = if self.starts_with("spotify:album:")
+            || self.starts_with("spotify:playlist:")
+            || self.starts_with("spotify:show:")
+        {
+            uris.first().cloned()
+        } else {
+            None
+        };
 
         SpotifyCmd::PlayContext {
             uri: self,
