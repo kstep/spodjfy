@@ -1,13 +1,14 @@
+use crate::components::tabs::search::SearchTerm::Key;
 use crate::loaders::{
     ContainerLoader, HasDuration, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB,
 };
 use crate::servers::spotify::SpotifyProxy;
-use glib::{IsA, ToValue, Type};
+use glib::{Cast, IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
-    BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
-    IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt,
-    TreeSelectionExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, ContainerExt, Editable, EditableSignals, Entry, EntryExt, GtkListStoreExt,
+    GtkMenuExt, IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt,
+    TreeModelFilterExt, TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
@@ -464,11 +465,34 @@ where
 }
 
 pub trait SetupViewSearch {
-    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
+    fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()>;
+
+    fn wrap_filter<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
         &self,
+        model: &gtk::TreeModel,
         column: u32,
-        entry: Option<&T>,
-    ) -> Option<()>;
+        entry: &T,
+    ) -> gtk::TreeModel {
+        let buffer = entry.get_buffer();
+
+        let filter = gtk::TreeModelFilter::new(model, None);
+        filter.set_visible_func(move |model, pos| {
+            let needle = buffer.get_text();
+            if needle.is_empty() {
+                true
+            } else {
+                !Self::tree_view_search(model, column as i32, &needle, pos)
+            }
+        });
+
+        {
+            let filter = filter.clone();
+            entry.connect_changed(move |_| filter.refilter());
+        }
+
+        filter.upcast()
+    }
+
     fn tree_view_search(
         model: &gtk::TreeModel,
         column: i32,
@@ -486,42 +510,138 @@ pub trait SetupViewSearch {
 }
 
 impl SetupViewSearch for gtk::TreeView {
-    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
-        &self,
-        column: u32,
-        entry: Option<&T>,
-    ) -> Option<()> {
+    fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()> {
         self.set_search_column(column as i32);
         self.set_enable_search(true);
         self.set_search_entry(entry);
         self.set_search_equal_func(Self::tree_view_search);
+        if let Some(entry) = entry {
+            let view = self.clone();
+            entry.connect_activate(move |_| {
+                if let Some((model, pos)) = view.get_selection().get_selected() {
+                    if let (Some(col), Some(path)) = (view.get_column(0), model.get_path(&pos)) {
+                        view.emit_row_activated(&path, &col);
+                    }
+                }
+            });
+        }
         Some(())
     }
 }
 
-impl SetupViewSearch for gtk::IconView {
-    fn setup_search<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
-        &self,
-        column: u32,
-        entry: Option<&T>,
-    ) -> Option<()> {
-        let model = self.get_model()?;
-        let entry = entry?;
-        let buffer = entry.get_buffer();
+struct TreeModelIterator<'a> {
+    model: &'a gtk::TreeModel,
+    iter: Option<gtk::TreeIter>,
+}
+impl<'a> TreeModelIterator<'a> {
+    fn new(model: &'a gtk::TreeModel, first: Option<gtk::TreeIter>) -> TreeModelIterator<'a> {
+        Self {
+            model,
+            iter: first.or_else(|| model.get_iter_first()),
+        }
+    }
+    fn reset(&mut self) {
+        self.iter = self.model.get_iter_first();
+    }
+}
+impl<'a> DoubleEndedIterator for TreeModelIterator<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.iter {
+            Some(ref iter) => {
+                let cur_iter = iter.clone();
+                if !self.model.iter_previous(iter) {
+                    self.iter = None;
+                }
+                Some(cur_iter)
+            }
+            None => None,
+        }
+    }
+}
+impl<'a> Iterator for TreeModelIterator<'a> {
+    type Item = gtk::TreeIter;
 
-        let filter = gtk::TreeModelFilter::new(&model, None);
-        filter.set_visible_func(move |model, pos| {
-            let needle = buffer.get_text();
-            if needle.is_empty() {
-                true
-            } else {
-                !Self::tree_view_search(model, column as i32, &needle, pos)
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iter {
+            Some(ref iter) => {
+                let cur_iter = iter.clone();
+                if !self.model.iter_next(iter) {
+                    self.iter = None;
+                }
+                Some(cur_iter)
+            }
+            None => None,
+        }
+    }
+}
+
+impl SetupViewSearch for gtk::IconView {
+    #[allow(non_upper_case_globals)]
+    fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()> {
+        let entry = entry?;
+
+        let view = self.clone();
+        entry.connect_key_press_event(move |entry, event| {
+            use gdk::keys::constants::*;
+            use gdk::EventType::*;
+            Inhibit(loop {
+                if let Some(model) = view.get_model() {
+                    let (mut iter, rev) = match (event.get_event_type(), event.get_keyval()) {
+                        (KeyPress, key @ Up) | (KeyPress, key @ Down) => {
+                            let cur_pos = view
+                                .get_selected_items()
+                                .first()
+                                .and_then(|path| model.get_iter(path));
+                            (TreeModelIterator::new(&model, cur_pos), key == Up)
+                        }
+                        _ => break false,
+                    };
+
+                    let needle = entry.get_text();
+                    let found = if rev {
+                        iter.rev()
+                            .skip(1)
+                            .find(|pos| {
+                                !Self::tree_view_search(&model, column as i32, &needle, &pos)
+                            })
+                            .and_then(|pos| model.get_path(&pos))
+                    } else {
+                        iter.skip(1)
+                            .find(|pos| {
+                                !Self::tree_view_search(&model, column as i32, &needle, &pos)
+                            })
+                            .and_then(|pos| model.get_path(&pos))
+                    };
+                    if let Some(path) = found {
+                        view.unselect_all();
+                        view.select_path(&path);
+                        view.scroll_to_path(&path, false, 0.0, 0.0);
+                    }
+                }
+                break true;
+            })
+        });
+
+        let view = self.clone();
+        entry.connect_changed(move |entry| {
+            if let Some(model) = view.get_model() {
+                let needle = entry.get_text();
+                if let Some(path) = TreeModelIterator::new(&model, None)
+                    .find(|pos| !Self::tree_view_search(&model, column as i32, &needle, &pos))
+                    .and_then(|pos| model.get_path(&pos))
+                {
+                    view.unselect_all();
+                    view.select_path(&path);
+                    view.scroll_to_path(&path, false, 0.0, 0.0);
+                }
             }
         });
 
-        self.set_model(Some(&filter));
+        let view = self.clone();
+        entry.connect_activate(move |_| {
+            view.emit_activate_cursor_item();
+        });
 
-        entry.connect_changed(move |_| filter.refilter());
         Some(())
     }
 }
