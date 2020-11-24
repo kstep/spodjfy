@@ -1,5 +1,5 @@
 use crate::components::lists::{AlbumList, ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::MusicTabMsg;
+use crate::components::tabs::{MusicTabMsg, TracksObserver};
 use crate::loaders::{AlbumLoader, NewReleasesLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
@@ -69,11 +69,8 @@ impl Widget for NewReleasesTab {
             }
         });
 
-        let stream = relm.stream().clone();
-        self.tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
-            }
-        });
+        self.tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
     }
 }

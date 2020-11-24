@@ -1,5 +1,5 @@
 use crate::components::lists::{AlbumList, ArtistList, ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::MusicTabMsg;
+use crate::components::tabs::{MusicTabMsg, TracksObserver};
 use crate::loaders::{
     AlbumLoader, ArtistLoader, ArtistTopTracksLoader, MyTopArtistsLoader, RelatedArtistsLoader,
     SavedArtistsLoader as SavedLoader,
@@ -146,18 +146,11 @@ impl Widget for ArtistsTab {
             }
         });
 
-        let stream = relm.stream().clone();
-        self.tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
-            }
-        });
-
-        let stream = relm.stream().clone();
-        self.top_tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
-            }
-        });
+        self.tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
+        self.top_tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
     }
 }

@@ -1,11 +1,10 @@
 use crate::components::lists::{ContainerMsg, PlaylistList, TrackList, TrackMsg};
-use crate::components::tabs::MusicTabMsg;
+use crate::components::tabs::{MusicTabMsg, TracksObserver};
 use crate::loaders::{PlaylistLoader, SavedPlaylistsLoader as SavedLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use rspotify::model::Type;
 use std::sync::Arc;
 
 pub struct PlaylistsModel {
@@ -69,18 +68,8 @@ impl Widget for PlaylistsTab {
             }
         });
 
-        let stream = relm.stream().clone();
-        self.tracks_view.stream().observe(move |msg| {
-            match msg {
-                TrackMsg::PlayingNewTrack => stream.emit(MusicTabMsg::PlaybackUpdate),
-                TrackMsg::GoToArtist(uri, name) => {
-                    stream.emit(MusicTabMsg::GoTo(Type::Artist, uri.clone(), name.clone()))
-                }
-                TrackMsg::GoToAlbum(uri, name) => {
-                    stream.emit(MusicTabMsg::GoTo(Type::Album, uri.clone(), name.clone()))
-                }
-                _ => {}
-            }
-        });
+        self.tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
     }
 }

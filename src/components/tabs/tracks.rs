@@ -1,5 +1,5 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::MusicTabMsg;
+use crate::components::tabs::{MusicTabMsg, TracksObserver};
 use crate::loaders::{MyTopTracksLoader, SavedTracksLoader as SavedLoader};
 use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
@@ -62,18 +62,11 @@ impl Widget for TracksTab {
     }
 
     fn subscriptions(&mut self, relm: &Relm<Self>) {
-        let stream = relm.stream().clone();
-        self.saved_tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
-            }
-        });
-
-        let stream = relm.stream().clone();
-        self.top_tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
-            }
-        });
+        self.saved_tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
+        self.top_tracks_view
+            .stream()
+            .observe(TracksObserver::new(relm.stream()));
     }
 }
