@@ -82,10 +82,10 @@ impl LoginServer {
     }
 
     async fn process(stream: &mut TcpStream) -> Result<Option<String>, Error> {
-        let mut buffer = [0u8; 640];
+        let mut buffer = [0u8; 2048];
         if stream.read(&mut buffer[..]).await? > 0 {
             let buffer = String::from_utf8_lossy(&buffer);
-            if !buffer.starts_with("GET ") {
+            if !buffer.starts_with("GET /callback?code=") {
                 return Err(Error::from(ErrorKind::InvalidInput));
             }
 
@@ -101,7 +101,7 @@ impl LoginServer {
                     }
                 })
                 .map(|s| {
-                    let start = s.find("?code=").map(|p| p + 6).unwrap_or(0);
+                    let start = 15;
                     let end = s[start..]
                         .find('&')
                         .map(|p| p + start)
