@@ -5,9 +5,9 @@ use crate::servers::spotify::SpotifyProxy;
 use glib::{Cast, IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
-    BoxExt, ButtonExt, ContainerExt, Editable, EditableSignals, Entry, EntryExt, GtkListStoreExt,
-    GtkMenuExt, IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt,
-    TreeModelFilterExt, TreeSelectionExt, TreeViewExt, WidgetExt,
+    BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
+    IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt,
+    TreeSelectionExt, TreeViewExt, WidgetExt,
 };
 use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};

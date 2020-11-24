@@ -7,7 +7,6 @@ use glib::{Cast, IsA, ObjectExt};
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererPixbufExt, CellRendererTextExt, GtkMenuItemExt,
     MenuShellExt, TreeModelExt, TreeSelectionExt, TreeViewColumn, TreeViewExt, WidgetExt,
-    NONE_ENTRY,
 };
 use relm::EventStream;
 use std::ops::Deref;

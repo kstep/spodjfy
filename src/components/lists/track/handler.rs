@@ -8,6 +8,7 @@ use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,
 };
+use rspotify::model::Type;
 use serde_json::Map;
 
 pub struct TrackMsgHandler;
@@ -155,14 +156,20 @@ where
                 let uris = this.get_selected_tracks_uris();
                 this.model
                     .spotify
-                    .tell(SpotifyCmd::AddMyTracks { uris })
+                    .tell(SpotifyCmd::AddToMyLibrary {
+                        kind: Type::Track,
+                        uris,
+                    })
                     .unwrap();
             }
             UnsaveChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
                 this.model
                     .spotify
-                    .tell(SpotifyCmd::RemoveMyTracks { uris })
+                    .tell(SpotifyCmd::RemoveFromMyLibrary {
+                        kind: Type::Track,
+                        uris,
+                    })
                     .unwrap();
             }
             RecommendTracks => {}

@@ -68,6 +68,8 @@ pub enum MediaControlsMsg {
     ClickTrackUri(Option<String>),
     GoToTrack(Type, String, Option<(String, String)>),
     ShowInfo(bool),
+    SaveCurrentTrack(bool),
+    IsTrackSaved(bool),
 }
 
 #[doc(hidden)]
@@ -80,6 +82,8 @@ pub struct MediaControlsModel {
     track_cover: Option<Pixbuf>,
     context_cover: Option<Pixbuf>,
     image_loaders: [ImageLoader; 2],
+    track_saved: bool,
+    context_saved: bool,
     settings: Arc<RwLock<Settings>>,
 }
 
@@ -123,6 +127,8 @@ impl Widget for MediaControls {
             image_loaders: [context_image_loader, track_image_loader],
             state: None,
             context: None,
+            track_saved: false,
+            context_saved: false,
             track_cover: None,
             context_cover: None,
         }
@@ -210,11 +216,28 @@ impl Widget for MediaControls {
                         item.uri(),
                     );
 
+                    let kind = match item {
+                        PlayingItem::Episode(_) => Type::Episode,
+                        PlayingItem::Track(_) => Type::Track,
+                    };
+
                     if track_uri != old_track_uri {
                         self.model.track_cover = None;
 
                         if let Some(url) = cover_url {
                             self.model.stream.emit(LoadCover(url.to_owned(), true));
+                        }
+
+                        {
+                            let uris = vec![track_uri.to_owned()];
+                            self.model
+                                .spotify
+                                .ask(
+                                    self.model.stream.clone(),
+                                    move |tx| SpotifyCmd::AreInMyLibrary { tx, kind, uris },
+                                    |reply| IsTrackSaved(reply[0]),
+                                )
+                                .unwrap();
                         }
 
                         self.track_seek_bar.set_range(0.0, duration_ms as f64);
@@ -250,6 +273,9 @@ impl Widget for MediaControls {
                 }
 
                 self.model.state = *state;
+            }
+            IsTrackSaved(saved) => {
+                self.model.track_saved = saved;
             }
             LoadCover(url, is_for_track) => {
                 let stream = Fragile::new(self.model.stream.clone());
@@ -329,6 +355,28 @@ impl Widget for MediaControls {
                     .spotify
                     .tell(SpotifyCmd::SetRepeatMode { mode })
                     .unwrap();
+            }
+            SaveCurrentTrack(save) => {
+                if let Some(ref state) = self.model.state {
+                    if let Some(ref item) = state.item {
+                        let (kind, uri) = match item {
+                            PlayingItem::Track(track) => (Type::Track, track.uri.clone()),
+                            PlayingItem::Episode(episode) => (Type::Episode, episode.uri.clone()),
+                        };
+
+                        let uris = vec![uri];
+                        self.model
+                            .spotify
+                            .tell(if save {
+                                SpotifyCmd::AddToMyLibrary { uris, kind }
+                            } else {
+                                SpotifyCmd::RemoveFromMyLibrary { uris, kind }
+                            })
+                            .unwrap();
+
+                        self.model.track_saved = save;
+                    }
+                }
             }
             ShowInfo(state) => {
                 self.state_info.set_reveal_child(state);
@@ -461,21 +509,30 @@ impl Widget for MediaControls {
                         },
                         #[name="track_infobox"]
                         gtk::Box(gtk::Orientation::Vertical, 10) {
-                            #[name="track_name_label"]
-                            gtk::LinkButton {
-                                widget_name: "track_name_label",
-                                uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
+                            gtk::Box(gtk::Orientation::Horizontal, 0) {
+                                #[name="track_saved_btn"]
+                                gtk::ToggleButton {
+                                    tooltip_text: Some("Add to library"),
+                                    image: Some(&gtk::Image::from_icon_name(Some("emblem-favorite"), gtk::IconSize::LargeToolbar)),
+                                    active: self.model.track_saved,
+                                    toggled(btn) => MediaControlsMsg::SaveCurrentTrack(btn.get_active()),
+                                },
+                                #[name="track_name_label"]
+                                gtk::LinkButton {
+                                    widget_name: "track_name_label",
+                                    uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
 
-                                activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
+                                    activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
 
-                                gtk::Label {
-                                    halign: gtk::Align::Start,
-                                    xalign: 0.0,
-                                    line_wrap: true,
-                                    ellipsize: pango::EllipsizeMode::End,
-                                    lines: 2,
-                                    text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
-                                }
+                                    gtk::Label {
+                                        halign: gtk::Align::Start,
+                                        xalign: 0.0,
+                                        line_wrap: true,
+                                        ellipsize: pango::EllipsizeMode::End,
+                                        lines: 2,
+                                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
+                                    }
+                                },
                             },
                             #[name="track_artists_label"]
                             gtk::Label {

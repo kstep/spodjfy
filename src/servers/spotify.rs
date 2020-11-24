@@ -13,7 +13,7 @@ use rspotify::model::playing::PlayHistory;
 use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
-use rspotify::model::{offset, AdditionalType, RepeatState, TimeRange};
+use rspotify::model::{offset, AdditionalType, RepeatState, TimeRange, Type};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::VecDeque;
@@ -237,10 +237,18 @@ pub enum SpotifyCmd {
     DequeueTracks {
         uris: Vec<String>,
     },
-    AddMyTracks {
+    AddToMyLibrary {
+        kind: Type,
         uris: Vec<String>,
     },
-    RemoveMyTracks {
+    RemoveFromMyLibrary {
+        kind: Type,
+        uris: Vec<String>,
+    },
+    AreInMyLibrary {
+        #[derivative(Debug = "ignore")]
+        tx: ResultSender<Vec<bool>>,
+        kind: Type,
         uris: Vec<String>,
     },
     GetQueueTracks {
@@ -537,11 +545,42 @@ impl SpotifyServer {
             DequeueTracks { uris } => {
                 let _ = client.lock().await.dequeue_tracks(&uris).await;
             }
-            AddMyTracks { uris } => {
-                let _ = client.lock().await.add_my_tracks(&uris).await;
+            AddToMyLibrary { kind, uris } => {
+                let client = client.lock().await;
+                let _ = match kind {
+                    Type::Artist => client.add_my_artists(&uris).await,
+                    Type::User => client.add_my_users(&uris).await,
+                    Type::Show => client.add_my_shows(&uris).await,
+                    Type::Album => client.add_my_albums(&uris).await,
+                    Type::Playlist => client.add_my_playlists(&uris, true).await,
+                    Type::Track => client.add_my_tracks(&uris).await,
+                    Type::Episode => Ok(()),
+                };
             }
-            RemoveMyTracks { uris } => {
-                let _ = client.lock().await.remove_my_tracks(&uris).await;
+            RemoveFromMyLibrary { kind, uris } => {
+                let client = client.lock().await;
+                let _ = match kind {
+                    Type::Artist => client.remove_my_artists(&uris).await,
+                    Type::User => client.remove_my_users(&uris).await,
+                    Type::Show => client.remove_my_shows(&uris).await,
+                    Type::Album => client.remove_my_albums(&uris).await,
+                    Type::Playlist => client.remove_my_playlists(&uris).await,
+                    Type::Track => client.remove_my_tracks(&uris).await,
+                    Type::Episode => Ok(()),
+                };
+            }
+            AreInMyLibrary { tx, kind, uris } => {
+                let client = client.lock().await;
+                let reply = match kind {
+                    Type::Artist => client.are_my_artists(&uris).await,
+                    Type::User => client.are_my_users(&uris).await,
+                    Type::Show => client.are_my_shows(&uris).await,
+                    Type::Album => client.are_my_albums(&uris).await,
+                    Type::Playlist => client.are_my_playlists(&uris).await,
+                    Type::Track => client.are_my_tracks(&uris).await,
+                    Type::Episode => Ok(std::iter::repeat(false).take(uris.len()).collect()),
+                };
+                tx.send(reply)?;
             }
             GetCategories { tx, offset, limit } => {
                 let reply = client.lock().await.get_categories(offset, limit).await;
@@ -707,6 +746,10 @@ impl Spotify {
                 UserReadCurrentlyPlaying,
                 PlaylistReadPrivate,
                 PlaylistReadCollaborative,
+                UserLibraryModify,
+                PlaylistModifyPrivate,
+                PlaylistModifyPublic,
+                UserFollowModify,
             ]))
             .redirect_uri("http://localhost:8888/callback")
             .build()
@@ -934,6 +977,101 @@ impl Spotify {
     async fn remove_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
         self.client
             .current_user_saved_tracks_delete(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn add_my_albums(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .current_user_saved_albums_add(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn remove_my_albums(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .current_user_saved_albums_delete(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn add_my_artists(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .user_follow_artists(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn remove_my_artists(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .user_unfollow_artists(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn add_my_shows(&self, uris: &[String]) -> ClientResult<()> {
+        self.client.save_shows(uris.iter().map(Deref::deref)).await
+    }
+
+    async fn remove_my_shows(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .remove_users_saved_shows(uris.iter().map(Deref::deref), None)
+            .await
+    }
+
+    async fn add_my_playlists(&self, uris: &[String], public: bool) -> ClientResult<()> {
+        futures::future::try_join_all(
+            uris.iter()
+                .map(|uri| self.client.playlist_follow(&uri, public)),
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn remove_my_playlists(&self, uris: &[String]) -> ClientResult<()> {
+        futures::future::try_join_all(uris.iter().map(|uri| self.client.playlist_unfollow(&uri)))
+            .await
+            .map(|_| ())
+    }
+
+    async fn add_my_users(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .user_follow_users(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn remove_my_users(&self, uris: &[String]) -> ClientResult<()> {
+        self.client
+            .user_unfollow_users(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn are_my_albums(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        self.client
+            .current_user_saved_albums_contains(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn are_my_artists(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        self.client
+            .user_artist_check_follow(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn are_my_shows(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        self.client
+            .check_users_saved_shows(uris.iter().map(Deref::deref))
+            .await
+    }
+
+    async fn are_my_playlists(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        // TODO: dummy implementation
+        Ok(std::iter::repeat(true).take(uris.len()).collect())
+    }
+
+    async fn are_my_users(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        // TODO: dummy implementation
+        Ok(std::iter::repeat(false).take(uris.len()).collect())
+    }
+
+    async fn are_my_tracks(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+        self.client
+            .current_user_saved_tracks_contains(uris.iter().map(Deref::deref))
             .await
     }
 
