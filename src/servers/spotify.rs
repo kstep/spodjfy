@@ -89,7 +89,7 @@ impl SpotifyProxy {
 
 pub type ResultSender<T> = relm::Sender<ClientResult<T>>;
 
-#[derive(Derivative)]
+#[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub enum SpotifyCmd {
     SetupClient {
@@ -323,6 +323,7 @@ pub struct Spotify {
 pub enum SpotifyError {
     Recv,
     Send,
+    RateLimit(usize),
     Timeout,
 }
 
@@ -350,8 +351,6 @@ pub struct SpotifyServer {
 }
 
 impl SpotifyServer {
-    const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-
     pub fn new(client: Arc<Mutex<Spotify>>, channel: Receiver<SpotifyCmd>) -> SpotifyServer {
         SpotifyServer { client, channel }
     }
@@ -365,15 +364,31 @@ impl SpotifyServer {
     pub async fn run(self) -> Result<(), SpotifyError> {
         loop {
             let msg = self.channel.recv()?;
-            tokio::time::timeout(
-                Self::REQUEST_TIMEOUT,
-                Self::handle(self.client.clone(), msg),
-            )
-            .unwrap_or_else(|_| {
-                error!("spotify request timeout");
-                Ok(())
-            })
-            .await?;
+
+            loop {
+                let msg = msg.clone();
+                let reply = Self::handle(self.client.clone(), msg).await;
+                if let Err(SpotifyError::RateLimit(timeout)) = reply {
+                    let timeout = timeout + 1;
+                    warn!(
+                        "spotify rate limit exceeded, waiting {} secs to resend",
+                        timeout
+                    );
+                    tokio::time::delay_for(Duration::from_secs(timeout as u64)).await;
+                } else {
+                    reply?;
+                    break;
+                }
+            }
+        }
+    }
+
+    fn check_rate<T>(reply: ClientResult<T>) -> Result<ClientResult<T>, SpotifyError> {
+        match reply {
+            Err(ClientError::RateLimited(timeout)) => {
+                Err(SpotifyError::RateLimit(timeout.unwrap_or(4)))
+            }
+            reply => Ok(reply),
         }
     }
 
@@ -383,26 +398,26 @@ impl SpotifyServer {
 
         match msg {
             SetupClient { tx, id, secret } => {
-                let url = client.lock().await.setup_client(id, secret).await;
+                let url = Self::check_rate(client.lock().await.setup_client(id, secret).await)?;
                 tx.send(url)?;
             }
             StartPlayback => {
-                let _ = client.lock().await.start_playback().await;
+                let _ = Self::check_rate(client.lock().await.start_playback().await)?;
             }
             SeekTrack { pos } => {
-                let _ = client.lock().await.seek_track(pos).await;
+                let _ = Self::check_rate(client.lock().await.seek_track(pos).await)?;
             }
             PausePlayback => {
-                let _ = client.lock().await.pause_playback().await;
+                let _ = Self::check_rate(client.lock().await.pause_playback().await)?;
             }
             PlayNextTrack => {
-                let _ = client.lock().await.play_next_track().await;
+                let _ = Self::check_rate(client.lock().await.play_next_track().await)?;
             }
             PlayPrevTrack => {
-                let _ = client.lock().await.play_prev_track().await;
+                let _ = Self::check_rate(client.lock().await.play_prev_track().await)?;
             }
             GetPlaybackState { tx } => {
-                let state = client.lock().await.get_playback_state().await;
+                let state = Self::check_rate(client.lock().await.get_playback_state().await)?;
                 tx.send(state)?;
             }
             GetArtistAlbums {
@@ -411,11 +426,13 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let reply = client
-                    .lock()
-                    .await
-                    .get_artist_albums(&uri, offset, limit)
-                    .await;
+                let reply = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_artist_albums(&uri, offset, limit)
+                        .await,
+                )?;
                 tx.send(reply)?;
             }
             GetAlbumTracks {
@@ -424,11 +441,13 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let tracks = client
-                    .lock()
-                    .await
-                    .get_album_tracks(&uri, offset, limit)
-                    .await;
+                let tracks = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_album_tracks(&uri, offset, limit)
+                        .await,
+                )?;
                 tx.send(tracks)?;
             }
             GetPlaylistTracks {
@@ -437,34 +456,37 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let tracks = client
-                    .lock()
-                    .await
-                    .get_playlist_tracks(&uri, offset, limit)
-                    .await;
+                let tracks = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_playlist_tracks(&uri, offset, limit)
+                        .await,
+                )?;
                 tx.send(tracks)?;
             }
             GetQueueTracks { tx } => {
-                let reply = client.lock().await.get_queue_tracks().await;
+                let reply = Self::check_rate(client.lock().await.get_queue_tracks().await)?;
                 tx.send(reply)?;
             }
             GetAuthorizeUrl { tx } => {
-                let url = client.lock().await.get_authorize_url();
+                let url = Self::check_rate(client.lock().await.get_authorize_url())?;
                 tx.send(url)?;
             }
             UseDevice { id, play } => {
-                let _ = client.lock().await.use_device(id, play).await;
+                let _ = Self::check_rate(client.lock().await.use_device(id, play).await)?;
             }
             AuthorizeUser { tx, code } => {
-                let reply = client.lock().await.authorize_user(code).await;
+                let reply = Self::check_rate(client.lock().await.authorize_user(code).await)?;
                 tx.send(reply)?;
             }
             RefreshUserToken => {
-                let result = client.lock().await.refresh_user_token().await;
+                let result = Self::check_rate(client.lock().await.refresh_user_token().await)?;
                 info!("refresh access token result: {:?}", result);
             }
             GetMyShows { tx, offset, limit } => {
-                let result = client.lock().await.get_my_shows(offset, limit).await;
+                let result =
+                    Self::check_rate(client.lock().await.get_my_shows(offset, limit).await)?;
                 tx.send(result)?;
             }
             GetShowEpisodes {
@@ -473,81 +495,88 @@ impl SpotifyServer {
                 offset,
                 limit,
             } => {
-                let result = client
-                    .lock()
-                    .await
-                    .get_show_episodes(&uri, offset, limit)
-                    .await;
+                let result = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_show_episodes(&uri, offset, limit)
+                        .await,
+                )?;
                 tx.send(result)?;
             }
             GetMyArtists { tx, cursor, limit } => {
-                let artists = client.lock().await.get_my_artists(cursor, limit).await;
+                let artists =
+                    Self::check_rate(client.lock().await.get_my_artists(cursor, limit).await)?;
                 tx.send(artists)?;
             }
             GetMyAlbums { tx, offset, limit } => {
-                let albums = client.lock().await.get_my_albums(offset, limit).await;
+                let albums =
+                    Self::check_rate(client.lock().await.get_my_albums(offset, limit).await)?;
                 tx.send(albums)?;
             }
             GetMyPlaylists { tx, offset, limit } => {
-                let playlists = client.lock().await.get_my_playlists(offset, limit).await;
+                let playlists =
+                    Self::check_rate(client.lock().await.get_my_playlists(offset, limit).await)?;
                 tx.send(playlists)?;
             }
             GetMyTracks { tx, offset, limit } => {
-                let tracks = client.lock().await.get_my_tracks(offset, limit).await;
+                let tracks =
+                    Self::check_rate(client.lock().await.get_my_tracks(offset, limit).await)?;
                 tx.send(tracks)?;
             }
             PlayTracks { uris } => {
-                let _ = client.lock().await.play_tracks(uris).await;
+                let _ = Self::check_rate(client.lock().await.play_tracks(uris).await)?;
             }
             PlayContext { uri, start_uri } => {
-                let _ = client.lock().await.play_context(uri, start_uri).await;
+                let _ = Self::check_rate(client.lock().await.play_context(uri, start_uri).await)?;
             }
             GetTracksFeatures { tx, uris } => {
-                let features = client.lock().await.get_tracks_features(&uris).await;
+                let features =
+                    Self::check_rate(client.lock().await.get_tracks_features(&uris).await)?;
                 tx.send(features)?;
             }
             GetMyDevices { tx } => {
-                let devices = client.lock().await.get_my_devices().await;
+                let devices = Self::check_rate(client.lock().await.get_my_devices().await)?;
                 tx.send(devices)?;
             }
             SetVolume { value } => {
-                let _ = client.lock().await.set_volume(value).await;
+                let _ = Self::check_rate(client.lock().await.set_volume(value).await)?;
             }
             SetShuffle { state } => {
-                let _ = client.lock().await.set_shuffle(state).await;
+                let _ = Self::check_rate(client.lock().await.set_shuffle(state).await)?;
             }
             SetRepeatMode { mode } => {
-                let _ = client.lock().await.set_repeat_mode(mode).await;
+                let _ = Self::check_rate(client.lock().await.set_repeat_mode(mode).await)?;
             }
             GetAlbum { tx, uri } => {
-                let reply = client.lock().await.get_album(&uri).await;
+                let reply = Self::check_rate(client.lock().await.get_album(&uri).await)?;
                 tx.send(reply)?;
             }
             GetPlaylist { tx, uri } => {
-                let reply = client.lock().await.get_playlist(&uri).await;
+                let reply = Self::check_rate(client.lock().await.get_playlist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetArtist { tx, uri } => {
-                let reply = client.lock().await.get_artist(&uri).await;
+                let reply = Self::check_rate(client.lock().await.get_artist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetShow { tx, uri } => {
-                let reply = client.lock().await.get_show(&uri).await;
+                let reply = Self::check_rate(client.lock().await.get_show(&uri).await)?;
                 tx.send(reply)?;
             }
             GetRecentTracks { tx, limit } => {
-                let reply = client.lock().await.get_recent_tracks(limit).await;
+                let reply = Self::check_rate(client.lock().await.get_recent_tracks(limit).await)?;
                 tx.send(reply)?;
             }
             EnqueueTracks { uris } => {
-                let _ = client.lock().await.enqueue_tracks(uris).await;
+                let _ = Self::check_rate(client.lock().await.enqueue_tracks(uris).await)?;
             }
             DequeueTracks { uris } => {
-                let _ = client.lock().await.dequeue_tracks(&uris).await;
+                let _ = Self::check_rate(client.lock().await.dequeue_tracks(&uris).await)?;
             }
             AddToMyLibrary { kind, uris } => {
                 let client = client.lock().await;
-                let _ = match kind {
+                let _ = Self::check_rate(match kind {
                     Type::Artist => client.add_my_artists(&uris).await,
                     Type::User => client.add_my_users(&uris).await,
                     Type::Show => client.add_my_shows(&uris).await,
@@ -555,11 +584,11 @@ impl SpotifyServer {
                     Type::Playlist => client.add_my_playlists(&uris, true).await,
                     Type::Track => client.add_my_tracks(&uris).await,
                     Type::Episode => Ok(()),
-                };
+                })?;
             }
             RemoveFromMyLibrary { kind, uris } => {
                 let client = client.lock().await;
-                let _ = match kind {
+                let _ = Self::check_rate(match kind {
                     Type::Artist => client.remove_my_artists(&uris).await,
                     Type::User => client.remove_my_users(&uris).await,
                     Type::Show => client.remove_my_shows(&uris).await,
@@ -567,11 +596,11 @@ impl SpotifyServer {
                     Type::Playlist => client.remove_my_playlists(&uris).await,
                     Type::Track => client.remove_my_tracks(&uris).await,
                     Type::Episode => Ok(()),
-                };
+                })?;
             }
             AreInMyLibrary { tx, kind, uris } => {
                 let client = client.lock().await;
-                let reply = match kind {
+                let reply = Self::check_rate(match kind {
                     Type::Artist => client.are_my_artists(&uris).await,
                     Type::User => client.are_my_users(&uris).await,
                     Type::Show => client.are_my_shows(&uris).await,
@@ -579,11 +608,12 @@ impl SpotifyServer {
                     Type::Playlist => client.are_my_playlists(&uris).await,
                     Type::Track => client.are_my_tracks(&uris).await,
                     Type::Episode => Ok(std::iter::repeat(false).take(uris.len()).collect()),
-                };
+                })?;
                 tx.send(reply)?;
             }
             GetCategories { tx, offset, limit } => {
-                let reply = client.lock().await.get_categories(offset, limit).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_categories(offset, limit).await)?;
                 tx.send(reply)?;
             }
             GetCategoryPlaylists {
@@ -592,39 +622,48 @@ impl SpotifyServer {
                 offset,
                 limit,
             } => {
-                let reply = client
-                    .lock()
-                    .await
-                    .get_category_playlists(&category_id, offset, limit)
-                    .await;
+                let reply = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_category_playlists(&category_id, offset, limit)
+                        .await,
+                )?;
                 tx.send(reply)?;
             }
             GetFeaturedPlaylists { tx, offset, limit } => {
-                let reply = client
-                    .lock()
-                    .await
-                    .get_featured_playlists(offset, limit)
-                    .await;
+                let reply = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_featured_playlists(offset, limit)
+                        .await,
+                )?;
                 tx.send(reply)?;
             }
             GetNewReleases { tx, offset, limit } => {
-                let reply = client.lock().await.get_new_releases(offset, limit).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_new_releases(offset, limit).await)?;
                 tx.send(reply)?;
             }
             GetMyTopArtists { tx, offset, limit } => {
-                let reply = client.lock().await.get_my_top_artists(offset, limit).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_my_top_artists(offset, limit).await)?;
                 tx.send(reply)?;
             }
             GetMyTopTracks { tx, offset, limit } => {
-                let reply = client.lock().await.get_my_top_tracks(offset, limit).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_my_top_tracks(offset, limit).await)?;
                 tx.send(reply)?;
             }
             GetArtistTopTracks { tx, uri } => {
-                let reply = client.lock().await.get_artist_top_tracks(&uri).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_artist_top_tracks(&uri).await)?;
                 tx.send(reply)?;
             }
             GetArtistRelatedArtists { tx, uri } => {
-                let reply = client.lock().await.get_artist_related_artists(&uri).await;
+                let reply =
+                    Self::check_rate(client.lock().await.get_artist_related_artists(&uri).await)?;
                 tx.send(reply)?;
             }
             GetRecommendedTracks {
@@ -635,11 +674,19 @@ impl SpotifyServer {
                 tunables,
                 limit,
             } => {
-                let reply = client
-                    .lock()
-                    .await
-                    .get_recommended_tracks(seed_genres, seed_artists, seed_tracks, tunables, limit)
-                    .await;
+                let reply = Self::check_rate(
+                    client
+                        .lock()
+                        .await
+                        .get_recommended_tracks(
+                            seed_genres,
+                            seed_artists,
+                            seed_tracks,
+                            tunables,
+                            limit,
+                        )
+                        .await,
+                )?;
                 tx.send(reply)?;
             }
         }
