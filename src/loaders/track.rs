@@ -84,7 +84,7 @@ impl ContainerLoader for RecommendLoader {
     type Item = SimplifiedTrack;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 100;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "recommended tracks";
 
     fn new(mut tunables: Self::ParentId) -> Self {
         let seed_artists = Self::extract_vec_string(&mut tunables, "seed_artists", 5);
@@ -220,7 +220,7 @@ impl ContainerLoader for RecentLoader {
     type Item = PlayHistory;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 50;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "recent tracks";
 
     fn new(_id: Self::ParentId) -> Self {
         RecentLoader(rand::random())
@@ -279,7 +279,7 @@ impl ContainerLoader for AlbumLoader {
     type Item = SimplifiedTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "album tracks";
 
     fn new(uri: Self::ParentId) -> Self {
         AlbumLoader { uri }
@@ -339,7 +339,7 @@ impl ContainerLoader for MyTopTracksLoader {
     type Item = FullTrack;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "top tracks";
 
     fn new(_uri: Self::ParentId) -> Self {
         MyTopTracksLoader(rand::random())
@@ -372,7 +372,7 @@ impl ContainerLoader for ShowLoader {
     type Item = SimplifiedEpisode;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "episodes";
 
     fn new(uri: Self::ParentId) -> Self {
         ShowLoader { uri }
@@ -403,7 +403,7 @@ impl ContainerLoader for ArtistTopTracksLoader {
     type Item = FullTrack;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 10;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "artist's top tracks";
 
     fn new(artist_id: Self::ParentId) -> Self {
         ArtistTopTracksLoader { artist_id }

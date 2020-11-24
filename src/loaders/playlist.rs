@@ -355,7 +355,7 @@ impl ContainerLoader for FeaturedLoader {
     type Item = SimplifiedPlaylist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "featured playlists";
 
     fn new(_id: Self::ParentId) -> Self {
         FeaturedLoader
@@ -413,7 +413,7 @@ impl ContainerLoader for ShowsLoader {
     type Item = Show;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "shows";
 
     fn new(_id: Self::ParentId) -> Self {
         ShowsLoader(rand::random())

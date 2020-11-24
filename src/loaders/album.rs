@@ -52,7 +52,7 @@ impl ContainerLoader for NewReleasesLoader {
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "new releases";
 
     fn new(_id: Self::ParentId) -> Self {
         NewReleasesLoader(rand::random())
@@ -84,7 +84,7 @@ impl ContainerLoader for ArtistLoader {
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "artist's albums";
 
     fn new(uri: Self::ParentId) -> Self {
         ArtistLoader { uri }

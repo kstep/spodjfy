@@ -211,7 +211,7 @@ impl ContainerLoader for MyTopArtistsLoader {
     type Item = FullArtist;
     type Page = Page<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "top artists";
 
     fn new(_id: Self::ParentId) -> Self {
         MyTopArtistsLoader(rand::random())
@@ -244,7 +244,7 @@ impl ContainerLoader for RelatedArtistsLoader {
     type Item = FullArtist;
     type Page = Vec<Self::Item>;
     const PAGE_LIMIT: u32 = 20;
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "related artists";
 
     fn new(artist_id: Self::ParentId) -> Self {
         RelatedArtistsLoader { artist_id }
