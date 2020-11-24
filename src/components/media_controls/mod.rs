@@ -69,7 +69,9 @@ pub enum MediaControlsMsg {
     GoToTrack(Type, String, Option<(String, String)>),
     ShowInfo(bool),
     SaveCurrentTrack(bool),
+    SaveCurrentContext(bool),
     IsTrackSaved(bool),
+    IsContextSaved(bool),
 }
 
 #[doc(hidden)]
@@ -266,6 +268,19 @@ impl Widget for MediaControls {
                         self.model
                             .stream
                             .emit(LoadContext(ctx._type, ctx.uri.clone()));
+
+                        {
+                            let uris = vec![ctx.uri.clone()];
+                            let kind = ctx._type;
+                            self.model
+                                .spotify
+                                .ask(
+                                    self.model.stream.clone(),
+                                    move |tx| SpotifyCmd::AreInMyLibrary { tx, kind, uris },
+                                    |reply| IsContextSaved(reply[0]),
+                                )
+                                .unwrap();
+                        }
                     }
                 } else {
                     self.model.context = None;
@@ -276,6 +291,9 @@ impl Widget for MediaControls {
             }
             IsTrackSaved(saved) => {
                 self.model.track_saved = saved;
+            }
+            IsContextSaved(saved) => {
+                self.model.context_saved = saved;
             }
             LoadCover(url, is_for_track) => {
                 let stream = Fragile::new(self.model.stream.clone());
@@ -376,6 +394,22 @@ impl Widget for MediaControls {
 
                         self.model.track_saved = save;
                     }
+                }
+            }
+            SaveCurrentContext(save) => {
+                if let Some(ref context) = self.model.context {
+                    let kind = context.kind();
+                    let uris = vec![context.uri().to_owned()];
+                    self.model
+                        .spotify
+                        .tell(if save {
+                            SpotifyCmd::AddToMyLibrary { uris, kind }
+                        } else {
+                            SpotifyCmd::RemoveFromMyLibrary { uris, kind }
+                        })
+                        .unwrap();
+
+                    self.model.context_saved = save;
                 }
             }
             ShowInfo(state) => {
@@ -580,9 +614,16 @@ impl Widget for MediaControls {
                         #[name="context_infobox"]
                         gtk::Box(gtk::Orientation::Vertical, 10) {
                             gtk::Box(gtk::Orientation::Horizontal, 5) {
+                                #[name="context_saved_btn"]
+                                gtk::ToggleButton {
+                                    tooltip_text: Some("Add to library"),
+                                    image: Some(&gtk::Image::from_icon_name(Some("emblem-favorite"), gtk::IconSize::LargeToolbar)),
+                                    active: self.model.context_saved,
+                                    toggled(btn) => MediaControlsMsg::SaveCurrentContext(btn.get_active()),
+                                },
                                 gtk::Label {
                                     halign: gtk::Align::Start,
-                                    valign: gtk::Align::Start,
+                                    valign: gtk::Align::Center,
                                     text: match self.model.context {
                                             Some(PlayContext::Album(_)) => "\u{1F4BF}",
                                             Some(PlayContext::Playlist(_)) => "\u{1F4C1}",

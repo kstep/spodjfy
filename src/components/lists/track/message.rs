@@ -13,6 +13,7 @@ pub enum TrackMsg<Loader: ContainerLoader> {
 
     LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
+    NewTracksSaved(Vec<bool>, Vec<gtk::TreeIter>),
     NewBpm(gtk::TreePath, f32),
 
     PlayChosenTracks,

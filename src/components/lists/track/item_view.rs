@@ -105,7 +105,23 @@ where
                     .build();
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_TRACK_NAME as i32);
-                column.add_attribute(&text_cell, "strikethrough", COL_TRACK_CANT_PLAY as i32);
+                gtk::TreeViewColumnExt::set_cell_data_func(
+                    &column,
+                    &text_cell,
+                    Some(Box::new(|_layout, cell, model, iter| {
+                        if let (Ok(Some(is_saved)), Ok(Some(cant_play))) = (
+                            model.get_value(iter, COL_TRACK_SAVED as i32).get::<bool>(),
+                            model
+                                .get_value(iter, COL_TRACK_CANT_PLAY as i32)
+                                .get::<bool>(),
+                        ) {
+                            let _ =
+                                cell.set_property("weight", &(if is_saved { 600 } else { 400 }));
+                            let _ = cell.set_property("strikethrough", &cant_play);
+                        }
+                    })),
+                );
+
                 column
             });
         }

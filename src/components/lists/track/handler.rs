@@ -83,6 +83,22 @@ where
                 return Some(event);
             }
             LoadTracksInfo(uris, iters) => {
+                {
+                    let uris = uris.clone();
+                    let iters = iters.clone();
+                    this.model
+                        .spotify
+                        .ask(
+                            this.stream.clone(),
+                            |tx| SpotifyCmd::AreInMyLibrary {
+                                tx,
+                                kind: Type::Track,
+                                uris,
+                            },
+                            move |saved| NewTracksSaved(saved, iters.clone()),
+                        )
+                        .unwrap();
+                }
                 this.model
                     .spotify
                     .ask(
@@ -91,6 +107,12 @@ where
                         move |feats| NewTracksInfo(feats, iters.clone()),
                     )
                     .unwrap();
+            }
+            NewTracksSaved(saved, iters) => {
+                let store = &this.model.store;
+                for (idx, pos) in iters.iter().enumerate() {
+                    store.set_value(pos, COL_TRACK_SAVED, &saved[idx].to_value());
+                }
             }
             NewTracksInfo(info, iters) => {
                 let store = &this.model.store;

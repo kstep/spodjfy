@@ -462,6 +462,7 @@ pub const COL_TRACK_DESCRIPTION: u32 = 12;
 pub const COL_TRACK_ALBUM_URI: u32 = 13;
 pub const COL_TRACK_ARTIST_URI: u32 = 14;
 pub const COL_TRACK_RATE: u32 = 15;
+pub const COL_TRACK_SAVED: u32 = 16;
 
 impl<T: TrackLike> RowLike for T {
     fn content_types() -> Vec<Type> {
@@ -482,6 +483,7 @@ impl<T: TrackLike> RowLike for T {
             String::static_type(),             // album uri
             String::static_type(),             // first artist uri
             u32::static_type(),                // rate/popularity
+            bool::static_type(),               // saved in library
         ]
     }
 
@@ -553,12 +555,12 @@ impl TrackLike for PlayHistory {
         self.track.is_playable()
     }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.release_date()
-    }
-
     fn rate(&self) -> u32 {
         self.track.popularity
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.release_date()
     }
 }
 
@@ -615,12 +617,12 @@ impl TrackLike for PlaylistTrack {
             .unwrap_or(false)
     }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.as_ref().and_then(FullTrack::release_date)
-    }
-
     fn rate(&self) -> u32 {
         self.track.as_ref().map_or(0, |track| track.popularity)
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.as_ref().and_then(FullTrack::release_date)
     }
 }
 
@@ -789,12 +791,12 @@ impl TrackLike for SavedTrack {
         self.track.is_playable()
     }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.release_date()
-    }
-
     fn rate(&self) -> u32 {
         self.track.popularity
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        self.track.release_date()
     }
 }
 
@@ -840,12 +842,12 @@ impl TrackLike for FullEpisode {
         self.is_playable
     }
 
-    fn release_date(&self) -> Option<&str> {
-        Some(&self.release_date)
-    }
-
     fn rate(&self) -> u32 {
         0
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        Some(&self.release_date)
     }
 }
 
@@ -866,7 +868,13 @@ impl MissingColumns for FullEpisode {
     where
         Self: Sized,
     {
-        &[COL_TRACK_ARTISTS, COL_TRACK_ALBUM, COL_TRACK_RATE]
+        &[
+            COL_TRACK_ARTISTS,
+            COL_TRACK_ALBUM,
+            COL_TRACK_BPM,
+            COL_TRACK_RATE,
+            COL_TRACK_SAVED,
+        ]
     }
 }
 
@@ -891,12 +899,12 @@ impl TrackLike for SimplifiedEpisode {
         self.is_playable
     }
 
-    fn release_date(&self) -> Option<&str> {
-        Some(&self.release_date)
-    }
-
     fn rate(&self) -> u32 {
         0
+    }
+
+    fn release_date(&self) -> Option<&str> {
+        Some(&self.release_date)
     }
 }
 
@@ -922,6 +930,7 @@ impl MissingColumns for SimplifiedEpisode {
             COL_TRACK_ALBUM,
             COL_TRACK_BPM,
             COL_TRACK_RATE,
+            COL_TRACK_SAVED,
         ]
     }
 }
