@@ -92,10 +92,16 @@ impl PlaylistView {
                         let info = if tracks > 0 {
                             format!(
                                 "<big>{}</big>\nby {}\n<i>Tracks: {}</i>",
-                                name, publisher, tracks
+                                glib::markup_escape_text(name),
+                                glib::markup_escape_text(publisher),
+                                tracks
                             )
                         } else {
-                            format!("<big>{}</big>\nby {}", name, publisher)
+                            format!(
+                                "<big>{}</big>\nby {}",
+                                glib::markup_escape_text(name),
+                                glib::markup_escape_text(publisher)
+                            )
                         };
 
                         cell.set_property_markup(Some(&info));

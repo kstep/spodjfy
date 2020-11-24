@@ -428,9 +428,23 @@ impl Widget for Win {
             ($media_controls:ident => ($($tab:ident),+)) => {{
                 $(
                 let media_controls_stream = self.$media_controls.stream().clone();
+                let artists_stream = self.artists_tab.stream().clone();
+                let albums_stream = self.albums_tab.stream().clone();
+                let stream = self.model.stream.clone();
                 self.$tab.stream().observe(move |msg| {
-                    if let MusicTabMsg::PlaybackUpdate = msg {
-                        media_controls_stream.emit(MediaControlsMsg::LoadState);
+                    match msg {
+                        MusicTabMsg::PlaybackUpdate => {
+                            media_controls_stream.emit(MediaControlsMsg::LoadState);
+                        }
+                        MusicTabMsg::GoTo(Type::Artist, uri, name) => {
+                            artists_stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
+                            stream.emit(Msg::GoToTab(Tab::Artists));
+                        }
+                        MusicTabMsg::GoTo(Type::Album, uri, name) => {
+                            albums_stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
+                            stream.emit(Msg::GoToTab(Tab::Albums));
+                        }
+                        _ => {}
                     }
                 });
                 )+

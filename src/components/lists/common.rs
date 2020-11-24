@@ -13,6 +13,7 @@ use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 use std::convert::TryInto;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -211,6 +212,7 @@ where
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
+    <Message as TryInto<ContainerMsg<Loader>>>::Error: Debug,
     ContainerMsg<Loader>: Into<Message>,
     Handler: MessageHandler<Self, Message>,
 {
@@ -229,8 +231,8 @@ where
             None => return,
         };
 
-        if let Ok(msg) = event.try_into() {
-            match msg {
+        match event.try_into() {
+            Ok(msg) => match msg {
                 Clear => {
                     self.clear_store();
                 }
@@ -350,6 +352,9 @@ where
                     self.search_entry.set_visible(false);
                     self.search_btn.set_visible(true);
                 }
+            },
+            Err(error) => {
+                error!("unhandled container list event: {:?}", error);
             }
         }
     }
@@ -364,6 +369,7 @@ where
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows + AsRef<gtk::Widget> + ItemsListView<Loader, Message>,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
+    <Message as TryInto<ContainerMsg<Loader>>>::Error: Debug,
     ContainerMsg<Loader>: Into<Message>,
     Handler: MessageHandler<Self, Message>,
 {

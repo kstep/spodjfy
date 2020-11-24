@@ -110,7 +110,7 @@ where
                     ) {
                         let stars = crate::utils::rate_to_stars(rate);
                         let info = if genres.is_empty() {
-                            format!("<big>{}</big>\n{}", name, stars)
+                            format!("<big>{}</big>\n{}", glib::markup_escape_text(name), stars)
                         } else {
                             let (genres, ellip) = if genres.len() < 35 {
                                 (genres, "")
@@ -129,7 +129,13 @@ where
                                     "…",
                                 )
                             };
-                            format!("<big>{}</big>\n<i>{}{}</i>\n{}", name, genres, ellip, stars)
+                            format!(
+                                "<big>{}</big>\n<i>{}{}</i>\n{}",
+                                glib::markup_escape_text(name),
+                                glib::markup_escape_text(genres),
+                                ellip,
+                                stars
+                            )
                         };
 
                         cell.set_property_markup(Some(&info));

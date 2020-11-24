@@ -81,7 +81,7 @@ impl<T> PageLike<T> for CursorBasedPage<T> {
         String::new()
     }
     fn next_offset(&self) -> Option<Self::Offset> {
-        self.next.clone()
+        self.cursors.after.clone()
     }
 }
 

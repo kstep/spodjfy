@@ -682,15 +682,21 @@ impl Spotify {
     }
 
     async fn play_context(&self, uri: String, start_uri: Option<String>) -> ClientResult<()> {
-        self.client
-            .start_playback(
-                None,
-                Some(uri),
-                None,
-                start_uri.and_then(offset::for_uri),
-                None,
-            )
-            .await
+        if uri.starts_with("spotify:artist:") {
+            self.client
+                .start_playback(None, Some(uri), start_uri.map(|uri| vec![uri]), None, None)
+                .await
+        } else {
+            self.client
+                .start_playback(
+                    None,
+                    Some(uri),
+                    None,
+                    start_uri.and_then(offset::for_uri),
+                    None,
+                )
+                .await
+        }
     }
 
     async fn get_tracks_features(&self, uris: &[String]) -> ClientResult<Vec<AudioFeatures>> {

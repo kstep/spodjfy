@@ -13,11 +13,13 @@ pub mod shows;
 pub mod tracks;
 
 use relm_derive::Msg;
+use rspotify::model::Type;
 
 #[derive(Msg)]
 pub enum MusicTabMsg {
     ShowTab,
     OpenContainer(u8, String, String),
     GoToTrack(String),
+    GoTo(Type, String, String),
     PlaybackUpdate,
 }

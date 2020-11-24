@@ -5,6 +5,7 @@ use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
+use rspotify::model::Type;
 use std::sync::Arc;
 
 pub struct PlaylistsModel {
@@ -70,8 +71,15 @@ impl Widget for PlaylistsTab {
 
         let stream = relm.stream().clone();
         self.tracks_view.stream().observe(move |msg| {
-            if let TrackMsg::PlayingNewTrack = msg {
-                stream.emit(MusicTabMsg::PlaybackUpdate);
+            match msg {
+                TrackMsg::PlayingNewTrack => stream.emit(MusicTabMsg::PlaybackUpdate),
+                TrackMsg::GoToArtist(uri, name) => {
+                    stream.emit(MusicTabMsg::GoTo(Type::Artist, uri.clone(), name.clone()))
+                }
+                TrackMsg::GoToAlbum(uri, name) => {
+                    stream.emit(MusicTabMsg::GoTo(Type::Album, uri.clone(), name.clone()))
+                }
+                _ => {}
             }
         });
     }
