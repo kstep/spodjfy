@@ -1,6 +1,7 @@
 use crate::components::lists::TrackList;
 use crate::loaders::RecommendLoader;
 use crate::servers::spotify::SpotifyProxy;
+use crate::utils::{SearchTerm, SearchTerms};
 use gtk::{
     BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, EntryExt, FlowBoxChildExt, FlowBoxExt,
     GtkMenuExt, GtkMenuItemExt, LabelExt, MenuBarExt, MenuButtonExt, OrientableExt, WidgetExt,
@@ -15,84 +16,6 @@ use std::sync::Arc;
 pub enum SearchMsg {
     ShowTab,
     AddSearchTerm(SearchTerm, bool),
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-struct SearchTerms(i16);
-
-#[derive(Clone, Copy)]
-struct SearchTermsIter(i16, i16);
-
-impl Iterator for SearchTermsIter {
-    type Item = SearchTerm;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.1 != 16384 {
-            let item = self.0 & self.1;
-            self.1 <<= 1;
-
-            if item != 0 {
-                return Some(unsafe { std::mem::transmute(self.1 >> 1) });
-            }
-        }
-        None
-    }
-}
-impl IntoIterator for SearchTerms {
-    type Item = SearchTerm;
-    type IntoIter = SearchTermsIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        SearchTermsIter(self.0, 1)
-    }
-}
-
-impl SearchTerms {
-    #[inline]
-    fn add(&mut self, term: SearchTerm) {
-        let mask = term as i16;
-        self.0 |= mask;
-    }
-    #[inline]
-    fn remove(&mut self, term: SearchTerm) {
-        let mask = term as i16;
-        self.0 &= !mask;
-    }
-    #[inline]
-    fn update(&mut self, term: SearchTerm, is_set: bool) {
-        let mask = term as i16;
-        self.0 ^= (-(is_set as i16) ^ self.0) & mask;
-    }
-    #[inline]
-    fn contains(&self, term: SearchTerm) -> bool {
-        let mask = term as i16;
-        self.0 & mask != 0
-    }
-
-    #[inline(always)]
-    fn is_set(&self, term: u8) -> bool {
-        let mask = 1i16 << term;
-        self.0 & mask != 0
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-#[repr(i16)]
-pub enum SearchTerm {
-    Tempo = 1,
-    Duration = 2,
-    Key = 4,
-    Mode = 8,
-    Instrumental = 16,
-    Speech = 32,
-    Acoustic = 64,
-    Dance = 128,
-    Energy = 256,
-    Liveness = 512,
-    Valence = 1024,
-    Loudness = 2048,
-    Popularity = 4096,
-    TimeSign = 8192,
 }
 
 // TODO

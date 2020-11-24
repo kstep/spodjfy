@@ -1,4 +1,3 @@
-use crate::components::tabs::search::SearchTerm::Key;
 use crate::loaders::{
     ContainerLoader, HasDuration, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB,
 };
@@ -468,7 +467,6 @@ pub trait SetupViewSearch {
     fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()>;
 
     fn wrap_filter<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
-        &self,
         model: &gtk::TreeModel,
         column: u32,
         entry: &T,
@@ -533,6 +531,7 @@ struct TreeModelIterator<'a> {
     model: &'a gtk::TreeModel,
     iter: Option<gtk::TreeIter>,
 }
+
 impl<'a> TreeModelIterator<'a> {
     fn new(model: &'a gtk::TreeModel, first: Option<gtk::TreeIter>) -> TreeModelIterator<'a> {
         Self {
@@ -540,10 +539,8 @@ impl<'a> TreeModelIterator<'a> {
             iter: first.or_else(|| model.get_iter_first()),
         }
     }
-    fn reset(&mut self) {
-        self.iter = self.model.get_iter_first();
-    }
 }
+
 impl<'a> DoubleEndedIterator for TreeModelIterator<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         match self.iter {
@@ -558,6 +555,7 @@ impl<'a> DoubleEndedIterator for TreeModelIterator<'a> {
         }
     }
 }
+
 impl<'a> Iterator for TreeModelIterator<'a> {
     type Item = gtk::TreeIter;
 
@@ -586,7 +584,7 @@ impl SetupViewSearch for gtk::IconView {
             use gdk::EventType::*;
             Inhibit(loop {
                 if let Some(model) = view.get_model() {
-                    let (mut iter, rev) = match (event.get_event_type(), event.get_keyval()) {
+                    let (iter, rev) = match (event.get_event_type(), event.get_keyval()) {
                         (KeyPress, key @ Up) | (KeyPress, key @ Down) => {
                             let cur_pos = view
                                 .get_selected_items()
