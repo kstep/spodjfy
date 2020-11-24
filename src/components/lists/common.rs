@@ -617,8 +617,10 @@ impl SetupViewSearch for gtk::IconView {
                         view.select_path(&path);
                         view.scroll_to_path(&path, false, 0.0, 0.0);
                     }
+                    break true;
+                } else {
+                    break false;
                 }
-                break true;
             })
         });
 

@@ -79,6 +79,7 @@ impl Widget for ArtistsTab {
 
                 #[name="artist_view"]
                 gtk::Paned(gtk::Orientation::Horizontal) {
+                    position: 1200,
                     gtk::Paned(gtk::Orientation::Vertical) {
                         hexpand: true,
                         #[name="top_tracks_view"]
@@ -87,10 +88,7 @@ impl Widget for ArtistsTab {
                         AlbumList::<ArtistLoader>(self.model.spotify.clone()),
                     },
                     #[name="related_artists_view"]
-                    ArtistList::<RelatedArtistsLoader>(self.model.spotify.clone()) {
-                        child: { resize: false, },
-                        property_width_request: 300,
-                    },
+                    ArtistList::<RelatedArtistsLoader>(self.model.spotify.clone()),
                 },
 
                 #[name="tracks_view"]
