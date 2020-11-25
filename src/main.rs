@@ -2,8 +2,7 @@ use futures::join;
 use relm::Widget;
 use spodjfy::components::win::{Params, Win};
 use spodjfy::config::Config;
-use spodjfy::servers::login::LoginServer;
-use spodjfy::servers::spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
+use spodjfy::servers::{LoginServer, Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

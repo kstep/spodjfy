@@ -4,7 +4,7 @@ use crate::loaders::{
     AlbumLoader, ArtistLoader, ArtistTopTracksLoader, MyTopArtistsLoader, RelatedArtistsLoader,
     SavedArtistsLoader as SavedLoader,
 };
-use crate::servers::spotify::SpotifyProxy;
+use crate::servers::{Proxy, SpotifyProxy};
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;

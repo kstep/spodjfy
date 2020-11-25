@@ -1,7 +1,8 @@
 use crate::loaders::{
     ContainerLoader, HasDuration, HasImages, RowLike, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
-use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use crate::servers::spotify::SpotifyCmd;
+use crate::servers::ResultSender;
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;

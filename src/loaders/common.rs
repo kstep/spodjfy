@@ -1,5 +1,6 @@
 use crate::loaders::paged::PageLike;
-use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use crate::servers::spotify::SpotifyCmd;
+use crate::servers::ResultSender;
 use rspotify::model::Image;
 
 pub const COL_ITEM_THUMB: u32 = 0;

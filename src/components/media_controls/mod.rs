@@ -27,7 +27,7 @@ use self::play_context::PlayContext;
 use crate::config::Settings;
 use crate::loaders::track::TrackLike;
 use crate::loaders::{HasDuration, HasImages, ImageLoader};
-use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};

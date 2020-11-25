@@ -2,7 +2,7 @@ use crate::loaders::{
     ContainerLoader, HasDuration, HasImages, ImageConverter, ImageLoader, PageLike, RowLike,
     COL_ITEM_THUMB,
 };
-use crate::servers::spotify::SpotifyProxy;
+use crate::servers::{Proxy, SpotifyProxy};
 use glib::{Cast, IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{

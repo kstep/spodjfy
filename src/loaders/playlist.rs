@@ -3,7 +3,8 @@ use crate::loaders::common::{
 };
 use crate::loaders::paged::RowLike;
 use crate::loaders::HasDuration;
-use crate::servers::spotify::{ResultSender, SpotifyCmd};
+use crate::servers::spotify::SpotifyCmd;
+use crate::servers::ResultSender;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use rspotify::model::{

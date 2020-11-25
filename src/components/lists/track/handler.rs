@@ -3,7 +3,7 @@ use crate::components::lists::{
 };
 use crate::loaders::track::*;
 use crate::loaders::{ContainerLoader, HasDuration, HasImages, MissingColumns, PageLike, RowLike};
-use crate::servers::spotify::SpotifyCmd;
+use crate::servers::{Proxy, SpotifyCmd};
 use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,

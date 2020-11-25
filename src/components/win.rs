@@ -23,7 +23,7 @@ use crate::components::tabs::shows::ShowsTab;
 use crate::components::tabs::tracks::TracksTab;
 use crate::components::tabs::MusicTabMsg;
 use crate::config::Settings;
-use crate::servers::spotify::{SpotifyCmd, SpotifyProxy};
+use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
 use rspotify::model::Type;
 
 pub struct State {

@@ -1,7 +1,7 @@
 use crate::components::lists::{CategoryList, ContainerMsg, PlaylistList, TrackList, TrackMsg};
 use crate::components::tabs::{MusicTabMsg, TracksObserver};
 use crate::loaders::{CategoriesLoader, CategoryLoader, PlaylistLoader};
-use crate::servers::spotify::SpotifyProxy;
+use crate::servers::{Proxy, SpotifyProxy};
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;

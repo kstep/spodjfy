@@ -1,6 +1,8 @@
 use crate::scopes::Scope::{self, *};
+use crate::servers::{Proxy, ResultSender};
 use derivative::Derivative;
 use futures_util::TryFutureExt;
+use relm::EventStream;
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::album::{FullAlbum, SavedAlbum, SimplifiedAlbum};
 use rspotify::model::artist::FullArtist;
@@ -33,6 +35,18 @@ pub struct SpotifyProxy {
     errors_stream: relm::EventStream<ClientError>,
 }
 
+impl Proxy for SpotifyProxy {
+    type Command = SpotifyCmd;
+    type Error = ClientError;
+    fn tell(&self, cmd: Self::Command) -> Result<(), SendError<Self::Command>> {
+        self.spotify_tx.send(cmd)
+    }
+
+    fn errors_stream(&self) -> EventStream<Self::Error> {
+        self.errors_stream.clone()
+    }
+}
+
 impl SpotifyProxy {
     pub fn new(spotify_tx: Sender<SpotifyCmd>) -> (SpotifyProxy, relm::EventStream<ClientError>) {
         tokio::spawn(Self::refresh_token_thread(spotify_tx.clone()));
@@ -60,34 +74,7 @@ impl SpotifyProxy {
                 })?;
         }
     }
-
-    pub fn tell(&self, cmd: SpotifyCmd) -> Result<(), SendError<SpotifyCmd>> {
-        self.spotify_tx.send(cmd)
-    }
-    pub fn ask<T, F, R, M>(
-        &self,
-        stream: relm::EventStream<M>,
-        make_command: F,
-        convert_output: R,
-    ) -> Result<(), SendError<SpotifyCmd>>
-    where
-        F: FnOnce(ResultSender<T>) -> SpotifyCmd + 'static,
-        R: Fn(T) -> M + 'static,
-        M: 'static,
-    {
-        let errors_stream = self.errors_stream.clone();
-        let (_, tx) = relm::Channel::<ClientResult<T>>::new(move |reply| match reply {
-            Ok(out) => stream.emit(convert_output(out)),
-            Err(err) => {
-                error!("spotify error: {:?}", err);
-                errors_stream.emit(err)
-            }
-        });
-        self.spotify_tx.send(make_command(tx))
-    }
 }
-
-pub type ResultSender<T> = relm::Sender<ClientResult<T>>;
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
