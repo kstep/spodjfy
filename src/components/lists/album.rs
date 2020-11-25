@@ -25,7 +25,7 @@ use crate::components::lists::common::{
     ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch,
 };
 use crate::loaders::album::*;
-use crate::loaders::{ContainerLoader, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};
@@ -306,8 +306,8 @@ where
         AlbumView(albums_view)
     }
 
-    fn thumb_size(&self) -> i32 {
-        THUMB_SIZE
+    fn thumb_converter(&self) -> ImageConverter {
+        ImageConverter::new(THUMB_SIZE, false)
     }
 
     fn setup_search(&self, entry: &gtk::Entry) -> bool {

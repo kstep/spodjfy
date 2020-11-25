@@ -1,7 +1,7 @@
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerMsg, GetSelectedRows, ItemsListView, TrackMsg};
 use crate::loaders::track::*;
-use crate::loaders::{ContainerLoader, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
 use glib::signal::Inhibit;
 use glib::{Cast, IsA, ObjectExt};
 use gtk::{
@@ -397,7 +397,7 @@ where
         context_menu
     }
 
-    fn thumb_size(&self) -> i32 {
-        THUMB_SIZE
+    fn thumb_converter(&self) -> ImageConverter {
+        ImageConverter::new(THUMB_SIZE, false)
     }
 }

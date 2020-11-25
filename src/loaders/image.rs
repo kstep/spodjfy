@@ -12,11 +12,64 @@ use std::sync::{Arc, Mutex};
 
 type JobQueue = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 
+pub struct ImageCache {
+    cache: HashMap<String, Pixbuf>,
+    converter: ImageConverter,
+}
+
+#[derive(Clone, Copy)]
+pub struct ImageConverter {
+    resize: i32,
+    round: bool,
+}
+
+impl ImageConverter {
+    pub fn new(resize: i32, round: bool) -> Self {
+        Self { resize, round }
+    }
+
+    pub fn convert(&self, pixbuf: Pixbuf) -> Pixbuf {
+        let pixbuf = if self.resize > 0 {
+            pixbuf.resize_cutup(self.resize).unwrap_or(pixbuf)
+        } else {
+            pixbuf
+        };
+        let pixbuf = if self.round {
+            pixbuf
+                .rounded()
+                .ok()
+                .and_then(|img| img.to_pixbuf())
+                .unwrap_or(pixbuf)
+        } else {
+            pixbuf
+        };
+        pixbuf
+    }
+}
+
+impl ImageCache {
+    pub fn with_converter(converter: ImageConverter) -> Self {
+        ImageCache {
+            cache: HashMap::new(),
+            converter,
+        }
+    }
+
+    pub fn put(&mut self, url: String, pixbuf: Pixbuf) -> Pixbuf {
+        let pixbuf = self.converter.convert(pixbuf);
+        self.cache.insert(url, pixbuf.clone());
+        pixbuf
+    }
+
+    pub fn get(&self, url: &str) -> Option<Pixbuf> {
+        self.cache.get(url).cloned()
+    }
+}
+
 pub struct ImageLoader {
     cache_dir: PathBuf,
     queue: JobQueue,
-    cache: HashMap<String, Pixbuf>,
-    pub resize: i32,
+    cache: ImageCache,
 }
 
 impl Default for ImageLoader {
@@ -27,15 +80,23 @@ impl Default for ImageLoader {
 
 impl ImageLoader {
     pub fn new() -> Self {
-        Self::new_with_resize(0)
+        Self::with_resize(0, false)
     }
-    pub fn new_with_resize(resize: i32) -> Self {
+
+    pub fn with_resize(resize: i32, round: bool) -> Self {
+        Self::with_converter(ImageConverter::new(resize, round))
+    }
+
+    pub fn with_converter(converter: ImageConverter) -> Self {
         Self {
-            cache: HashMap::new(),
+            cache: ImageCache::with_converter(converter),
             queue: Arc::new(Mutex::new(Vec::new())),
-            resize,
             cache_dir: Config::new().thumb_cache_dir(),
         }
+    }
+
+    pub fn set_converter(&mut self, converter: ImageConverter) {
+        self.cache.converter = converter;
     }
 
     fn cache_file_path(&self, url: &str) -> Option<PathBuf> {
@@ -75,35 +136,21 @@ impl ImageLoader {
         self.process_queue();
 
         if let Some(pixbuf) = self.cache.get(url) {
-            let pixbuf = if self.resize > 0 {
-                pixbuf.resize_cutup(self.resize)
-            } else {
-                Some(pixbuf.clone())
-            };
-            return callback(Ok(pixbuf));
+            return callback(Ok(Some(pixbuf)));
         }
 
         if let Some(pixbuf) = self.load_from_file(url) {
-            self.cache.insert(url.to_owned(), pixbuf.clone());
-            let pixbuf = if self.resize > 0 {
-                pixbuf.resize_cutup(self.resize)
-            } else {
-                Some(pixbuf)
-            };
-            return callback(Ok(pixbuf));
+            let pixbuf = self.cache.put(url.to_owned(), pixbuf);
+            return callback(Ok(Some(pixbuf)));
         }
 
         let queue = self.queue.clone();
         let key = url.to_owned();
-        let resize = self.resize;
+        let converter = self.cache.converter;
         pixbuf_from_url_async(url, move |reply| match reply {
             Ok((Some(pixbuf), data)) => {
                 queue.lock().unwrap().push((key, data));
-                let pixbuf = if resize > 0 {
-                    pixbuf.resize_cutup(resize)
-                } else {
-                    Some(pixbuf)
-                };
+                let pixbuf = Some(converter.convert(pixbuf));
                 callback(Ok(pixbuf));
             }
             Ok((None, _)) => {
@@ -121,14 +168,14 @@ impl ImageLoader {
             for (url, data) in queue.drain(..) {
                 let _ = self.save_to_file(&url, &data);
                 if let Ok(Some(pb)) = pixbuf_from_raw_bytes(&data) {
-                    self.cache.insert(url, pb);
+                    self.cache.put(url, pb);
                 }
             }
         }
     }
 
     pub fn size(&self) -> i32 {
-        self.resize
+        self.cache.converter.resize
     }
 
     pub fn find_best_thumb<
@@ -139,7 +186,7 @@ impl ImageLoader {
         &self,
         images: I,
     ) -> Option<&'b str> {
-        find_best_thumb(images, self.resize)
+        find_best_thumb(images, self.size())
     }
 }
 

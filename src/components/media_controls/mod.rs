@@ -118,8 +118,8 @@ impl Widget for MediaControls {
 
         let devices = gtk::ListStore::new(&[String::static_type(), String::static_type()]);
 
-        let track_image_loader = ImageLoader::new_with_resize(TRACK_COVER_SIZE);
-        let context_image_loader = ImageLoader::new_with_resize(CONTEXT_COVER_SIZE);
+        let track_image_loader = ImageLoader::with_resize(TRACK_COVER_SIZE, false);
+        let context_image_loader = ImageLoader::with_resize(CONTEXT_COVER_SIZE, false);
 
         MediaControlsModel {
             stream,

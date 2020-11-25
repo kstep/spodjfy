@@ -23,7 +23,7 @@
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
 use crate::loaders::playlist::*;
-use crate::loaders::{ContainerLoader, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
@@ -291,11 +291,14 @@ where
         }
     }
 
-    fn thumb_size(&self) -> i32 {
-        match self {
-            PlaylistView::Icon(_) => ICON_THUMB_SIZE,
-            PlaylistView::Tree(_) => TREE_THUMB_SIZE,
-        }
+    fn thumb_converter(&self) -> ImageConverter {
+        ImageConverter::new(
+            match self {
+                PlaylistView::Icon(_) => ICON_THUMB_SIZE,
+                PlaylistView::Tree(_) => TREE_THUMB_SIZE,
+            },
+            false,
+        )
     }
 
     fn setup_search(&self, entry: &gtk::Entry) -> bool {

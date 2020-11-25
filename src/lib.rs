@@ -1,4 +1,4 @@
-#![feature(fn_traits, unboxed_closures)]
+#![feature(fn_traits, unboxed_closures, bool_to_option)]
 
 #[macro_use]
 extern crate log;

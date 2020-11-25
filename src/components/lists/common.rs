@@ -1,5 +1,6 @@
 use crate::loaders::{
-    ContainerLoader, HasDuration, HasImages, ImageLoader, PageLike, RowLike, COL_ITEM_THUMB,
+    ContainerLoader, HasDuration, HasImages, ImageConverter, ImageLoader, PageLike, RowLike,
+    COL_ITEM_THUMB,
 };
 use crate::servers::spotify::SpotifyProxy;
 use glib::{Cast, IsA, ToValue, Type};
@@ -42,7 +43,7 @@ pub trait ItemsListView<Loader, Message> {
     fn setup_search(&self, _entry: &gtk::Entry) -> bool {
         false
     }
-    fn thumb_size(&self) -> i32;
+    fn thumb_converter(&self) -> ImageConverter;
 }
 
 #[doc(hidden)]
@@ -386,7 +387,9 @@ where
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
 
         let items_view = ItemsView::create(relm.stream().clone(), &model.store);
-        model.image_loader.resize = items_view.thumb_size();
+        model
+            .image_loader
+            .set_converter(items_view.thumb_converter());
 
         scroller.add(items_view.as_ref());
 

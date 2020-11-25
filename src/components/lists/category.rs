@@ -1,5 +1,5 @@
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::{ContainerLoader, COL_CATEGORY_ICON, COL_CATEGORY_NAME};
+use crate::loaders::{ContainerLoader, ImageConverter, COL_CATEGORY_ICON, COL_CATEGORY_NAME};
 use glib::{Cast, IsA};
 use gtk::IconViewExt;
 use relm::EventStream;
@@ -58,7 +58,7 @@ where
         CategoryView(artist_view)
     }
 
-    fn thumb_size(&self) -> i32 {
-        THUMB_SIZE
+    fn thumb_converter(&self) -> ImageConverter {
+        ImageConverter::new(THUMB_SIZE, false)
     }
 }
