@@ -5,15 +5,16 @@ use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use gio::prelude::*;
 use gio::NONE_CANCELLABLE;
 use rspotify::model::Image;
-use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use ttl_cache::TtlCache;
 
 #[derive(Clone)]
 pub struct ImageCache {
-    cache: Arc<RwLock<HashMap<String, Pixbuf>>>,
+    cache: Arc<RwLock<TtlCache<String, Pixbuf>>>,
     converter: ImageConverter,
 }
 
@@ -52,14 +53,17 @@ impl ImageConverter {
 impl ImageCache {
     pub fn with_converter(converter: ImageConverter) -> Self {
         ImageCache {
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            cache: Arc::new(RwLock::new(TtlCache::new(4096))),
             converter,
         }
     }
 
     pub fn put(&mut self, url: String, pixbuf: Pixbuf) -> Pixbuf {
         let pixbuf = self.converter.convert(pixbuf);
-        self.cache.write().unwrap().insert(url, pixbuf.clone());
+        self.cache
+            .write()
+            .unwrap()
+            .insert(url, pixbuf.clone(), Duration::from_secs(600));
         pixbuf
     }
 
