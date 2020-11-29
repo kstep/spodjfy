@@ -1,6 +1,6 @@
 use crate::models::HasDuration;
 use itertools::Itertools;
-use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, Type};
+use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, PublicUser, Type};
 use std::borrow::Cow;
 use std::ops::Deref;
 
@@ -10,6 +10,7 @@ pub enum PlayContext {
     Playlist(FullPlaylist),
     Artist(FullArtist),
     Show(FullShow),
+    User(PublicUser),
 }
 
 impl PlayContext {
@@ -19,6 +20,7 @@ impl PlayContext {
             PlayContext::Artist(ctx) => &*ctx.uri,
             PlayContext::Playlist(ctx) => &*ctx.uri,
             PlayContext::Show(ctx) => &*ctx.uri,
+            PlayContext::User(ctx) => &*ctx.uri,
         }
     }
 
@@ -28,6 +30,7 @@ impl PlayContext {
             PlayContext::Artist(ctx) => &*ctx.name,
             PlayContext::Playlist(ctx) => &*ctx.name,
             PlayContext::Show(ctx) => &*ctx.name,
+            PlayContext::User(ctx) => ctx.display_name.as_deref().unwrap_or("Unnamed user"),
         }
     }
 
@@ -49,6 +52,7 @@ impl PlayContext {
                     .into(),
             ),
             PlayContext::Show(ctx) => Some(ctx.publisher.deref().into()),
+            PlayContext::User(_) => None,
         }
     }
 
@@ -82,6 +86,7 @@ impl PlayContext {
                     Err(ctx.episodes.total * average_duration)
                 }
             }
+            PlayContext::User(_) => Err(0),
         }
     }
 
@@ -91,6 +96,7 @@ impl PlayContext {
             PlayContext::Artist(ctx) => Some(&ctx.genres),
             PlayContext::Playlist(_) => None,
             PlayContext::Show(_) => None,
+            PlayContext::User(_) => None,
         }
     }
 
@@ -100,6 +106,7 @@ impl PlayContext {
             PlayContext::Artist(ctx) => &ctx.images,
             PlayContext::Playlist(ctx) => &ctx.images,
             PlayContext::Show(ctx) => &ctx.images,
+            PlayContext::User(ctx) => &ctx.images,
         }
     }
 
@@ -109,6 +116,7 @@ impl PlayContext {
             PlayContext::Artist(_) => 0,
             PlayContext::Playlist(ctx) => ctx.tracks.total,
             PlayContext::Show(ctx) => ctx.episodes.total,
+            PlayContext::User(_) => 0,
         }
     }
 
@@ -118,6 +126,7 @@ impl PlayContext {
             PlayContext::Artist(_) => Type::Artist,
             PlayContext::Playlist(_) => Type::Playlist,
             PlayContext::Show(_) => Type::Show,
+            PlayContext::User(_) => Type::User,
         }
     }
 
@@ -127,6 +136,7 @@ impl PlayContext {
             PlayContext::Artist(_) => "",
             PlayContext::Playlist(ctx) => &ctx.description,
             PlayContext::Show(ctx) => &ctx.description,
+            PlayContext::User(_) => "",
         }
     }
 }

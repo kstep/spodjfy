@@ -7,6 +7,7 @@ pub mod page;
 pub mod playlist;
 pub mod show;
 pub mod track;
+pub mod user;
 
 pub use album::*;
 pub use artist::*;

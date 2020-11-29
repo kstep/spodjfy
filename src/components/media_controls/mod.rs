@@ -11,14 +11,13 @@
 //!
 //! ```
 //!# use std::sync::{Arc, RwLock, mpsc::channel};
-//!# use crate::spodjfy::{servers::spotify::SpotifyProxy, config::Config};
+//!# use crate::spodjfy::{SpotifyProxy, Config};
 //!# macro_rules! view { ($body:tt*) => {} }
-//! let (tx, rx) = channel();
-//! let spotify = Arc::new(SpotifyProxy::new(tx));
+//! let (spotify, _rx, _errors_stream) = SpotifyProxy::new();
 //! let settings = Arc::new(RwLock::new(Config::new().load_settings()));
 //!
 //! view! {
-//!     MediaControls(spotify.clone(), settings.clone())
+//!     MediaControls(Arc::new(spotify.clone()), settings.clone())
 //! }
 //! ```
 mod play_context;
@@ -286,6 +285,12 @@ impl Widget for MediaControls {
                         }
                     }
                 } else {
+                    if old_state.is_some() {
+                        self.model
+                            .stream
+                            .emit(LoadContext(Type::User, String::new()));
+                    }
+
                     self.model.context = None;
                     self.model.context_cover = None;
                 }
@@ -478,6 +483,28 @@ impl Widget for MediaControls {
                             )
                             .unwrap();
                     }
+                    Type::User if uri.is_empty() => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetMyProfile { tx },
+                                |reply| {
+                                    NewContext(Box::new(PlayContext::User(reply.into_simple())))
+                                },
+                            )
+                            .unwrap();
+                    }
+                    Type::User => {
+                        self.model
+                            .spotify
+                            .ask(
+                                stream.clone(),
+                                |tx| SpotifyCmd::GetUserProfile { tx, uri },
+                                |reply| NewContext(Box::new(PlayContext::User(reply))),
+                            )
+                            .unwrap();
+                    }
                     _ => {
                         self.model.context = None;
                         self.model.context_cover = None;
@@ -632,6 +659,7 @@ impl Widget for MediaControls {
                                             Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
                                             Some(PlayContext::Artist(_)) => "\u{1F935}",
                                             Some(PlayContext::Show(_)) => "\u{1F399}",
+                                            Some(PlayContext::User(_)) => "\u{1F468}",
                                             None => "",
                                         }
                                 },

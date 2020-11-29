@@ -15,8 +15,8 @@ use rspotify::model::playing::PlayHistory;
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
 use rspotify::model::{
-    offset, AdditionalType, FullPlaylist, PlaylistItem, RepeatState, SimplifiedPlaylist, TimeRange,
-    Type,
+    offset, AdditionalType, FullPlaylist, PlaylistItem, PrivateUser, PublicUser, RepeatState,
+    SimplifiedPlaylist, TimeRange, Type,
 };
 use serde_json::{Map, Value};
 use std::borrow::Cow;
@@ -91,6 +91,15 @@ pub enum SpotifyCmd {
     StartPlayback,
     PlayPrevTrack,
     PlayNextTrack,
+    GetMyProfile {
+        #[derivative(Debug = "ignore")]
+        tx: ResultSender<PrivateUser>,
+    },
+    GetUserProfile {
+        #[derivative(Debug = "ignore")]
+        tx: ResultSender<PublicUser>,
+        uri: String,
+    },
     GetMyShows {
         #[derivative(Debug = "ignore")]
         tx: ResultSender<Page<Show>>,
@@ -490,15 +499,25 @@ impl SpotifyServer {
                 tx.send(reply)?;
             }
             RefreshUserToken => {
-                let result =
+                let reply =
                     Self::handle_upstream_errors(client.lock().await.refresh_user_token().await)?;
-                info!("refresh access token result: {:?}", result);
+                info!("refresh access token result: {:?}", reply);
+            }
+            GetMyProfile { tx } => {
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_my_profile().await)?;
+                tx.send(reply)?;
+            }
+            GetUserProfile { tx, uri } => {
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_user_profile(&uri).await)?;
+                tx.send(reply)?;
             }
             GetMyShows { tx, offset, limit } => {
-                let result = Self::handle_upstream_errors(
+                let reply = Self::handle_upstream_errors(
                     client.lock().await.get_my_shows(offset, limit).await,
                 )?;
-                tx.send(result)?;
+                tx.send(reply)?;
             }
             GetShowEpisodes {
                 tx,
@@ -989,6 +1008,14 @@ impl Spotify {
         if let Some(ref mut oauth) = self.client.oauth {
             oauth.redirect_uri = url.into().into_owned();
         }
+    }
+
+    async fn get_my_profile(&self) -> ClientResult<PrivateUser> {
+        self.client.current_user().await
+    }
+
+    async fn get_user_profile(&self, user_id: &str) -> ClientResult<PublicUser> {
+        self.client.user(user_id).await
     }
 
     async fn get_my_shows(&self, offset: u32, limit: u32) -> ClientResult<Page<Show>> {
