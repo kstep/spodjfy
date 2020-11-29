@@ -1,6 +1,6 @@
 use futures::join;
 use relm::Widget;
-use spodjfy::{Config, LoginServer, Params, Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer, Win};
+use spodjfy::{Config, LoginServer, Params, Spotify, SpotifyProxy, SpotifyServer, Win};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -8,13 +8,12 @@ use tokio::sync::Mutex;
 async fn main() {
     env_logger::init();
 
-    let (tx, rx) = std::sync::mpsc::channel::<SpotifyCmd>();
-
     let config = Config::new();
     let settings = config.load_settings();
     let spotify_cache_path = config.spotify_token_file();
 
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
+    let (spotify, rx, spotify_errors) = SpotifyProxy::new();
 
     std::thread::spawn(move || {
         let mut rt = tokio::runtime::Builder::new()
@@ -34,7 +33,6 @@ async fn main() {
         });
     });
 
-    let (spotify, spotify_errors) = SpotifyProxy::new(tx);
     Win::run(Params {
         settings,
         spotify,

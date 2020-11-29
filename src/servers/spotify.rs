@@ -23,7 +23,7 @@ use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, SendError, Sender};
+use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -33,7 +33,7 @@ const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
 #[derive(Clone)]
 pub struct SpotifyProxy {
-    spotify_tx: Sender<SpotifyCmd>,
+    tx: Sender<SpotifyCmd>,
     errors_stream: relm::EventStream<ClientError>,
 }
 
@@ -41,7 +41,7 @@ impl Proxy for SpotifyProxy {
     type Command = SpotifyCmd;
     type Error = ClientError;
     fn tell(&self, cmd: Self::Command) -> Result<(), SendError<Self::Command>> {
-        self.spotify_tx.send(cmd)
+        self.tx.send(cmd)
     }
 
     fn errors_stream(&self) -> EventStream<Self::Error> {
@@ -50,13 +50,19 @@ impl Proxy for SpotifyProxy {
 }
 
 impl SpotifyProxy {
-    pub fn new(spotify_tx: Sender<SpotifyCmd>) -> (SpotifyProxy, relm::EventStream<ClientError>) {
+    pub fn new() -> (
+        SpotifyProxy,
+        Receiver<SpotifyCmd>,
+        relm::EventStream<ClientError>,
+    ) {
+        let (tx, rx) = channel();
         let errors_stream = relm::EventStream::new();
         (
             SpotifyProxy {
-                spotify_tx,
+                tx,
                 errors_stream: errors_stream.clone(),
             },
+            rx,
             errors_stream,
         )
     }
@@ -380,7 +386,7 @@ impl SpotifyServer {
         }
     }
 
-    fn check_rate<T>(reply: ClientResult<T>) -> Result<ClientResult<T>, ProxyError> {
+    fn handle_upstream_errors<T>(reply: ClientResult<T>) -> Result<ClientResult<T>, ProxyError> {
         match reply {
             Err(ClientError::RateLimited(timeout)) => {
                 Err(ProxyError::Backpressure(timeout.unwrap_or(4)))
@@ -395,26 +401,29 @@ impl SpotifyServer {
 
         match msg {
             SetupClient { tx, id, secret } => {
-                let url = Self::check_rate(client.lock().await.setup_client(id, secret).await)?;
+                let url = Self::handle_upstream_errors(
+                    client.lock().await.setup_client(id, secret).await,
+                )?;
                 tx.send(url)?;
             }
             StartPlayback => {
-                let _ = Self::check_rate(client.lock().await.start_playback().await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.start_playback().await)?;
             }
             SeekTrack { pos } => {
-                let _ = Self::check_rate(client.lock().await.seek_track(pos).await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.seek_track(pos).await)?;
             }
             PausePlayback => {
-                let _ = Self::check_rate(client.lock().await.pause_playback().await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.pause_playback().await)?;
             }
             PlayNextTrack => {
-                let _ = Self::check_rate(client.lock().await.play_next_track().await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.play_next_track().await)?;
             }
             PlayPrevTrack => {
-                let _ = Self::check_rate(client.lock().await.play_prev_track().await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.play_prev_track().await)?;
             }
             GetPlaybackState { tx } => {
-                let state = Self::check_rate(client.lock().await.get_playback_state().await)?;
+                let state =
+                    Self::handle_upstream_errors(client.lock().await.get_playback_state().await)?;
                 tx.send(state)?;
             }
             GetArtistAlbums {
@@ -423,7 +432,7 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let reply = Self::check_rate(
+                let reply = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -438,7 +447,7 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let tracks = Self::check_rate(
+                let tracks = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -453,7 +462,7 @@ impl SpotifyServer {
                 offset,
                 uri,
             } => {
-                let tracks = Self::check_rate(
+                let tracks = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -463,27 +472,32 @@ impl SpotifyServer {
                 tx.send(tracks)?;
             }
             GetQueueTracks { tx } => {
-                let reply = Self::check_rate(client.lock().await.get_queue_tracks().await)?;
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_queue_tracks().await)?;
                 tx.send(reply)?;
             }
             GetAuthorizeUrl { tx } => {
-                let url = Self::check_rate(client.lock().await.get_authorize_url())?;
+                let url = Self::handle_upstream_errors(client.lock().await.get_authorize_url())?;
                 tx.send(url)?;
             }
             UseDevice { id, play } => {
-                let _ = Self::check_rate(client.lock().await.use_device(id, play).await)?;
+                let _ =
+                    Self::handle_upstream_errors(client.lock().await.use_device(id, play).await)?;
             }
             AuthorizeUser { tx, code } => {
-                let reply = Self::check_rate(client.lock().await.authorize_user(code).await)?;
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.authorize_user(code).await)?;
                 tx.send(reply)?;
             }
             RefreshUserToken => {
-                let result = Self::check_rate(client.lock().await.refresh_user_token().await)?;
+                let result =
+                    Self::handle_upstream_errors(client.lock().await.refresh_user_token().await)?;
                 info!("refresh access token result: {:?}", result);
             }
             GetMyShows { tx, offset, limit } => {
-                let result =
-                    Self::check_rate(client.lock().await.get_my_shows(offset, limit).await)?;
+                let result = Self::handle_upstream_errors(
+                    client.lock().await.get_my_shows(offset, limit).await,
+                )?;
                 tx.send(result)?;
             }
             GetShowEpisodes {
@@ -492,7 +506,7 @@ impl SpotifyServer {
                 offset,
                 limit,
             } => {
-                let result = Self::check_rate(
+                let result = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -502,78 +516,94 @@ impl SpotifyServer {
                 tx.send(result)?;
             }
             GetMyArtists { tx, cursor, limit } => {
-                let artists =
-                    Self::check_rate(client.lock().await.get_my_artists(cursor, limit).await)?;
+                let artists = Self::handle_upstream_errors(
+                    client.lock().await.get_my_artists(cursor, limit).await,
+                )?;
                 tx.send(artists)?;
             }
             GetMyAlbums { tx, offset, limit } => {
-                let albums =
-                    Self::check_rate(client.lock().await.get_my_albums(offset, limit).await)?;
+                let albums = Self::handle_upstream_errors(
+                    client.lock().await.get_my_albums(offset, limit).await,
+                )?;
                 tx.send(albums)?;
             }
             GetMyPlaylists { tx, offset, limit } => {
-                let playlists =
-                    Self::check_rate(client.lock().await.get_my_playlists(offset, limit).await)?;
+                let playlists = Self::handle_upstream_errors(
+                    client.lock().await.get_my_playlists(offset, limit).await,
+                )?;
                 tx.send(playlists)?;
             }
             GetMyTracks { tx, offset, limit } => {
-                let tracks =
-                    Self::check_rate(client.lock().await.get_my_tracks(offset, limit).await)?;
+                let tracks = Self::handle_upstream_errors(
+                    client.lock().await.get_my_tracks(offset, limit).await,
+                )?;
                 tx.send(tracks)?;
             }
             PlayTracks { uris } => {
-                let _ = Self::check_rate(client.lock().await.play_tracks(uris).await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.play_tracks(uris).await)?;
             }
             PlayContext { uri, start_uri } => {
-                let _ = Self::check_rate(client.lock().await.play_context(uri, start_uri).await)?;
+                let _ = Self::handle_upstream_errors(
+                    client.lock().await.play_context(uri, start_uri).await,
+                )?;
             }
             GetTracksFeatures { tx, uris } => {
-                let features =
-                    Self::check_rate(client.lock().await.get_tracks_features(&uris).await)?;
+                let features = Self::handle_upstream_errors(
+                    client.lock().await.get_tracks_features(&uris).await,
+                )?;
                 tx.send(features)?;
             }
             GetMyDevices { tx } => {
-                let devices = Self::check_rate(client.lock().await.get_my_devices().await)?;
+                let devices =
+                    Self::handle_upstream_errors(client.lock().await.get_my_devices().await)?;
                 tx.send(devices)?;
             }
             SetVolume { value } => {
-                let _ = Self::check_rate(client.lock().await.set_volume(value).await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.set_volume(value).await)?;
             }
             SetShuffle { state } => {
-                let _ = Self::check_rate(client.lock().await.set_shuffle(state).await)?;
+                let _ = Self::handle_upstream_errors(client.lock().await.set_shuffle(state).await)?;
             }
             SetRepeatMode { mode } => {
-                let _ = Self::check_rate(client.lock().await.set_repeat_mode(mode).await)?;
+                let _ =
+                    Self::handle_upstream_errors(client.lock().await.set_repeat_mode(mode).await)?;
             }
             GetAlbum { tx, uri } => {
-                let reply = Self::check_rate(client.lock().await.get_album(&uri).await)?;
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_album(&uri).await)?;
                 tx.send(reply)?;
             }
             GetPlaylist { tx, uri } => {
-                let reply = Self::check_rate(client.lock().await.get_playlist(&uri).await)?;
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_playlist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetArtist { tx, uri } => {
-                let reply = Self::check_rate(client.lock().await.get_artist(&uri).await)?;
+                let reply =
+                    Self::handle_upstream_errors(client.lock().await.get_artist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetShow { tx, uri } => {
-                let reply = Self::check_rate(client.lock().await.get_show(&uri).await)?;
+                let reply = Self::handle_upstream_errors(client.lock().await.get_show(&uri).await)?;
                 tx.send(reply)?;
             }
             GetRecentTracks { tx, limit } => {
-                let reply = Self::check_rate(client.lock().await.get_recent_tracks(limit).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_recent_tracks(limit).await,
+                )?;
                 tx.send(reply)?;
             }
             EnqueueTracks { uris } => {
-                let _ = Self::check_rate(client.lock().await.enqueue_tracks(uris).await)?;
+                let _ =
+                    Self::handle_upstream_errors(client.lock().await.enqueue_tracks(uris).await)?;
             }
             DequeueTracks { uris } => {
-                let _ = Self::check_rate(client.lock().await.dequeue_tracks(&uris).await)?;
+                let _ =
+                    Self::handle_upstream_errors(client.lock().await.dequeue_tracks(&uris).await)?;
             }
             AddToMyLibrary { kind, uris } => {
                 let client = client.lock().await;
-                let _ = Self::check_rate(match kind {
+                let _ = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.add_my_artists(&uris).await,
                     Type::User => client.add_my_users(&uris).await,
                     Type::Show => client.add_my_shows(&uris).await,
@@ -585,7 +615,7 @@ impl SpotifyServer {
             }
             RemoveFromMyLibrary { kind, uris } => {
                 let client = client.lock().await;
-                let _ = Self::check_rate(match kind {
+                let _ = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.remove_my_artists(&uris).await,
                     Type::User => client.remove_my_users(&uris).await,
                     Type::Show => client.remove_my_shows(&uris).await,
@@ -597,7 +627,7 @@ impl SpotifyServer {
             }
             AreInMyLibrary { tx, kind, uris } => {
                 let client = client.lock().await;
-                let reply = Self::check_rate(match kind {
+                let reply = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.are_my_artists(&uris).await,
                     Type::User => client.are_my_users(&uris).await,
                     Type::Show => client.are_my_shows(&uris).await,
@@ -609,8 +639,9 @@ impl SpotifyServer {
                 tx.send(reply)?;
             }
             GetCategories { tx, offset, limit } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_categories(offset, limit).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_categories(offset, limit).await,
+                )?;
                 tx.send(reply)?;
             }
             GetCategoryPlaylists {
@@ -619,7 +650,7 @@ impl SpotifyServer {
                 offset,
                 limit,
             } => {
-                let reply = Self::check_rate(
+                let reply = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -629,7 +660,7 @@ impl SpotifyServer {
                 tx.send(reply)?;
             }
             GetFeaturedPlaylists { tx, offset, limit } => {
-                let reply = Self::check_rate(
+                let reply = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
@@ -639,28 +670,33 @@ impl SpotifyServer {
                 tx.send(reply)?;
             }
             GetNewReleases { tx, offset, limit } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_new_releases(offset, limit).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_new_releases(offset, limit).await,
+                )?;
                 tx.send(reply)?;
             }
             GetMyTopArtists { tx, offset, limit } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_my_top_artists(offset, limit).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_my_top_artists(offset, limit).await,
+                )?;
                 tx.send(reply)?;
             }
             GetMyTopTracks { tx, offset, limit } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_my_top_tracks(offset, limit).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_my_top_tracks(offset, limit).await,
+                )?;
                 tx.send(reply)?;
             }
             GetArtistTopTracks { tx, uri } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_artist_top_tracks(&uri).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_artist_top_tracks(&uri).await,
+                )?;
                 tx.send(reply)?;
             }
             GetArtistRelatedArtists { tx, uri } => {
-                let reply =
-                    Self::check_rate(client.lock().await.get_artist_related_artists(&uri).await)?;
+                let reply = Self::handle_upstream_errors(
+                    client.lock().await.get_artist_related_artists(&uri).await,
+                )?;
                 tx.send(reply)?;
             }
             GetRecommendedTracks {
@@ -671,7 +707,7 @@ impl SpotifyServer {
                 tunables,
                 limit,
             } => {
-                let reply = Self::check_rate(
+                let reply = Self::handle_upstream_errors(
                     client
                         .lock()
                         .await
