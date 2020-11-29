@@ -51,8 +51,6 @@ impl Proxy for SpotifyProxy {
 
 impl SpotifyProxy {
     pub fn new(spotify_tx: Sender<SpotifyCmd>) -> (SpotifyProxy, relm::EventStream<ClientError>) {
-        tokio::spawn(Self::refresh_token_thread(spotify_tx.clone()));
-
         let errors_stream = relm::EventStream::new();
         (
             SpotifyProxy {
@@ -61,20 +59,6 @@ impl SpotifyProxy {
             },
             errors_stream,
         )
-    }
-
-    async fn refresh_token_thread(spotify_tx: Sender<SpotifyCmd>) -> Result<(), ()> {
-        let mut refresh_token_timer =
-            tokio::time::interval(Duration::from_secs(DEFAULT_REFRESH_TOKEN_TIMEOUT));
-        loop {
-            refresh_token_timer.tick().await;
-            info!("refresh access token");
-            spotify_tx
-                .send(SpotifyCmd::RefreshUserToken)
-                .map_err(|error| {
-                    error!("refresh token thread stopped: {:?}", error);
-                })?;
-        }
     }
 }
 
@@ -309,28 +293,29 @@ pub struct Spotify {
 }
 
 #[derive(Debug)]
-pub enum SpotifyError {
-    Recv,
+pub enum ProxyError {
+    Receive,
     Send,
-    RateLimit(usize),
+    Backpressure(usize),
     Timeout,
+    Upstream,
 }
 
-impl From<tokio::time::Elapsed> for SpotifyError {
-    fn from(_err: tokio::time::Elapsed) -> SpotifyError {
-        SpotifyError::Timeout
+impl From<tokio::time::Elapsed> for ProxyError {
+    fn from(_err: tokio::time::Elapsed) -> ProxyError {
+        ProxyError::Timeout
     }
 }
 
-impl<T> From<std::sync::mpsc::SendError<T>> for SpotifyError {
-    fn from(_err: std::sync::mpsc::SendError<T>) -> SpotifyError {
-        SpotifyError::Send
+impl<T> From<std::sync::mpsc::SendError<T>> for ProxyError {
+    fn from(_err: std::sync::mpsc::SendError<T>) -> ProxyError {
+        ProxyError::Send
     }
 }
 
-impl From<std::sync::mpsc::RecvError> for SpotifyError {
-    fn from(_err: std::sync::mpsc::RecvError) -> SpotifyError {
-        SpotifyError::Recv
+impl From<std::sync::mpsc::RecvError> for ProxyError {
+    fn from(_err: std::sync::mpsc::RecvError) -> ProxyError {
+        ProxyError::Receive
     }
 }
 
@@ -344,20 +329,43 @@ impl SpotifyServer {
         SpotifyServer { client, channel }
     }
 
-    pub fn spawn(self) -> JoinHandle<Result<(), SpotifyError>> {
+    pub async fn spawn(self) -> JoinHandle<Result<(), ProxyError>> {
+        tokio::spawn(
+            Self::refresh_token(self.client.clone()).inspect_err(|error| {
+                error!("spotify refresh token thread error: {:?}", error);
+            }),
+        );
         tokio::spawn(self.run().inspect_err(|error| {
-            error!("spotify thread error: {:?}", error);
+            error!("spotify main thread error: {:?}", error);
         }))
     }
 
-    pub async fn run(self) -> Result<(), SpotifyError> {
+    async fn refresh_token(client: Arc<Mutex<Spotify>>) -> Result<(), ProxyError> {
+        let mut refresh_token_timer =
+            tokio::time::interval(Duration::from_secs(DEFAULT_REFRESH_TOKEN_TIMEOUT));
+        loop {
+            refresh_token_timer.tick().await;
+            info!("refresh access token");
+            client
+                .lock()
+                .await
+                .refresh_user_token()
+                .await
+                .map_err(|error| {
+                    error!("refresh access token thread stopped: {:?}", error);
+                    ProxyError::Upstream
+                })?;
+        }
+    }
+
+    async fn run(self) -> Result<(), ProxyError> {
         loop {
             let msg = self.channel.recv()?;
 
             loop {
                 let msg = msg.clone();
                 let reply = Self::handle(self.client.clone(), msg).await;
-                if let Err(SpotifyError::RateLimit(timeout)) = reply {
+                if let Err(ProxyError::Backpressure(timeout)) = reply {
                     let timeout = timeout + 1;
                     warn!(
                         "spotify rate limit exceeded, waiting {} secs to resend",
@@ -372,16 +380,16 @@ impl SpotifyServer {
         }
     }
 
-    fn check_rate<T>(reply: ClientResult<T>) -> Result<ClientResult<T>, SpotifyError> {
+    fn check_rate<T>(reply: ClientResult<T>) -> Result<ClientResult<T>, ProxyError> {
         match reply {
             Err(ClientError::RateLimited(timeout)) => {
-                Err(SpotifyError::RateLimit(timeout.unwrap_or(4)))
+                Err(ProxyError::Backpressure(timeout.unwrap_or(4)))
             }
             reply => Ok(reply),
         }
     }
 
-    async fn handle(client: Arc<Mutex<Spotify>>, msg: SpotifyCmd) -> Result<(), SpotifyError> {
+    async fn handle(client: Arc<Mutex<Spotify>>, msg: SpotifyCmd) -> Result<(), ProxyError> {
         use SpotifyCmd::*;
         debug!("serving message: {:?}", msg);
 
