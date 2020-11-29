@@ -1,5 +1,6 @@
 use crate::models::common::*;
 use chrono::{DateTime, Utc};
+use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
@@ -63,16 +64,16 @@ pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
 
     fn store_content_types() -> Vec<Type> {
         vec![
-            gdk_pixbuf::Pixbuf::static_type(), // thumb
-            String::static_type(),             // uri
-            String::static_type(),             // name
-            String::static_type(),             // release date
-            u32::static_type(),                // total tracks
-            String::static_type(),             // artists
-            String::static_type(),             // genres
-            u8::static_type(),                 // type
-            u32::static_type(),                // duration
-            u32::static_type(),                // rate/popularity
+            Pixbuf::static_type(), // thumb
+            String::static_type(), // uri
+            String::static_type(), // name
+            String::static_type(), // release date
+            u32::static_type(),    // total tracks
+            String::static_type(), // artists
+            String::static_type(), // genres
+            u8::static_type(),     // type
+            u32::static_type(),    // duration
+            u32::static_type(),    // rate/popularity
         ]
     }
 }

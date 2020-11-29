@@ -2,6 +2,7 @@ use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
 use crate::servers::{Proxy, SpotifyProxy};
+use gdk_pixbuf::Pixbuf;
 use glib::{Cast, IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
@@ -25,7 +26,7 @@ pub enum ContainerMsg<Loader: ContainerLoader> {
     LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset, usize),
     NewPage(Loader::Page, usize),
     LoadThumb(String, gtk::TreeIter),
-    NewThumb(gdk_pixbuf::Pixbuf, gtk::TreeIter),
+    NewThumb(Pixbuf, gtk::TreeIter),
     ActivateChosenItems,
     ActivateItem(String, String),
     ActivateItems(Vec<String>),

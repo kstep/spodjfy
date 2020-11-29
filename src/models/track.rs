@@ -3,6 +3,7 @@ use crate::models::{
     ToSimple, Wrapper, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
 use chrono::{DateTime, Utc};
+use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
@@ -131,23 +132,23 @@ pub trait TrackLike: HasDuration + HasImages + HasUri + HasName {
 impl<T: TrackLike> RowLike for T {
     fn content_types() -> Vec<Type> {
         vec![
-            gdk_pixbuf::Pixbuf::static_type(), // thumb
-            String::static_type(),             // track uri
-            String::static_type(),             // name
-            String::static_type(),             // artists
-            u32::static_type(),                // number
-            String::static_type(),             // album
-            bool::static_type(),               // is playable
-            String::static_type(),             // formatted duration
-            u32::static_type(),                // duration in ms
-            f32::static_type(),                // bpm
-            String::static_type(),             // duration from start
-            String::static_type(),             // release date
-            String::static_type(),             // description
-            String::static_type(),             // album uri
-            String::static_type(),             // first artist uri
-            u32::static_type(),                // rate/popularity
-            bool::static_type(),               // saved in library
+            Pixbuf::static_type(), // thumb
+            String::static_type(), // track uri
+            String::static_type(), // name
+            String::static_type(), // artists
+            u32::static_type(),    // number
+            String::static_type(), // album
+            bool::static_type(),   // is playable
+            String::static_type(), // formatted duration
+            u32::static_type(),    // duration in ms
+            f32::static_type(),    // bpm
+            String::static_type(), // duration from start
+            String::static_type(), // release date
+            String::static_type(), // description
+            String::static_type(), // album uri
+            String::static_type(), // first artist uri
+            u32::static_type(),    // rate/popularity
+            bool::static_type(),   // saved in library
         ]
     }
 

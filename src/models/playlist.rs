@@ -1,4 +1,5 @@
 use crate::models::common::*;
+use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use rspotify::model::{FullPlaylist, Image, SimplifiedPlaylist, Type as ModelType};
@@ -46,13 +47,13 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
 
     fn store_content_types() -> Vec<Type> {
         vec![
-            gdk_pixbuf::Pixbuf::static_type(), // thumb
-            String::static_type(),             // uri
-            String::static_type(),             // name
-            u32::static_type(),                // total tracks
-            u32::static_type(),                // duration
-            String::static_type(),             // description
-            String::static_type(),             // publisher
+            Pixbuf::static_type(), // thumb
+            String::static_type(), // uri
+            String::static_type(), // name
+            u32::static_type(),    // total tracks
+            u32::static_type(),    // duration
+            String::static_type(), // description
+            String::static_type(), // publisher
         ]
     }
 }

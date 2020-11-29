@@ -283,7 +283,7 @@ impl CairoSurfaceToPixbuf for cairo::ImageSurface {
     fn to_pixbuf(&self) -> Option<Pixbuf> {
         let mut data = Vec::new();
         self.write_to_png(&mut data).ok()?;
-        let loader = gdk_pixbuf::PixbufLoader::with_type("png").ok()?;
+        let loader = PixbufLoader::with_type("png").ok()?;
         loader.write(&data).ok()?;
         loader.close().ok()?;
         loader.get_pixbuf()

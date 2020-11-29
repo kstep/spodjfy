@@ -1,4 +1,5 @@
 use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
+use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
 use gtk::prelude::*;
 use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
@@ -170,7 +171,7 @@ impl Widget for DevicesTab {
         icon_theme: &gtk::IconTheme,
         tpe: DeviceType,
         is_active: bool,
-    ) -> gdk_pixbuf::Pixbuf {
+    ) -> Pixbuf {
         use DeviceType::*;
         let icon_name = match tpe {
             Tablet => "computer-apple-ipad-symbolic",
@@ -213,7 +214,7 @@ impl Widget for DevicesTab {
             0.0,
             1.0,
             1.0,
-            gdk_pixbuf::InterpType::Nearest,
+            InterpType::Nearest,
             255,
         );
         icon
