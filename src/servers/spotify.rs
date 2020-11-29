@@ -131,6 +131,13 @@ pub enum SpotifyCmd {
         offset: u32,
         limit: u32,
     },
+    GetUserPlaylists {
+        #[derivative(Debug = "ignore")]
+        tx: ResultSender<Page<SimplifiedPlaylist>>,
+        user_id: String,
+        offset: u32,
+        limit: u32,
+    },
     GetMyTracks {
         #[derivative(Debug = "ignore")]
         tx: ResultSender<Page<SavedTrack>>,
@@ -552,6 +559,21 @@ impl SpotifyServer {
                 )?;
                 tx.send(playlists)?;
             }
+            GetUserPlaylists {
+                tx,
+                user_id,
+                offset,
+                limit,
+            } => {
+                let playlists = Self::handle_upstream_errors(
+                    client
+                        .lock()
+                        .await
+                        .get_user_playlists(&user_id, offset, limit)
+                        .await,
+                )?;
+                tx.send(playlists)?;
+            }
             GetMyTracks { tx, offset, limit } => {
                 let tracks = Self::handle_upstream_errors(
                     client.lock().await.get_my_tracks(offset, limit).await,
@@ -823,6 +845,15 @@ impl Spotify {
         limit: u32,
     ) -> ClientResult<Page<SimplifiedPlaylist>> {
         self.client.current_user_playlists(limit, offset).await
+    }
+
+    async fn get_user_playlists(
+        &self,
+        user_id: &str,
+        offset: u32,
+        limit: u32,
+    ) -> ClientResult<Page<SimplifiedPlaylist>> {
+        self.client.user_playlists(user_id, limit, offset).await
     }
 
     async fn get_my_albums(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedAlbum>> {

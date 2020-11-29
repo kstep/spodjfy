@@ -5,7 +5,7 @@ use rspotify::model::{Page, Show, SimplifiedPlaylist};
 const NAME: &str = "playlists";
 
 #[derive(Clone, Copy)]
-pub struct FeaturedLoader;
+pub struct FeaturedLoader(usize);
 
 impl ContainerLoader for FeaturedLoader {
     type ParentId = ();
@@ -15,7 +15,7 @@ impl ContainerLoader for FeaturedLoader {
     const NAME: &'static str = "featured playlists";
 
     fn new(_id: Self::ParentId) -> Self {
-        FeaturedLoader
+        FeaturedLoader(rand::random())
     }
 
     fn parent_id(&self) -> &Self::ParentId {
@@ -28,6 +28,10 @@ impl ContainerLoader for FeaturedLoader {
             offset,
             limit: Self::PAGE_LIMIT,
         }
+    }
+
+    fn epoch(&self) -> usize {
+        self.0
     }
 }
 
@@ -117,6 +121,35 @@ impl ContainerLoader for CategoryLoader {
         SpotifyCmd::GetCategoryPlaylists {
             tx,
             category_id: self.parent_id().clone(),
+            offset,
+            limit: Self::PAGE_LIMIT,
+        }
+    }
+}
+
+pub struct UserLoader {
+    user_id: String,
+}
+
+impl ContainerLoader for UserLoader {
+    type ParentId = String;
+    type Item = SimplifiedPlaylist;
+    type Page = Page<Self::Item>;
+    const PAGE_LIMIT: u32 = 20;
+    const NAME: &'static str = "user playlists";
+
+    fn new(user_id: Self::ParentId) -> Self {
+        UserLoader { user_id }
+    }
+
+    fn parent_id(&self) -> &Self::ParentId {
+        &self.user_id
+    }
+
+    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
+        SpotifyCmd::GetUserPlaylists {
+            tx,
+            user_id: self.user_id,
             offset,
             limit: Self::PAGE_LIMIT,
         }
