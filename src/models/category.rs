@@ -37,3 +37,14 @@ impl RowLike for Category {
         )
     }
 }
+
+impl Merge for Category {
+    fn merge(self, other: Self) -> Self {
+        Category {
+            href: self.href.merge(other.href),
+            icons: self.icons.merge(other.icons),
+            id: self.id.merge(other.id),
+            name: self.name.merge(other.name),
+        }
+    }
+}

@@ -3,6 +3,7 @@ use crate::models::{PlaylistLike, COL_PLAYLIST_DURATION, COL_PLAYLIST_TOTAL_TRAC
 use chrono::{DateTime, Utc};
 use glib::{IsA, Type};
 use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType};
+use std::collections::HashMap;
 use std::time::SystemTime;
 
 impl PlaylistLike for FullShow {
@@ -186,6 +187,32 @@ impl ToFull for SimplifiedShow {
             _type: ModelType::Show.to_string(),
             uri: self.uri,
         }
+    }
+}
+
+impl Empty for SimplifiedShow {
+    fn empty() -> Self {
+        SimplifiedShow {
+            available_markets: Vec::new(),
+            copyrights: Vec::new(),
+            description: String::new(),
+            explicit: false,
+            external_urls: HashMap::new(),
+            href: String::new(),
+            id: String::new(),
+            images: Vec::new(),
+            is_externally_hosted: None,
+            languages: Vec::new(),
+            media_type: String::new(),
+            name: String::new(),
+            publisher: String::new(),
+            _type: ModelType::Show.to_string(),
+            uri: String::new(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.uri.is_empty()
     }
 }
 

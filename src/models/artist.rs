@@ -3,7 +3,7 @@ use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
-use rspotify::model::{FullArtist, Image, SimplifiedArtist};
+use rspotify::model::{Followers, FullArtist, Image, SimplifiedArtist, Type as ModelType};
 
 pub const COL_ARTIST_THUMB: u32 = COL_ITEM_THUMB;
 pub const COL_ARTIST_URI: u32 = COL_ITEM_URI;
@@ -161,3 +161,80 @@ impl RowLike for FullArtist {
 }
 
 impl MissingColumns for FullArtist {}
+
+impl ToFull for SimplifiedArtist {
+    type Full = FullArtist;
+
+    fn to_full(&self) -> Self::Full {
+        FullArtist {
+            external_urls: self.external_urls.clone(),
+            followers: Followers { total: 0 },
+            genres: Vec::new(),
+            href: self.href.clone().unwrap_or_else(String::new),
+            id: self.id.clone().unwrap_or_else(String::new),
+            images: Vec::new(),
+            name: self.name.clone(),
+            popularity: 0,
+            _type: ModelType::Artist,
+            uri: self.uri.clone().unwrap_or_else(String::new),
+        }
+    }
+
+    fn into_full(self) -> Self::Full {
+        FullArtist {
+            external_urls: self.external_urls,
+            followers: Followers { total: 0 },
+            genres: Vec::new(),
+            href: self.href.unwrap_or_else(String::new),
+            id: self.id.unwrap_or_else(String::new),
+            images: Vec::new(),
+            name: self.name,
+            popularity: 0,
+            _type: ModelType::Artist,
+            uri: self.uri.unwrap_or_else(String::new),
+        }
+    }
+}
+
+impl ToSimple for FullArtist {
+    type Simple = SimplifiedArtist;
+
+    fn to_simple(&self) -> Self::Simple {
+        SimplifiedArtist {
+            external_urls: self.external_urls.clone(),
+            href: Some(self.href.clone()),
+            id: Some(self.id.clone()),
+            name: self.name.clone(),
+            _type: ModelType::Artist,
+            uri: Some(self.uri.clone()),
+        }
+    }
+
+    fn into_simple(self) -> Self::Simple {
+        SimplifiedArtist {
+            external_urls: self.external_urls,
+            href: Some(self.href),
+            id: Some(self.id),
+            name: self.name,
+            _type: ModelType::Artist,
+            uri: Some(self.uri),
+        }
+    }
+}
+
+impl Merge for FullArtist {
+    fn merge(self, other: Self) -> Self {
+        FullArtist {
+            external_urls: self.external_urls.merge(other.external_urls),
+            followers: other.followers,
+            genres: self.genres.merge(other.genres),
+            href: self.href.merge(other.href),
+            id: self.id.merge(other.id),
+            images: self.images.merge(other.images),
+            name: self.name.merge(other.name),
+            popularity: self.popularity.merge(other.popularity),
+            _type: ModelType::Artist,
+            uri: self.uri.merge(other.uri),
+        }
+    }
+}

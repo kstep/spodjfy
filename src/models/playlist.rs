@@ -2,7 +2,9 @@ use crate::models::common::*;
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
-use rspotify::model::{FullPlaylist, Image, SimplifiedPlaylist, Type as ModelType};
+use rspotify::model::{
+    Followers, FullPlaylist, Image, Page, PublicUser, SimplifiedPlaylist, Type as ModelType,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -228,5 +230,79 @@ impl RowLike for FullPlaylist {
 
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
         self.insert_into_store(store)
+    }
+}
+
+impl ToFull for SimplifiedPlaylist {
+    type Full = FullPlaylist;
+
+    fn to_full(&self) -> Self::Full {
+        FullPlaylist {
+            collaborative: self.collaborative,
+            description: String::new(),
+            external_urls: self.external_urls.clone(),
+            followers: Followers { total: 0 },
+            href: self.href.clone(),
+            id: self.id.clone(),
+            images: self.images.clone(),
+            name: self.name.clone(),
+            owner: self.owner.clone(),
+            public: self.public,
+            snapshot_id: self.snapshot_id.clone(),
+            tracks: Page::empty(),
+            _type: ModelType::Playlist,
+            uri: self.uri.clone(),
+        }
+    }
+
+    fn into_full(self) -> Self::Full {
+        FullPlaylist {
+            collaborative: self.collaborative,
+            description: String::new(),
+            external_urls: self.external_urls,
+            followers: Followers { total: 0 },
+            href: self.href,
+            id: self.id,
+            images: self.images,
+            name: self.name,
+            owner: self.owner,
+            public: self.public,
+            snapshot_id: self.snapshot_id,
+            tracks: Page::empty(),
+            _type: ModelType::Playlist,
+            uri: self.uri,
+        }
+    }
+}
+
+impl Merge for FullPlaylist {
+    fn merge(self, other: Self) -> Self {
+        FullPlaylist {
+            collaborative: self.collaborative || other.collaborative,
+            description: self.description.merge(other.description),
+            external_urls: self.external_urls.merge(other.external_urls),
+            followers: Followers {
+                total: self.followers.total.merge(other.followers.total),
+            },
+            href: self.href.merge(other.href),
+            id: self.id.merge(other.id),
+            images: self.images.merge(other.images),
+            name: self.name.merge(other.name),
+            owner: PublicUser {
+                display_name: self.owner.display_name.merge(other.owner.display_name),
+                external_urls: self.owner.external_urls.merge(other.owner.external_urls),
+                followers: self.owner.followers.merge(other.owner.followers),
+                href: self.owner.href.merge(other.owner.href),
+                id: self.owner.id.merge(other.owner.id),
+                images: self.owner.images.merge(other.owner.images),
+                _type: ModelType::User,
+                uri: self.owner.uri.merge(other.owner.uri),
+            },
+            public: self.public.merge(other.public),
+            snapshot_id: self.snapshot_id.merge(other.snapshot_id),
+            tracks: self.tracks.merge(other.tracks),
+            _type: ModelType::Playlist,
+            uri: self.uri.merge(other.uri),
+        }
     }
 }
