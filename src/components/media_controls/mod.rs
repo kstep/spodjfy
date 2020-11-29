@@ -25,8 +25,9 @@ mod play_context;
 
 use self::play_context::PlayContext;
 use crate::config::Settings;
-use crate::loaders::track::TrackLike;
-use crate::loaders::{HasDuration, HasImages, ImageLoader};
+use crate::loaders::ImageLoader;
+use crate::models::common::*;
+use crate::models::TrackLike;
 use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
@@ -163,10 +164,12 @@ impl Widget for MediaControls {
             UseDevice(device_id) => {
                 if let Some(id) = device_id {
                     let play = if let Some(state) = self.model.state.as_mut() {
-                        if state.device.id == id {
-                            return;
+                        if let Some(ref device_id) = state.device.id {
+                            if device_id == &id {
+                                return;
+                            }
                         }
-                        state.device.id = id.clone();
+                        state.device.id = Some(id.clone());
                         state.is_playing
                     } else {
                         false
@@ -328,7 +331,7 @@ impl Widget for MediaControls {
             }
             SetVolume(value) => {
                 if let Some(state) = self.model.state.as_mut() {
-                    state.device.volume_percent = value as u32;
+                    state.device.volume_percent = Some(value as u32);
                 }
                 self.model
                     .spotify
@@ -783,7 +786,7 @@ impl Widget for MediaControls {
                                     } else {
                                         "media-playlist-repeat"
                                     }
-                                }).or_else(|| Some("media-playlist-repeat")),
+                                }).or(Some("media-playlist-repeat")),
                             gtk::IconSize::LargeToolbar)),
                         active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
                         toggled(_) => MediaControlsMsg::ToggleRepeatMode,
@@ -793,7 +796,7 @@ impl Widget for MediaControls {
                 gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 101.0, 1.0, 1.0, 1.0))) {
                     tooltip_text: Some("Volume"),
                     digits: 0,
-                    value: self.model.state.as_ref().map(|s| s.device.volume_percent as f64).unwrap_or(0.0),
+                    value: self.model.state.as_ref().and_then(|s| s.device.volume_percent).map(|vol| vol as f64).unwrap_or(0.0),
                     property_width_request: 200,
                     valign: gtk::Align::Center,
                     vexpand: false,
@@ -808,7 +811,7 @@ impl Widget for MediaControls {
                     valign: gtk::Align::Center,
                     vexpand: false,
                     model: Some(&self.model.devices),
-                    active_id: self.model.state.as_ref().map(|s| &*s.device.id),
+                    active_id: self.model.state.as_ref().and_then(|s| s.device.id.as_deref()),
                     id_column: 0,
                     entry_text_column: 1,
 
@@ -823,7 +826,7 @@ impl Widget for MediaControls {
 
         let cell = gtk::CellRendererText::new();
         self.device_selector.pack_start(&cell, true);
-        self.device_selector.add_attribute(&cell, "text", 1 as i32);
+        self.device_selector.add_attribute(&cell, "text", 1i32);
 
         self.buttons.get_style_context().add_class("linked");
 

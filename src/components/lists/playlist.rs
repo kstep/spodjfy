@@ -22,8 +22,9 @@
 //! ```
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::playlist::*;
-use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter};
+use crate::models::common::*;
+use crate::models::playlist::*;
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};

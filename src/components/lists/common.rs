@@ -1,7 +1,6 @@
-use crate::loaders::{
-    ContainerLoader, HasDuration, HasImages, ImageConverter, ImageLoader, PageLike, RowLike,
-    COL_ITEM_THUMB,
-};
+use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
+use crate::models::common::*;
+use crate::models::PageLike;
 use crate::servers::{Proxy, SpotifyProxy};
 use glib::{Cast, IsA, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -415,11 +414,8 @@ where
         search_entry.connect_key_press_event(move |_, event| {
             use gdk::keys::constants::*;
             use gdk::EventType::*;
-            match (event.get_event_type(), event.get_keyval()) {
-                (KeyPress, Escape) => {
-                    stream.emit(ContainerMsg::FinishSearch.into());
-                }
-                _ => {}
+            if let (KeyPress, Escape) = (event.get_event_type(), event.get_keyval()) {
+                stream.emit(ContainerMsg::FinishSearch.into());
             }
             Inhibit(false)
         });
@@ -591,6 +587,7 @@ impl SetupViewSearch for gtk::IconView {
         entry.connect_key_press_event(move |entry, event| {
             use gdk::keys::constants::*;
             use gdk::EventType::*;
+            #[allow(clippy::never_loop)]
             Inhibit(loop {
                 if let Some(model) = view.get_model() {
                     let (iter, rev) = match (event.get_event_type(), event.get_keyval()) {

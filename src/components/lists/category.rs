@@ -1,5 +1,6 @@
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::{ContainerLoader, ImageConverter, COL_CATEGORY_ICON, COL_CATEGORY_NAME};
+use crate::loaders::{ContainerLoader, ImageConverter};
+use crate::models::category::*;
 use glib::{Cast, IsA};
 use gtk::IconViewExt;
 use relm::EventStream;

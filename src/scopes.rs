@@ -1,4 +1,5 @@
 #[derive(Copy, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Scope {
     AppRemoteControl,
     PlaylistModifyPrivate,

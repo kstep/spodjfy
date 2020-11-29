@@ -12,10 +12,12 @@ use rspotify::model::context::CurrentPlaybackContext;
 use rspotify::model::device::Device;
 use rspotify::model::page::{CursorBasedPage, Page};
 use rspotify::model::playing::PlayHistory;
-use rspotify::model::playlist::{FullPlaylist, PlaylistTrack, SimplifiedPlaylist};
 use rspotify::model::show::{FullShow, Show, SimplifiedEpisode};
 use rspotify::model::track::{FullTrack, SavedTrack, SimplifiedTrack};
-use rspotify::model::{offset, AdditionalType, RepeatState, TimeRange, Type};
+use rspotify::model::{
+    offset, AdditionalType, FullPlaylist, PlaylistItem, RepeatState, SimplifiedPlaylist, TimeRange,
+    Type,
+};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::VecDeque;
@@ -169,9 +171,9 @@ pub enum SpotifyCmd {
         #[derivative(Debug = "ignore")]
         tx: ResultSender<Option<CurrentPlaybackContext>>,
     },
-    GetPlaylistTracks {
+    GetPlaylistItems {
         #[derivative(Debug = "ignore")]
-        tx: ResultSender<Page<PlaylistTrack>>,
+        tx: ResultSender<Page<PlaylistItem>>,
         limit: u32,
         offset: u32,
         uri: String,
@@ -437,7 +439,7 @@ impl SpotifyServer {
                 )?;
                 tx.send(tracks)?;
             }
-            GetPlaylistTracks {
+            GetPlaylistItems {
                 tx,
                 limit,
                 offset,
@@ -860,7 +862,7 @@ impl Spotify {
         uri: &str,
         offset: u32,
         limit: u32,
-    ) -> ClientResult<Page<PlaylistTrack>> {
+    ) -> ClientResult<Page<PlaylistItem>> {
         self.client
             .playlist_tracks(uri, None, limit, offset, None)
             .await
@@ -1131,7 +1133,6 @@ impl Spotify {
         self.client
             .category_playlists(category_id, None, limit, offset)
             .await
-            .map(|reply| reply.playlists)
     }
 
     async fn get_featured_playlists(

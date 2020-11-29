@@ -37,7 +37,7 @@ impl ImageConverter {
         } else {
             pixbuf
         };
-        let pixbuf = if self.round {
+        if self.round {
             pixbuf
                 .rounded()
                 .ok()
@@ -45,8 +45,7 @@ impl ImageConverter {
                 .unwrap_or(pixbuf)
         } else {
             pixbuf
-        };
-        pixbuf
+        }
     }
 }
 

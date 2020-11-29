@@ -1584,19 +1584,20 @@ dependencies = [
 [[package]]
 name = "rspotify"
 version = "0.10.0"
-source = "git+https://github.com/kstep/rspotify?rev=3cf178189f9bec7527b864101c1b0ea114aea85d#3cf178189f9bec7527b864101c1b0ea114aea85d"
+source = "git+https://github.com/kstep/rspotify?rev=c3e722e9e349c9d7b3fbe108f5c2b17d97ad8ae6#c3e722e9e349c9d7b3fbe108f5c2b17d97ad8ae6"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
  "chrono",
  "derive_builder",
  "getrandom 0.2.0",
+ "itertools",
  "log",
  "maybe-async",
  "reqwest",
  "serde",
  "serde_json",
- "strum 0.19.5",
+ "strum 0.20.0",
  "thiserror",
  "url",
 ]
@@ -1733,6 +1734,7 @@ name = "spodjfy"
 version = "0.1.0"
 dependencies = [
  "cairo-rs",
+ "chrono",
  "derivative",
  "directories",
  "env_logger",
@@ -1785,11 +1787,11 @@ checksum = "57bd81eb48f4c437cadc685403cad539345bf703d78e63707418431cecd4522b"
 
 [[package]]
 name = "strum"
-version = "0.19.5"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b89a286a7e3b5720b9a477b23253bc50debac207c8d21505f8e70b36792f11b5"
+checksum = "7318c509b5ba57f18533982607f24070a55d353e90d4cae30c467cdb2ad5ac5c"
 dependencies = [
- "strum_macros 0.19.4",
+ "strum_macros 0.20.1",
 ]
 
 [[package]]
@@ -1816,9 +1818,9 @@ dependencies = [
 
 [[package]]
 name = "strum_macros"
-version = "0.19.4"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e61bb0be289045cb80bfce000512e32d09f8337e54c186725da381377ad1f8d5"
+checksum = "ee8bc6b87a5112aeeab1f4a9f7ab634fe6cbefc4850006df31267f4cfb9e3149"
 dependencies = [
  "heck",
  "proc-macro2 1.0.24",

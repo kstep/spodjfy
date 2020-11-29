@@ -1,8 +1,10 @@
 use crate::components::lists::{
     ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
 };
-use crate::loaders::track::*;
-use crate::loaders::{ContainerLoader, HasDuration, HasImages, MissingColumns, PageLike, RowLike};
+use crate::loaders::ContainerLoader;
+use crate::models::common::*;
+use crate::models::page::*;
+use crate::models::track::*;
 use crate::servers::{Proxy, SpotifyCmd};
 use glib::{Continue, ToValue};
 use gtk::{

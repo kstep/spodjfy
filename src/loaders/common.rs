@@ -1,11 +1,6 @@
-use crate::loaders::paged::PageLike;
+use crate::models::PageLike;
 use crate::servers::spotify::SpotifyCmd;
 use crate::servers::ResultSender;
-use rspotify::model::Image;
-
-pub const COL_ITEM_THUMB: u32 = 0;
-pub const COL_ITEM_URI: u32 = 1;
-pub const COL_ITEM_NAME: u32 = 2;
 
 pub trait ContainerLoader {
     type ParentId;
@@ -23,24 +18,5 @@ pub trait ContainerLoader {
     ) -> SpotifyCmd;
     fn epoch(&self) -> usize {
         self as *const _ as *const () as usize
-    }
-}
-
-pub trait HasImages {
-    fn images(&self) -> &[Image];
-}
-
-pub trait HasDuration {
-    fn duration(&self) -> u32 {
-        0
-    }
-    fn duration_exact(&self) -> bool {
-        true
-    }
-}
-
-pub trait MissingColumns {
-    fn missing_columns() -> &'static [u32] {
-        &[]
     }
 }

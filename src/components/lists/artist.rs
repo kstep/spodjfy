@@ -1,7 +1,7 @@
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::artist::*;
 use crate::loaders::{ContainerLoader, ImageConverter};
+use crate::models::artist::*;
 use glib::{Cast, IsA};
 use gtk::{
     CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt, WidgetExt,

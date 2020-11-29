@@ -1,7 +1,8 @@
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerMsg, GetSelectedRows, ItemsListView, TrackMsg};
-use crate::loaders::track::*;
-use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter};
+use crate::models::common::*;
+use crate::models::track::*;
 use glib::signal::Inhibit;
 use glib::{Cast, IsA, ObjectExt};
 use gtk::{

@@ -9,7 +9,7 @@
 //!
 //! ```
 //!# use std::sync::{Arc, mpsc::channel};
-//!# use crate::spodjfy::servers::spotify::SpotifyProxy;
+//!# use crate::spodjfy::servers::SpotifyProxy;
 //!# macro_rules! view { ($body:tt*) => {} }
 //!# let (tx, rx) = channel();
 //!# let spotify = Arc::new(SpotifyProxy::new(tx));
@@ -24,8 +24,9 @@
 use crate::components::lists::common::{
     ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch,
 };
-use crate::loaders::album::*;
-use crate::loaders::{ContainerLoader, ImageConverter, MissingColumns};
+use crate::loaders::{ContainerLoader, ImageConverter};
+use crate::models::album::*;
+use crate::models::common::*;
 use glib::Cast;
 use gtk::prelude::*;
 use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};

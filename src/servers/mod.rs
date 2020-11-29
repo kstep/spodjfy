@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::sync::mpsc::SendError;
 
 mod login;
-pub(crate) mod spotify;
+pub mod spotify;
 
 pub use login::LoginServer;
 pub use spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};

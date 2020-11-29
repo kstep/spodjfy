@@ -1,6 +1,5 @@
-use crate::loaders::HasDuration;
-use glib::{IsA, Type};
-use rspotify::model::page::{CursorBasedPage, Page};
+use crate::models::common::Empty;
+use rspotify::model::{Cursor, CursorBasedPage, Page};
 
 pub trait PageLike<T> {
     type Offset: Clone;
@@ -23,16 +22,6 @@ impl<T> PageLike<T> for Vec<T> {
         &self
     }
     fn init_offset() -> Self::Offset {}
-}
-
-impl<T: HasDuration> HasDuration for Vec<T> {
-    fn duration(&self) -> u32 {
-        self.iter().map(|item| item.duration()).sum()
-    }
-
-    fn duration_exact(&self) -> bool {
-        self.iter().all(|item| item.duration_exact())
-    }
 }
 
 impl<T> PageLike<T> for Page<T> {
@@ -58,17 +47,6 @@ impl<T> PageLike<T> for Page<T> {
     }
 }
 
-impl<T: HasDuration> HasDuration for Page<T> {
-    fn duration(&self) -> u32 {
-        self.items.iter().map(|item| item.duration()).sum()
-    }
-
-    fn duration_exact(&self) -> bool {
-        (self.items.len() == self.total as usize)
-            && self.items.iter().all(|item| item.duration_exact())
-    }
-}
-
 impl<T> PageLike<T> for CursorBasedPage<T> {
     type Offset = String;
     fn items(&self) -> &[T] {
@@ -85,18 +63,37 @@ impl<T> PageLike<T> for CursorBasedPage<T> {
     }
 }
 
-impl<T: HasDuration> HasDuration for CursorBasedPage<T> {
-    fn duration(&self) -> u32 {
-        self.items.iter().map(|item| item.duration()).sum()
+impl<T> Empty for Page<T> {
+    fn empty() -> Self {
+        Page {
+            href: String::new(),
+            items: Vec::new(),
+            limit: 0,
+            next: None,
+            offset: 0,
+            previous: None,
+            total: 0,
+        }
     }
 
-    fn duration_exact(&self) -> bool {
-        (self.items.len() == self.total.unwrap_or(0) as usize)
-            && self.items.iter().all(|item| item.duration_exact())
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 }
 
-pub trait RowLike {
-    fn content_types() -> Vec<Type>;
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter;
+impl<T> Empty for CursorBasedPage<T> {
+    fn empty() -> Self {
+        CursorBasedPage {
+            href: String::new(),
+            items: Vec::new(),
+            limit: 0,
+            next: None,
+            cursors: Cursor { after: None },
+            total: None,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
 }

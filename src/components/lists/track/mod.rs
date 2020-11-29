@@ -3,8 +3,8 @@ pub mod item_view;
 pub mod message;
 
 use crate::components::lists::{ContainerList, GetSelectedRows};
-use crate::loaders::track::*;
 use crate::loaders::ContainerLoader;
+use crate::models::track::*;
 use gtk::TreeModelExt;
 use handler::TrackMsgHandler;
 use item_view::TrackView;

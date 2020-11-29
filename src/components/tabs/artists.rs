@@ -4,7 +4,7 @@ use crate::loaders::{
     AlbumLoader, ArtistLoader, ArtistTopTracksLoader, MyTopArtistsLoader, RelatedArtistsLoader,
     SavedArtistsLoader as SavedLoader,
 };
-use crate::servers::{Proxy, SpotifyProxy};
+use crate::servers::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
@@ -34,8 +34,7 @@ impl Widget for ArtistsTab {
                 self.albums_view.emit(ContainerMsg::Load(uri.clone()));
                 self.top_tracks_view
                     .emit(ContainerMsg::Load(uri.clone()).into());
-                self.related_artists_view
-                    .emit(ContainerMsg::Load(uri).into());
+                self.related_artists_view.emit(ContainerMsg::Load(uri));
 
                 let artist_tab = &self.artist_view;
                 self.stack.set_child_title(artist_tab, Some(&name));

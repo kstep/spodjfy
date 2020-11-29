@@ -1,4 +1,4 @@
-use crate::loaders::HasDuration;
+use crate::models::HasDuration;
 use itertools::Itertools;
 use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, Type};
 use std::borrow::Cow;

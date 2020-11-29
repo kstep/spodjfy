@@ -1,8 +1,5 @@
-use crate::loaders::{COL_ITEM_NAME, COL_ITEM_URI};
+use crate::models::{COL_ITEM_NAME, COL_ITEM_URI};
 use gtk::TreeModelExt;
-use rspotify::model::Type;
-use std::convert::TryFrom;
-use std::str::FromStr;
 
 pub fn humanize_time(time_ms: u32) -> String {
     let seconds = time_ms / 1000;
@@ -52,99 +49,6 @@ pub fn extract_uri_name(model: &gtk::TreeModel, path: &gtk::TreePath) -> Option<
     })
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct SpotifyUri(String);
-
-impl FromStr for SpotifyUri {
-    type Err = ();
-
-    fn from_str(uri: &str) -> Result<Self, Self::Err> {
-        if SpotifyUri::check_uri(uri) {
-            unsafe { Ok(SpotifyUri::new_unchecked(uri.to_owned())) }
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<String> for SpotifyUri {
-    type Error = ();
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        SpotifyUri::new(value).ok_or(())
-    }
-}
-impl<'a> TryFrom<&'a str> for SpotifyUri {
-    type Error = ();
-
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
-}
-
-impl ToString for SpotifyUri {
-    fn to_string(&self) -> String {
-        self.0.to_owned()
-    }
-}
-
-impl SpotifyUri {
-    pub fn new(uri: String) -> Option<Self> {
-        if Self::check_uri(&uri) {
-            Some(unsafe { Self::new_unchecked(uri) })
-        } else {
-            None
-        }
-    }
-
-    unsafe fn new_unchecked(uri: String) -> Self {
-        SpotifyUri(uri)
-    }
-
-    fn check_uri(uri: &str) -> bool {
-        uri.starts_with("spotify:") && {
-            // TODO: use split_once() when "str_split_once" feature stabilized
-            if let Some((tpe, id)) = {
-                let mut info = uri[8..].splitn(2, ':');
-                info.next().zip(info.next())
-            } {
-                [
-                    "artist", "album", "track", "playlist", "show", "episode", "user",
-                ]
-                .contains(&tpe)
-                    && !id.is_empty()
-                    && id.chars().all(|ch| ch.is_ascii_alphanumeric())
-            } else {
-                false
-            }
-        }
-    }
-
-    pub fn id(&self) -> &str {
-        self.0.rsplitn(2, ':').next().unwrap()
-    }
-
-    pub fn kind(&self) -> Type {
-        if self.0.starts_with("spotify:artist:") {
-            Type::Artist
-        } else if self.0.starts_with("spotify:album:") {
-            Type::Album
-        } else if self.0.starts_with("spotify:track:") {
-            Type::Track
-        } else if self.0.starts_with("spotify:playlist:") {
-            Type::Playlist
-        } else if self.0.starts_with("spotify:show:") {
-            Type::Show
-        } else if self.0.starts_with("spotify:episode:") {
-            Type::Episode
-        } else if self.0.starts_with("spotify:user:") {
-            Type::User
-        } else {
-            unreachable!();
-        }
-    }
-}
-
 #[derive(Default, Debug, Clone, Copy)]
 pub struct SearchTerms(i16);
 
@@ -175,6 +79,8 @@ impl IntoIterator for SearchTerms {
     }
 }
 
+// TODO
+#[allow(dead_code)]
 impl SearchTerms {
     #[inline]
     pub fn add(&mut self, term: SearchTerm) {

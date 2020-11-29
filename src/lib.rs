@@ -3,9 +3,14 @@
 #[macro_use]
 extern crate log;
 
-pub mod components;
-pub mod config;
-pub mod loaders;
-pub mod scopes;
-pub mod servers;
-pub mod utils;
+mod components;
+mod config;
+mod loaders;
+mod models;
+mod scopes;
+mod servers;
+mod utils;
+
+pub use components::win::{Params, Win};
+pub use config::Config;
+pub use servers::{LoginServer, Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
