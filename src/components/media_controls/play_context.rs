@@ -139,4 +139,14 @@ impl PlayContext {
             PlayContext::User(_) => "",
         }
     }
+
+    pub fn emoji(&self) -> &str {
+        match self {
+            PlayContext::Album(_) => "\u{1F4BF}",
+            PlayContext::Playlist(_) => "\u{1F4C1}",
+            PlayContext::Artist(_) => "\u{1F935}",
+            PlayContext::Show(_) => "\u{1F399}",
+            PlayContext::User(_) => "\u{1F468}",
+        }
+    }
 }

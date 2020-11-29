@@ -253,12 +253,8 @@ impl Widget for MediaControls {
                                 .summary(item.name())
                                 .body(&format!(
                                     "\u{1F935} {}\n\u{1F4BF} {}",
-                                    item.artists()
-                                        .iter()
-                                        .next()
-                                        .map(|a| &*a.name)
-                                        .unwrap_or("<Unknown Artist>"),
-                                    item.album().map(|a| &*a.name).unwrap_or("<No Album>"),
+                                    item.artists().iter().next().map_or("", |a| &*a.name),
+                                    item.album().map_or("", |a| &*a.name),
                                 ))
                                 .show();
                         }
@@ -357,8 +353,7 @@ impl Widget for MediaControls {
                     .model
                     .state
                     .as_ref()
-                    .map(|s| s.repeat_state)
-                    .unwrap_or(RepeatState::Off)
+                    .map_or(RepeatState::Off, |s| s.repeat_state)
                 {
                     RepeatState::Off => RepeatState::Context,
                     RepeatState::Context => RepeatState::Track,
@@ -532,17 +527,16 @@ impl Widget for MediaControls {
                 }
             }
             ClickTrackUri(Some(uri)) => {
-                let (kind, context_info) = self
-                    .model
-                    .context
-                    .as_ref()
-                    .map(|ctx| {
-                        (
-                            ctx.kind(),
-                            Some((ctx.uri().to_owned(), ctx.name().to_owned())),
-                        )
-                    })
-                    .unwrap_or((Type::Track, None));
+                let (kind, context_info) =
+                    self.model
+                        .context
+                        .as_ref()
+                        .map_or((Type::Track, None), |ctx| {
+                            (
+                                ctx.kind(),
+                                Some((ctx.uri().to_owned(), ctx.name().to_owned())),
+                            )
+                        });
 
                 self.model
                     .stream
@@ -584,7 +578,7 @@ impl Widget for MediaControls {
                                 #[name="track_name_label"]
                                 gtk::LinkButton {
                                     widget_name: "track_name_label",
-                                    uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.uri()).unwrap_or(""),
+                                    uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| it.uri()),
 
                                     activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
 
@@ -594,7 +588,7 @@ impl Widget for MediaControls {
                                         line_wrap: true,
                                         ellipsize: pango::EllipsizeMode::End,
                                         lines: 2,
-                                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| it.name()).unwrap_or("<Nothing>"),
+                                        text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| it.name()),
                                     }
                                 },
                             },
@@ -612,10 +606,10 @@ impl Widget for MediaControls {
                                 halign: gtk::Align::Start,
                                 widget_name: "track_album_label",
                                 selectable: true,
-                                text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
+                                text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| match it {
                                     PlayingItem::Track(track) => &*track.album.name,
                                     PlayingItem::Episode(episode) => &*episode.show.name,
-                                }).unwrap_or("")
+                                })
                             },
                             //gtk::ScrolledWindow {
                                 #[name="track_description_label"]
@@ -654,14 +648,7 @@ impl Widget for MediaControls {
                                 gtk::Label {
                                     halign: gtk::Align::Start,
                                     valign: gtk::Align::Center,
-                                    text: match self.model.context {
-                                            Some(PlayContext::Album(_)) => "\u{1F4BF}",
-                                            Some(PlayContext::Playlist(_)) => "\u{1F4C1}",
-                                            Some(PlayContext::Artist(_)) => "\u{1F935}",
-                                            Some(PlayContext::Show(_)) => "\u{1F399}",
-                                            Some(PlayContext::User(_)) => "\u{1F468}",
-                                            None => "",
-                                        }
+                                    text: self.model.context.as_ref().map_or("", |ctx| ctx.emoji()),
                                 },
                                 #[name="context_name_label"]
                                 gtk::Label {
@@ -670,7 +657,7 @@ impl Widget for MediaControls {
                                     selectable: true,
                                     line_wrap: true,
                                     xalign: 0.0,
-                                    text: self.model.context.as_ref().map(|c| c.name()).unwrap_or(""),
+                                    text: self.model.context.as_ref().map_or("", |c| c.name()),
                                 },
                             },
                             #[name="context_artists_label"]
@@ -715,8 +702,7 @@ impl Widget for MediaControls {
                                     selectable: true,
                                     xalign: 0.0,
                                     text: self.model.context.as_ref()
-                                        .map(|c| c.description())
-                                        .unwrap_or("")
+                                        .map_or("", |c| c.description())
                                 },
                             //},
                         }
@@ -799,7 +785,7 @@ impl Widget for MediaControls {
                         child: { non_homogeneous: true },
                         tooltip_text: Some("Shuffle"),
                         image: Some(&gtk::Image::from_icon_name(Some("media-playlist-shuffle"), gtk::IconSize::LargeToolbar)),
-                        active: self.model.state.as_ref().map(|s| s.shuffle_state).unwrap_or(false),
+                        active: self.model.state.as_ref().map_or(false, |s| s.shuffle_state),
                         toggled(btn) => MediaControlsMsg::SetShuffle(btn.get_active()),
                     },
                     #[name="repeat_btn"]
@@ -816,7 +802,7 @@ impl Widget for MediaControls {
                                     }
                                 }).or(Some("media-playlist-repeat")),
                             gtk::IconSize::LargeToolbar)),
-                        active: self.model.state.as_ref().map(|s| s.repeat_state != RepeatState::Off).unwrap_or(false),
+                        active: self.model.state.as_ref().map_or(false, |s| s.repeat_state != RepeatState::Off),
                         toggled(_) => MediaControlsMsg::ToggleRepeatMode,
                     },
                 },
@@ -824,7 +810,7 @@ impl Widget for MediaControls {
                 gtk::Scale(gtk::Orientation::Horizontal, Some(&gtk::Adjustment::new(0.0, 0.0, 101.0, 1.0, 1.0, 1.0))) {
                     tooltip_text: Some("Volume"),
                     digits: 0,
-                    value: self.model.state.as_ref().and_then(|s| s.device.volume_percent).map(|vol| vol as f64).unwrap_or(0.0),
+                    value: self.model.state.as_ref().and_then(|s| s.device.volume_percent).map_or(0.0, |vol| vol as f64),
                     property_width_request: 200,
                     valign: gtk::Align::Center,
                     vexpand: false,
