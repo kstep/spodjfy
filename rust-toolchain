@@ -1,0 +1,4 @@
+# vim: ft=yaml
+[toolchain]
+channel = "nightly"
+components = ["rustfmt", "clippy"]
