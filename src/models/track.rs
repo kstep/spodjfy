@@ -2,6 +2,7 @@ use crate::models::{
     Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull,
     ToSimple, Wrapper, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
+use crate::servers::store::StoreModel;
 use chrono::{DateTime, Utc};
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
@@ -627,4 +628,12 @@ impl_track_like_for_playing_item! {
     release_date -> Option<&str>,
     description -> Option<&str>,
     rate -> u32
+}
+
+impl StoreModel for FullTrack {
+    const TREE_NAME: &'static str = "tracks";
+
+    fn key(&self) -> &str {
+        self.id()
+    }
 }

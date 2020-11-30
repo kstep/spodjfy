@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
@@ -342,12 +342,12 @@ impl From<std::sync::mpsc::RecvError> for ProxyError {
 }
 
 pub struct SpotifyServer {
-    client: Arc<Mutex<Spotify>>,
+    client: Arc<RwLock<Spotify>>,
     channel: Receiver<SpotifyCmd>,
 }
 
 impl SpotifyServer {
-    pub fn new(client: Arc<Mutex<Spotify>>, channel: Receiver<SpotifyCmd>) -> SpotifyServer {
+    pub fn new(client: Arc<RwLock<Spotify>>, channel: Receiver<SpotifyCmd>) -> SpotifyServer {
         SpotifyServer { client, channel }
     }
 
@@ -362,14 +362,14 @@ impl SpotifyServer {
         }))
     }
 
-    async fn refresh_token(client: Arc<Mutex<Spotify>>) -> Result<(), ProxyError> {
+    async fn refresh_token(client: Arc<RwLock<Spotify>>) -> Result<(), ProxyError> {
         let mut refresh_token_timer =
             tokio::time::interval(Duration::from_secs(DEFAULT_REFRESH_TOKEN_TIMEOUT));
         loop {
             refresh_token_timer.tick().await;
             info!("refresh access token");
             client
-                .lock()
+                .write()
                 .await
                 .refresh_user_token()
                 .await
@@ -411,35 +411,35 @@ impl SpotifyServer {
         }
     }
 
-    async fn handle(client: Arc<Mutex<Spotify>>, msg: SpotifyCmd) -> Result<(), ProxyError> {
+    async fn handle(client: Arc<RwLock<Spotify>>, msg: SpotifyCmd) -> Result<(), ProxyError> {
         use SpotifyCmd::*;
         debug!("serving message: {:?}", msg);
 
         match msg {
             SetupClient { tx, id, secret } => {
                 let url = Self::handle_upstream_errors(
-                    client.lock().await.setup_client(id, secret).await,
+                    client.write().await.setup_client(id, secret).await,
                 )?;
                 tx.send(url)?;
             }
             StartPlayback => {
-                let _ = Self::handle_upstream_errors(client.lock().await.start_playback().await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.start_playback().await)?;
             }
             SeekTrack { pos } => {
-                let _ = Self::handle_upstream_errors(client.lock().await.seek_track(pos).await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.seek_track(pos).await)?;
             }
             PausePlayback => {
-                let _ = Self::handle_upstream_errors(client.lock().await.pause_playback().await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.pause_playback().await)?;
             }
             PlayNextTrack => {
-                let _ = Self::handle_upstream_errors(client.lock().await.play_next_track().await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.play_next_track().await)?;
             }
             PlayPrevTrack => {
-                let _ = Self::handle_upstream_errors(client.lock().await.play_prev_track().await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.play_prev_track().await)?;
             }
             GetPlaybackState { tx } => {
                 let state =
-                    Self::handle_upstream_errors(client.lock().await.get_playback_state().await)?;
+                    Self::handle_upstream_errors(client.read().await.get_playback_state().await)?;
                 tx.send(state)?;
             }
             GetArtistAlbums {
@@ -450,7 +450,7 @@ impl SpotifyServer {
             } => {
                 let reply = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_artist_albums(&uri, offset, limit)
                         .await,
@@ -465,7 +465,7 @@ impl SpotifyServer {
             } => {
                 let tracks = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_album_tracks(&uri, offset, limit)
                         .await,
@@ -480,7 +480,7 @@ impl SpotifyServer {
             } => {
                 let tracks = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_playlist_tracks(&uri, offset, limit)
                         .await,
@@ -489,40 +489,40 @@ impl SpotifyServer {
             }
             GetQueueTracks { tx } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_queue_tracks().await)?;
+                    Self::handle_upstream_errors(client.read().await.get_queue_tracks().await)?;
                 tx.send(reply)?;
             }
             GetAuthorizeUrl { tx } => {
-                let url = Self::handle_upstream_errors(client.lock().await.get_authorize_url())?;
+                let url = Self::handle_upstream_errors(client.read().await.get_authorize_url())?;
                 tx.send(url)?;
             }
             UseDevice { id, play } => {
                 let _ =
-                    Self::handle_upstream_errors(client.lock().await.use_device(id, play).await)?;
+                    Self::handle_upstream_errors(client.read().await.use_device(id, play).await)?;
             }
             AuthorizeUser { tx, code } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.authorize_user(code).await)?;
+                    Self::handle_upstream_errors(client.write().await.authorize_user(code).await)?;
                 tx.send(reply)?;
             }
             RefreshUserToken => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.refresh_user_token().await)?;
+                    Self::handle_upstream_errors(client.write().await.refresh_user_token().await)?;
                 info!("refresh access token result: {:?}", reply);
             }
             GetMyProfile { tx } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_my_profile().await)?;
+                    Self::handle_upstream_errors(client.read().await.get_my_profile().await)?;
                 tx.send(reply)?;
             }
             GetUserProfile { tx, uri } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_user_profile(&uri).await)?;
+                    Self::handle_upstream_errors(client.read().await.get_user_profile(&uri).await)?;
                 tx.send(reply)?;
             }
             GetMyShows { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_my_shows(offset, limit).await,
+                    client.read().await.get_my_shows(offset, limit).await,
                 )?;
                 tx.send(reply)?;
             }
@@ -534,7 +534,7 @@ impl SpotifyServer {
             } => {
                 let result = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_show_episodes(&uri, offset, limit)
                         .await,
@@ -543,19 +543,19 @@ impl SpotifyServer {
             }
             GetMyArtists { tx, cursor, limit } => {
                 let artists = Self::handle_upstream_errors(
-                    client.lock().await.get_my_artists(cursor, limit).await,
+                    client.read().await.get_my_artists(cursor, limit).await,
                 )?;
                 tx.send(artists)?;
             }
             GetMyAlbums { tx, offset, limit } => {
                 let albums = Self::handle_upstream_errors(
-                    client.lock().await.get_my_albums(offset, limit).await,
+                    client.read().await.get_my_albums(offset, limit).await,
                 )?;
                 tx.send(albums)?;
             }
             GetMyPlaylists { tx, offset, limit } => {
                 let playlists = Self::handle_upstream_errors(
-                    client.lock().await.get_my_playlists(offset, limit).await,
+                    client.read().await.get_my_playlists(offset, limit).await,
                 )?;
                 tx.send(playlists)?;
             }
@@ -567,7 +567,7 @@ impl SpotifyServer {
             } => {
                 let playlists = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_user_playlists(&user_id, offset, limit)
                         .await,
@@ -576,74 +576,74 @@ impl SpotifyServer {
             }
             GetMyTracks { tx, offset, limit } => {
                 let tracks = Self::handle_upstream_errors(
-                    client.lock().await.get_my_tracks(offset, limit).await,
+                    client.read().await.get_my_tracks(offset, limit).await,
                 )?;
                 tx.send(tracks)?;
             }
             PlayTracks { uris } => {
-                let _ = Self::handle_upstream_errors(client.lock().await.play_tracks(uris).await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.play_tracks(uris).await)?;
             }
             PlayContext { uri, start_uri } => {
                 let _ = Self::handle_upstream_errors(
-                    client.lock().await.play_context(uri, start_uri).await,
+                    client.read().await.play_context(uri, start_uri).await,
                 )?;
             }
             GetTracksFeatures { tx, uris } => {
                 let features = Self::handle_upstream_errors(
-                    client.lock().await.get_tracks_features(&uris).await,
+                    client.read().await.get_tracks_features(&uris).await,
                 )?;
                 tx.send(features)?;
             }
             GetMyDevices { tx } => {
                 let devices =
-                    Self::handle_upstream_errors(client.lock().await.get_my_devices().await)?;
+                    Self::handle_upstream_errors(client.read().await.get_my_devices().await)?;
                 tx.send(devices)?;
             }
             SetVolume { value } => {
-                let _ = Self::handle_upstream_errors(client.lock().await.set_volume(value).await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.set_volume(value).await)?;
             }
             SetShuffle { state } => {
-                let _ = Self::handle_upstream_errors(client.lock().await.set_shuffle(state).await)?;
+                let _ = Self::handle_upstream_errors(client.read().await.set_shuffle(state).await)?;
             }
             SetRepeatMode { mode } => {
                 let _ =
-                    Self::handle_upstream_errors(client.lock().await.set_repeat_mode(mode).await)?;
+                    Self::handle_upstream_errors(client.read().await.set_repeat_mode(mode).await)?;
             }
             GetAlbum { tx, uri } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_album(&uri).await)?;
+                    Self::handle_upstream_errors(client.read().await.get_album(&uri).await)?;
                 tx.send(reply)?;
             }
             GetPlaylist { tx, uri } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_playlist(&uri).await)?;
+                    Self::handle_upstream_errors(client.read().await.get_playlist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetArtist { tx, uri } => {
                 let reply =
-                    Self::handle_upstream_errors(client.lock().await.get_artist(&uri).await)?;
+                    Self::handle_upstream_errors(client.read().await.get_artist(&uri).await)?;
                 tx.send(reply)?;
             }
             GetShow { tx, uri } => {
-                let reply = Self::handle_upstream_errors(client.lock().await.get_show(&uri).await)?;
+                let reply = Self::handle_upstream_errors(client.read().await.get_show(&uri).await)?;
                 tx.send(reply)?;
             }
             GetRecentTracks { tx, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_recent_tracks(limit).await,
+                    client.read().await.get_recent_tracks(limit).await,
                 )?;
                 tx.send(reply)?;
             }
             EnqueueTracks { uris } => {
                 let _ =
-                    Self::handle_upstream_errors(client.lock().await.enqueue_tracks(uris).await)?;
+                    Self::handle_upstream_errors(client.write().await.enqueue_tracks(uris).await)?;
             }
             DequeueTracks { uris } => {
                 let _ =
-                    Self::handle_upstream_errors(client.lock().await.dequeue_tracks(&uris).await)?;
+                    Self::handle_upstream_errors(client.write().await.dequeue_tracks(&uris).await)?;
             }
             AddToMyLibrary { kind, uris } => {
-                let client = client.lock().await;
+                let client = client.read().await;
                 let _ = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.add_my_artists(&uris).await,
                     Type::User => client.add_my_users(&uris).await,
@@ -655,7 +655,7 @@ impl SpotifyServer {
                 })?;
             }
             RemoveFromMyLibrary { kind, uris } => {
-                let client = client.lock().await;
+                let client = client.read().await;
                 let _ = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.remove_my_artists(&uris).await,
                     Type::User => client.remove_my_users(&uris).await,
@@ -667,7 +667,7 @@ impl SpotifyServer {
                 })?;
             }
             AreInMyLibrary { tx, kind, uris } => {
-                let client = client.lock().await;
+                let client = client.read().await;
                 let reply = Self::handle_upstream_errors(match kind {
                     Type::Artist => client.are_my_artists(&uris).await,
                     Type::User => client.are_my_users(&uris).await,
@@ -681,7 +681,7 @@ impl SpotifyServer {
             }
             GetCategories { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_categories(offset, limit).await,
+                    client.read().await.get_categories(offset, limit).await,
                 )?;
                 tx.send(reply)?;
             }
@@ -693,7 +693,7 @@ impl SpotifyServer {
             } => {
                 let reply = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_category_playlists(&category_id, offset, limit)
                         .await,
@@ -703,7 +703,7 @@ impl SpotifyServer {
             GetFeaturedPlaylists { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_featured_playlists(offset, limit)
                         .await,
@@ -712,31 +712,31 @@ impl SpotifyServer {
             }
             GetNewReleases { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_new_releases(offset, limit).await,
+                    client.read().await.get_new_releases(offset, limit).await,
                 )?;
                 tx.send(reply)?;
             }
             GetMyTopArtists { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_my_top_artists(offset, limit).await,
+                    client.read().await.get_my_top_artists(offset, limit).await,
                 )?;
                 tx.send(reply)?;
             }
             GetMyTopTracks { tx, offset, limit } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_my_top_tracks(offset, limit).await,
+                    client.read().await.get_my_top_tracks(offset, limit).await,
                 )?;
                 tx.send(reply)?;
             }
             GetArtistTopTracks { tx, uri } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_artist_top_tracks(&uri).await,
+                    client.read().await.get_artist_top_tracks(&uri).await,
                 )?;
                 tx.send(reply)?;
             }
             GetArtistRelatedArtists { tx, uri } => {
                 let reply = Self::handle_upstream_errors(
-                    client.lock().await.get_artist_related_artists(&uri).await,
+                    client.read().await.get_artist_related_artists(&uri).await,
                 )?;
                 tx.send(reply)?;
             }
@@ -750,7 +750,7 @@ impl SpotifyServer {
             } => {
                 let reply = Self::handle_upstream_errors(
                     client
-                        .lock()
+                        .read()
                         .await
                         .get_recommended_tracks(
                             seed_genres,

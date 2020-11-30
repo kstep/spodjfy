@@ -5,6 +5,7 @@ use std::sync::mpsc::SendError;
 
 mod login;
 pub mod spotify;
+pub mod store;
 
 pub use login::LoginServer;
 pub use spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};

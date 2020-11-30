@@ -2,7 +2,7 @@ use futures::join;
 use relm::Widget;
 use spodjfy::{Config, LoginServer, Params, Spotify, SpotifyProxy, SpotifyServer, Win};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
@@ -22,7 +22,7 @@ async fn main() {
             .build()
             .unwrap();
         rt.block_on(async {
-            let client = Arc::new(Mutex::new(
+            let client = Arc::new(RwLock::new(
                 Spotify::new(client_id, client_secret, spotify_cache_path).await,
             ));
 

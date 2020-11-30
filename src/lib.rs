@@ -1,4 +1,11 @@
-#![feature(fn_traits, unboxed_closures, bool_to_option)]
+#![allow(incomplete_features)]
+#![feature(
+    fn_traits,
+    unboxed_closures,
+    never_type,
+    associated_type_defaults,
+    specialization
+)]
 
 #[macro_use]
 extern crate log;

@@ -5,15 +5,15 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 pub struct LoginServer {
-    client: Arc<Mutex<Spotify>>,
+    client: Arc<RwLock<Spotify>>,
 }
 
 impl LoginServer {
-    pub fn new(client: Arc<Mutex<Spotify>>) -> LoginServer {
+    pub fn new(client: Arc<RwLock<Spotify>>) -> LoginServer {
         LoginServer { client }
     }
 
@@ -28,7 +28,7 @@ impl LoginServer {
 
         let redirect_uri = format!("http://{}/callback", address);
         info!("login server is listening at {}", redirect_uri);
-        self.client.lock().await.set_redirect_uri(redirect_uri);
+        self.client.write().await.set_redirect_uri(redirect_uri);
 
         loop {
             let (stream, _) = server.accept().await?;
@@ -52,7 +52,7 @@ impl LoginServer {
         Err(Error::from(ErrorKind::AddrInUse))
     }
 
-    async fn handle(spotify: Arc<Mutex<Spotify>>, mut stream: TcpStream) {
+    async fn handle(spotify: Arc<RwLock<Spotify>>, mut stream: TcpStream) {
         match Self::process(&mut stream).await {
             Err(err) => {
                 error!("error in oauth callback handler: {}", err);
@@ -64,7 +64,7 @@ impl LoginServer {
             }
             Ok(Some(code)) => {
                 info!("oauth code received");
-                match spotify.lock().await.authorize_user(code).await {
+                match spotify.write().await.authorize_user(code).await {
                     Ok(_) => {
                         let _ = Self::respond(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 79\r\n\r\n<html><body><h1>Login successful!</h1><script>window.close();</script></body>\r\n").await;
                     }
