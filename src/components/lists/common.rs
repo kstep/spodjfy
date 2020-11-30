@@ -316,17 +316,12 @@ where
                     let pool = self.model.spotify.pool.clone();
                     let ctx = MainContext::ref_thread_default();
                     ctx.spawn_local(async move {
-                        pool.spawn(async move { image_loader.load_image(&url).await })
-                            .map(|reply| {
-                                if let Ok(Some(image)) = reply {
-                                    store.set_value(
-                                        &pos,
-                                        COL_ITEM_THUMB,
-                                        &Pixbuf::from(image).to_value(),
-                                    );
-                                }
-                            })
-                            .await;
+                        if let Ok(Some(image)) = pool
+                            .spawn(async move { image_loader.load_image(&url).await })
+                            .await
+                        {
+                            store.set_value(&pos, COL_ITEM_THUMB, &Pixbuf::from(image).to_value());
+                        }
                     });
                 }
                 ActivateChosenItems => {

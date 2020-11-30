@@ -306,13 +306,12 @@ impl Widget for MediaControls {
                 let ctx = MainContext::ref_thread_default();
                 let pool = self.model.spotify.pool.clone();
                 ctx.spawn_local(async move {
-                    pool.spawn(async move { loader.load_from_url(&url).await })
-                        .map(|reply| {
-                            if let Ok(Some(image)) = reply {
-                                stream.emit(NewCover(image, is_for_track));
-                            }
-                        })
-                        .await;
+                    if let Ok(Some(image)) = pool
+                        .spawn(async move { loader.load_image(&url).await })
+                        .await
+                    {
+                        stream.emit(NewCover(image, is_for_track));
+                    }
                 });
             }
             NewCover(cover, is_for_track) => {

@@ -205,7 +205,7 @@ impl ImageLoader {
         loader.get_pixbuf().map(Into::into)
     }
 
-    pub async fn load_image(&mut self, url: &str) -> Option<ImageData> {
+    pub async fn load_image(mut self, url: &str) -> Option<ImageData> {
         if let Some(image) = self.cache.get(url).await {
             Some(image)
         } else if let Some(image) = self.load_from_file(url).await {
