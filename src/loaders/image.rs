@@ -4,6 +4,7 @@ use gdk::prelude::*;
 use gdk_pixbuf::{Colorspace, InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use rspotify::model::Image;
 use std::f64::consts::PI;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,6 +23,22 @@ pub struct ImageData {
     width: i32,
     height: i32,
     row_stride: i32,
+}
+
+pub struct ImageDataLoader(PixbufLoader);
+impl ImageDataLoader {
+    fn new() -> Self {
+        // TODO: make sure pixbuf loader loads only thread-safe formats
+        Self(PixbufLoader::new())
+    }
+}
+unsafe impl Send for ImageDataLoader {}
+unsafe impl Sync for ImageDataLoader {}
+impl Deref for ImageDataLoader {
+    type Target = PixbufLoader;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl From<Pixbuf> for ImageData {
@@ -109,7 +126,6 @@ impl ImageCache {
     }
 
     pub async fn get(&self, url: &str) -> Option<ImageData> {
-        debug!("trying to get {} from cache", url);
         self.cache.read().await.get(url).cloned()
     }
 
@@ -145,10 +161,8 @@ impl ImageLoader {
     }
 
     fn cache_file_path(&self, url: &str) -> Option<PathBuf> {
-        let uuid = url.split('/').last()?;
-        if uuid.contains(|ch| !matches!(ch, '0'..='9' | 'a'..='f')) {
-            return None;
-        }
+        let uuid = format!("{:x}", md5::compute(url));
+
         let dir_name = self.cache_dir.join(&uuid[0..1]).join(&uuid[1..3]);
         if !dir_name.exists() {
             std::fs::create_dir_all(&dir_name).ok()?;
@@ -159,42 +173,46 @@ impl ImageLoader {
 
     async fn load_from_file(&mut self, url: &str) -> Option<ImageData> {
         let mut cache_file = File::open(self.cache_file_path(url)?).await.ok()?;
-        let mut buf = Vec::with_capacity(1024);
-        let size = cache_file.read_to_end(&mut buf).await.ok()?;
+        let mut buf = [0u8; 4096];
+        let loader = ImageDataLoader::new();
 
-        let loader = PixbufLoader::new();
-        loader.write(&buf[..size]).ok()?;
+        loop {
+            let size = cache_file.read(&mut buf).await.ok()?;
+            if size == 0 {
+                break;
+            }
+            loader.write(&buf[..size]).ok()?;
+        }
+
         loader.close().ok()?;
         loader.get_pixbuf().map(Into::into)
     }
 
-    async fn save_from_url(&mut self, url: &str) -> Option<ImageData> {
+    async fn load_from_url(&mut self, url: &str) -> Option<ImageData> {
         let mut image_reply = reqwest::get(url).await.ok()?.bytes_stream();
 
         let file_name = self.cache_file_path(url)?;
+        let loader = ImageDataLoader::new();
+
         let mut cache_file = File::create(&file_name).await.ok()?;
         while let Some(chunk) = image_reply.next().await {
             let chunk = chunk.ok()?;
             cache_file.write(&chunk).await.ok()?;
+            loader.write(&chunk).ok()?;
         }
-        drop(cache_file);
 
-        Pixbuf::from_file(&file_name).ok().map(Into::into)
+        loader.close().ok()?;
+        loader.get_pixbuf().map(Into::into)
     }
 
-    pub async fn load_from_url(&mut self, url: &str) -> Option<ImageData> {
-        debug!("loading image from {}", url);
+    pub async fn load_image(&mut self, url: &str) -> Option<ImageData> {
         if let Some(image) = self.cache.get(url).await {
-            debug!("loaded from cache");
-            return Some(image);
+            Some(image)
         } else if let Some(image) = self.load_from_file(url).await {
-            debug!("loaded from file");
-            return Some(self.cache.put(url.to_owned(), image).await);
-        } else if let Some(image) = self.save_from_url(url).await {
-            debug!("loaded from internet");
+            Some(self.cache.put(url.to_owned(), image).await)
+        } else if let Some(image) = self.load_from_url(url).await {
             Some(self.cache.put(url.to_owned(), image).await)
         } else {
-            debug!("image not found");
             None
         }
     }

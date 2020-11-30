@@ -316,7 +316,7 @@ where
                     let pool = self.model.spotify.pool.clone();
                     let ctx = MainContext::ref_thread_default();
                     ctx.spawn_local(async move {
-                        pool.spawn(async move { image_loader.load_from_url(&url).await })
+                        pool.spawn(async move { image_loader.load_image(&url).await })
                             .map(|reply| {
                                 if let Ok(Some(image)) = reply {
                                     store.set_value(

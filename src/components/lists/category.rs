@@ -35,9 +35,8 @@ where
     Message: 'static,
     ContainerMsg<Loader>: Into<Message>,
 {
-    #[allow(clippy::redundant_clone)]
     fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &S) -> Self {
-        let artist_view = gtk::IconViewBuilder::new()
+        let categories_view = gtk::IconViewBuilder::new()
             .model(store)
             .expand(true)
             .reorderable(true)
@@ -47,7 +46,7 @@ where
             .item_width(THUMB_SIZE)
             .build();
 
-        artist_view.connect_item_activated(move |view, path| {
+        categories_view.connect_item_activated(move |view, path| {
             if let Some((uri, name)) = view
                 .get_model()
                 .and_then(|model| crate::utils::extract_uri_name(&model, path))
@@ -56,10 +55,10 @@ where
             }
         });
 
-        CategoryView(artist_view)
+        CategoryView(categories_view)
     }
 
     fn thumb_converter(&self) -> ImageConverter {
-        ImageConverter::new(THUMB_SIZE, false)
+        ImageConverter::new(THUMB_SIZE, true)
     }
 }
