@@ -2,15 +2,15 @@ use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
 use crate::servers::{Proxy, SpotifyProxy};
+use futures::future::FutureExt;
 use gdk_pixbuf::Pixbuf;
-use glib::{Cast, IsA, ToValue, Type};
+use glib::{Cast, IsA, MainContext, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
     BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
     IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt,
     TreeSelectionExt, TreeViewExt, WidgetExt,
 };
-use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 use std::convert::TryInto;
@@ -26,7 +26,6 @@ pub enum ContainerMsg<Loader: ContainerLoader> {
     LoadPage(<Loader::Page as PageLike<Loader::Item>>::Offset, usize),
     NewPage(Loader::Page, usize),
     LoadThumb(String, gtk::TreeIter),
-    NewThumb(Pixbuf, gtk::TreeIter),
     ActivateChosenItems,
     ActivateItem(String, String),
     ActivateItems(Vec<String>),
@@ -312,20 +311,23 @@ where
                     }
                 }
                 LoadThumb(url, pos) => {
-                    let stream = Fragile::new(self.stream.clone());
-                    let pos = Fragile::new(pos);
-                    self.model.image_loader.load_from_url(&url, move |loaded| {
-                        if let Ok(Some(pb)) = loaded {
-                            stream
-                                .into_inner()
-                                .emit(NewThumb(pb, pos.into_inner()).into());
-                        }
+                    let mut image_loader = self.model.image_loader.clone();
+                    let store = self.model.store.clone();
+                    let pool = self.model.spotify.pool.clone();
+                    let ctx = MainContext::ref_thread_default();
+                    ctx.spawn_local(async move {
+                        pool.spawn(async move { image_loader.load_from_url(&url).await })
+                            .map(|reply| {
+                                if let Ok(Some(image)) = reply {
+                                    store.set_value(
+                                        &pos,
+                                        COL_ITEM_THUMB,
+                                        &Pixbuf::from(image).to_value(),
+                                    );
+                                }
+                            })
+                            .await;
                     });
-                }
-                NewThumb(thumb, pos) => {
-                    self.model
-                        .store
-                        .set_value(&pos, COL_ITEM_THUMB, &thumb.to_value());
                 }
                 ActivateChosenItems => {
                     let (rows, model) = self.items_view.get_selected_rows();

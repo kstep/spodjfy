@@ -24,16 +24,17 @@ mod play_context;
 
 use self::play_context::PlayContext;
 use crate::config::Settings;
-use crate::loaders::ImageLoader;
+use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
 use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
+use futures::future::FutureExt;
 use gdk_pixbuf::Pixbuf;
+use glib::MainContext;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use notify_rust::Notification;
-use relm::vendor::fragile::Fragile;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::context::Context;
@@ -53,7 +54,7 @@ pub enum MediaControlsMsg {
     NewDevices(Vec<Device>),
     UseDevice(Option<String>),
     LoadCover(String, bool),
-    NewCover(Pixbuf, bool),
+    NewCover(ImageData, bool),
     Play,
     Pause,
     PrevTrack,
@@ -300,19 +301,25 @@ impl Widget for MediaControls {
                 self.model.context_saved = saved;
             }
             LoadCover(url, is_for_track) => {
-                let stream = Fragile::new(self.model.stream.clone());
-                let loader = &mut self.model.image_loaders[is_for_track as usize];
-                loader.load_from_url(&url, move |reply| {
-                    if let Ok(Some(cover)) = reply {
-                        stream.into_inner().emit(NewCover(cover, is_for_track));
-                    }
+                let stream = self.model.stream.clone();
+                let mut loader = self.model.image_loaders[is_for_track as usize].clone();
+                let ctx = MainContext::ref_thread_default();
+                let pool = self.model.spotify.pool.clone();
+                ctx.spawn_local(async move {
+                    pool.spawn(async move { loader.load_from_url(&url).await })
+                        .map(|reply| {
+                            if let Ok(Some(image)) = reply {
+                                stream.emit(NewCover(image, is_for_track));
+                            }
+                        })
+                        .await;
                 });
             }
             NewCover(cover, is_for_track) => {
                 if is_for_track {
-                    self.model.track_cover = Some(cover);
+                    self.model.track_cover = Some(cover.into());
                 } else {
-                    self.model.context_cover = Some(cover);
+                    self.model.context_cover = Some(cover.into());
                 }
             }
             SeekTrack(pos) => {

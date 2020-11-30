@@ -1,20 +1,60 @@
 use crate::config::Config;
 use cairo::Format;
 use gdk::prelude::*;
-use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
-use gio::prelude::*;
-use gio::NONE_CANCELLABLE;
+use gdk_pixbuf::{Colorspace, InterpType, Pixbuf, PixbufLoader, PixbufLoaderExt};
 use rspotify::model::Image;
 use std::f64::consts::PI;
-use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::fs::File;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::stream::StreamExt;
+use tokio::sync::RwLock;
 use ttl_cache::TtlCache;
+
+#[derive(Clone, Debug)]
+pub struct ImageData {
+    data: Box<[u8]>,
+    colorspace: Colorspace,
+    has_alpha: bool,
+    bits_per_sample: i32,
+    width: i32,
+    height: i32,
+    row_stride: i32,
+}
+
+impl From<Pixbuf> for ImageData {
+    fn from(pixbuf: Pixbuf) -> Self {
+        Self {
+            data: unsafe { Box::from(pixbuf.get_pixels() as &[u8]) },
+            colorspace: pixbuf.get_colorspace(),
+            has_alpha: pixbuf.get_has_alpha(),
+            bits_per_sample: pixbuf.get_bits_per_sample(),
+            width: pixbuf.get_width(),
+            height: pixbuf.get_height(),
+            row_stride: pixbuf.get_rowstride(),
+        }
+    }
+}
+
+impl From<ImageData> for Pixbuf {
+    fn from(image: ImageData) -> Self {
+        Pixbuf::from_mut_slice(
+            image.data,
+            image.colorspace,
+            image.has_alpha,
+            image.bits_per_sample,
+            image.width,
+            image.height,
+            image.row_stride,
+        )
+    }
+}
 
 #[derive(Clone)]
 pub struct ImageCache {
-    cache: Arc<RwLock<TtlCache<String, Pixbuf>>>,
+    cache: Arc<RwLock<TtlCache<String, ImageData>>>,
     converter: ImageConverter,
 }
 
@@ -31,13 +71,14 @@ impl ImageConverter {
         Self { resize, round }
     }
 
-    pub fn convert(&self, pixbuf: Pixbuf) -> Pixbuf {
+    pub fn convert(&self, image: ImageData) -> ImageData {
+        let pixbuf: Pixbuf = image.into();
         let pixbuf = if self.resize > 0 {
             pixbuf.resize_cutup(self.resize).unwrap_or(pixbuf)
         } else {
             pixbuf
         };
-        if self.round {
+        let pixbuf = if self.round {
             pixbuf
                 .rounded()
                 .ok()
@@ -45,7 +86,8 @@ impl ImageConverter {
                 .unwrap_or(pixbuf)
         } else {
             pixbuf
-        }
+        };
+        pixbuf.into()
     }
 }
 
@@ -57,29 +99,29 @@ impl ImageCache {
         }
     }
 
-    pub fn put(&mut self, url: String, pixbuf: Pixbuf) -> Pixbuf {
-        let pixbuf = self.converter.convert(pixbuf);
+    pub async fn put(&mut self, url: String, image: ImageData) -> ImageData {
+        let image: ImageData = self.converter.convert(image.into()).into();
         self.cache
             .write()
-            .unwrap()
-            .insert(url, pixbuf.clone(), Duration::from_secs(600));
-        pixbuf
+            .await
+            .insert(url, image.clone(), Duration::from_secs(600));
+        image
     }
 
-    pub fn get(&self, url: &str) -> Option<Pixbuf> {
-        self.cache.read().unwrap().get(url).cloned()
+    pub async fn get(&self, url: &str) -> Option<ImageData> {
+        debug!("trying to get {} from cache", url);
+        self.cache.read().await.get(url).cloned()
+    }
+
+    pub async fn clear(&self) {
+        self.cache.write().await.clear();
     }
 }
 
+#[derive(Clone)]
 pub struct ImageLoader {
     cache_dir: PathBuf,
     cache: ImageCache,
-}
-
-impl Default for ImageLoader {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl ImageLoader {
@@ -115,48 +157,46 @@ impl ImageLoader {
         Some(dir_name.join(&uuid))
     }
 
-    fn load_from_file(&mut self, url: &str) -> Option<Pixbuf> {
-        let mut cache_file = std::fs::File::open(self.cache_file_path(url)?).ok()?;
+    async fn load_from_file(&mut self, url: &str) -> Option<ImageData> {
+        let mut cache_file = File::open(self.cache_file_path(url)?).await.ok()?;
         let mut buf = Vec::with_capacity(1024);
-        cache_file.read_to_end(&mut buf).ok()?;
-        pixbuf_from_raw_bytes(&buf).ok()?
+        let size = cache_file.read_to_end(&mut buf).await.ok()?;
+
+        let loader = PixbufLoader::new();
+        loader.write(&buf[..size]).ok()?;
+        loader.close().ok()?;
+        loader.get_pixbuf().map(Into::into)
     }
 
-    pub fn load_from_url<F>(&mut self, url: &str, callback: F)
-    where
-        F: FnOnce(Result<Option<Pixbuf>, glib::Error>) + Send + 'static,
-    {
-        if let Some(pixbuf) = self.cache.get(url) {
-            return callback(Ok(Some(pixbuf)));
+    async fn save_from_url(&mut self, url: &str) -> Option<ImageData> {
+        let mut image_reply = reqwest::get(url).await.ok()?.bytes_stream();
+
+        let file_name = self.cache_file_path(url)?;
+        let mut cache_file = File::create(&file_name).await.ok()?;
+        while let Some(chunk) = image_reply.next().await {
+            let chunk = chunk.ok()?;
+            cache_file.write(&chunk).await.ok()?;
         }
+        drop(cache_file);
 
-        if let Some(pixbuf) = self.load_from_file(url) {
-            let pixbuf = self.cache.put(url.to_owned(), pixbuf);
-            return callback(Ok(Some(pixbuf)));
+        Pixbuf::from_file(&file_name).ok().map(Into::into)
+    }
+
+    pub async fn load_from_url(&mut self, url: &str) -> Option<ImageData> {
+        debug!("loading image from {}", url);
+        if let Some(image) = self.cache.get(url).await {
+            debug!("loaded from cache");
+            return Some(image);
+        } else if let Some(image) = self.load_from_file(url).await {
+            debug!("loaded from file");
+            return Some(self.cache.put(url.to_owned(), image).await);
+        } else if let Some(image) = self.save_from_url(url).await {
+            debug!("loaded from internet");
+            Some(self.cache.put(url.to_owned(), image).await)
+        } else {
+            debug!("image not found");
+            None
         }
-
-        let cache_file = self.cache_file_path(url);
-        let image_file = gio::File::new_for_uri(url);
-        let key = url.to_owned();
-        let mut cache = self.cache.clone();
-        image_file.load_contents_async(NONE_CANCELLABLE, move |reply| match reply {
-            Ok((data, _)) => match pixbuf_from_raw_bytes(&data) {
-                Ok(Some(pixbuf)) => {
-                    if let Some(Ok(mut cache_file)) = cache_file.map(std::fs::File::create) {
-                        let _ = cache_file.write_all(&data);
-                    }
-
-                    let pixbuf = cache.put(key, pixbuf);
-                    callback(Ok(Some(pixbuf)));
-                }
-                other => {
-                    callback(other);
-                }
-            },
-            Err(error) => {
-                callback(Err(error));
-            }
-        });
     }
 
     pub fn size(&self) -> i32 {
@@ -185,13 +225,6 @@ impl ImageLoader {
 
         images.into_iter().min_by_key(key).map(|img| &*img.url)
     }
-}
-
-fn pixbuf_from_raw_bytes(data: &[u8]) -> Result<Option<Pixbuf>, glib::Error> {
-    let loader = PixbufLoader::new();
-    loader.write(data)?;
-    loader.close()?;
-    Ok(loader.get_pixbuf())
 }
 
 pub trait PixbufConvert {

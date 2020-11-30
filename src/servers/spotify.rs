@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::runtime::{Handle, Runtime};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
@@ -33,6 +34,7 @@ const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
 
 #[derive(Clone)]
 pub struct SpotifyProxy {
+    pub pool: Handle,
     tx: Sender<SpotifyCmd>,
     errors_stream: relm::EventStream<ClientError>,
 }
@@ -50,16 +52,20 @@ impl Proxy for SpotifyProxy {
 }
 
 impl SpotifyProxy {
-    pub fn new() -> (
+    pub fn new(
+        rt: &Runtime,
+    ) -> (
         SpotifyProxy,
         Receiver<SpotifyCmd>,
         relm::EventStream<ClientError>,
     ) {
         let (tx, rx) = channel();
         let errors_stream = relm::EventStream::new();
+        let pool = rt.handle().clone();
         (
             SpotifyProxy {
                 tx,
+                pool,
                 errors_stream: errors_stream.clone(),
             },
             rx,

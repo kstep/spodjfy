@@ -4,8 +4,7 @@ use spodjfy::{Config, LoginServer, Params, Spotify, SpotifyProxy, SpotifyServer,
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     env_logger::init();
 
     let config = Config::new();
@@ -13,24 +12,24 @@ async fn main() {
     let spotify_cache_path = config.spotify_token_file();
 
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
-    let (spotify, rx, spotify_errors) = SpotifyProxy::new();
 
-    std::thread::spawn(move || {
-        let mut rt = tokio::runtime::Builder::new()
-            .threaded_scheduler()
-            .enable_all()
-            .build()
-            .unwrap();
-        rt.block_on(async {
-            let client = Arc::new(RwLock::new(
-                Spotify::new(client_id, client_secret, spotify_cache_path).await,
-            ));
+    let rt = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
 
-            let _ = join! {
-                LoginServer::new(client.clone()).spawn(),
-                SpotifyServer::new(client, rx).spawn(),
-            };
-        });
+    let (spotify, rx, spotify_errors) = SpotifyProxy::new(&rt);
+
+    rt.spawn(async {
+        let client = Arc::new(RwLock::new(
+            Spotify::new(client_id, client_secret, spotify_cache_path).await,
+        ));
+
+        let _ = join! {
+            LoginServer::new(client.clone()).spawn(),
+            SpotifyServer::new(client, rx).spawn(),
+        };
     });
 
     Win::run(Params {
