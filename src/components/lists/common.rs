@@ -1,7 +1,7 @@
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
-use crate::servers::{SpotifyProxy, SpotifyRef};
+use crate::servers::SpotifyRef;
 use gdk_pixbuf::Pixbuf;
 use glib::{Cast, IsA, MainContext, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -15,7 +15,6 @@ use relm_derive::Msg;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::sync::Arc;
 use tokio::runtime::Handle;
 
 #[derive(Msg)]

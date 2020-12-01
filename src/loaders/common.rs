@@ -1,6 +1,5 @@
 use crate::models::PageLike;
 use crate::servers::spotify::SpotifyCmd;
-use crate::servers::ResultSender;
 
 pub trait ContainerLoader {
     type ParentId;

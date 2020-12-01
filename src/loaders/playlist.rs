@@ -1,5 +1,5 @@
 use crate::loaders::common::ContainerLoader;
-use crate::servers::{ResultSender, SpotifyCmd};
+use crate::servers::SpotifyCmd;
 use rspotify::model::{Page, Show, SimplifiedPlaylist};
 
 const NAME: &str = "playlists";

@@ -1,5 +1,5 @@
 use crate::config::{Config, Settings, SettingsRef};
-use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy, SpotifyRef};
+use crate::servers::{SpotifyCmd, SpotifyRef};
 use gtk::{
     self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
     WidgetExt,

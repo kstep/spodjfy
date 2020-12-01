@@ -3,7 +3,6 @@
 use crate::components::lists::TrackList;
 use crate::components::tabs::MusicTabParams;
 use crate::loaders::RecommendLoader;
-use crate::servers::spotify::SpotifyProxy;
 use crate::servers::SpotifyRef;
 use crate::utils::{SearchTerm, SearchTerms};
 use gtk::{

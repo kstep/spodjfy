@@ -23,7 +23,7 @@
 mod play_context;
 
 use self::play_context::PlayContext;
-use crate::config::{Settings, SettingsRef};
+use crate::config::SettingsRef;
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
@@ -41,7 +41,6 @@ use rspotify::model::device::Device;
 use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
-use std::sync::{Arc, RwLock};
 use tokio::runtime::Handle;
 
 /// Media controls component messages

@@ -1,6 +1,5 @@
 use crate::loaders::ContainerLoader;
 use crate::servers::spotify::SpotifyCmd;
-use crate::servers::ResultSender;
 use rspotify::model::{Category, Page};
 #[derive(Clone, Copy)]
 pub struct CategoriesLoader(usize);

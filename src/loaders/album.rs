@@ -1,6 +1,5 @@
 use crate::loaders::ContainerLoader;
 use crate::servers::spotify::SpotifyCmd;
-use crate::servers::ResultSender;
 use rspotify::model::{Page, SavedAlbum, SimplifiedAlbum};
 
 const NAME: &str = "albums";

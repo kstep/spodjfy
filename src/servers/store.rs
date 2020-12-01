@@ -1,4 +1,3 @@
-use crate::servers::ResultSender;
 use itertools::Itertools;
 use rspotify::model::{FullEpisode, FullPlaylist, FullTrack};
 use serde::{de::DeserializeOwned, Serialize};

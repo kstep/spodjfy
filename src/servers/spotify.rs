@@ -1,7 +1,5 @@
 use crate::scopes::Scope::{self, *};
-use crate::servers::{Proxy, ResultSender};
 use derivative::Derivative;
-use relm::EventStream;
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::{
     offset, AdditionalType, AudioFeatures, Category, CurrentPlaybackContext, CursorBasedPage,
@@ -14,54 +12,10 @@ use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
-use tokio::runtime::{Handle, Runtime};
 use tokio::sync::RwLock;
 
 const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
-
-#[derive(Clone)]
-pub struct SpotifyProxy {
-    pub pool: Handle,
-    tx: Sender<SpotifyCmd>,
-    errors_stream: relm::EventStream<ClientError>,
-}
-
-impl Proxy for SpotifyProxy {
-    type Command = SpotifyCmd;
-    type Error = ClientError;
-    fn tell(&self, cmd: Self::Command) -> Result<(), SendError<Self::Command>> {
-        self.tx.send(cmd)
-    }
-
-    fn errors_stream(&self) -> EventStream<Self::Error> {
-        self.errors_stream.clone()
-    }
-}
-
-impl SpotifyProxy {
-    pub fn new(
-        rt: &Runtime,
-    ) -> (
-        SpotifyProxy,
-        Receiver<SpotifyCmd>,
-        relm::EventStream<ClientError>,
-    ) {
-        let (tx, rx) = channel();
-        let errors_stream = relm::EventStream::new();
-        let pool = rt.handle().clone();
-        (
-            SpotifyProxy {
-                tx,
-                pool,
-                errors_stream: errors_stream.clone(),
-            },
-            rx,
-            errors_stream,
-        )
-    }
-}
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]

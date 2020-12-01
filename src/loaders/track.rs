@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use crate::loaders::common::ContainerLoader;
-use crate::servers::{ResultSender, SpotifyCmd};
+use crate::servers::SpotifyCmd;
 use rspotify::model::*;
 use serde_json::{Map, Value};
 
