@@ -1,12 +1,12 @@
-use crate::config::{Config, Settings};
-use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
+use crate::config::{Config, Settings, SettingsRef};
+use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy, SpotifyRef};
 use gtk::{
     self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
     WidgetExt,
 };
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::sync::{Arc, RwLock};
+use tokio::runtime::Handle;
 
 #[derive(Msg)]
 pub enum SettingsMsg {
@@ -18,9 +18,10 @@ pub enum SettingsMsg {
 }
 
 pub struct SettingsModel {
+    pool: Handle,
     stream: EventStream<SettingsMsg>,
-    settings: Arc<RwLock<Settings>>,
-    spotify: Arc<SpotifyProxy>,
+    settings: SettingsRef,
+    spotify: SpotifyRef,
     config: Config,
 }
 
@@ -28,11 +29,12 @@ pub struct SettingsModel {
 impl Widget for SettingsTab {
     fn model(
         relm: &Relm<Self>,
-        (settings, spotify): (Arc<RwLock<Settings>>, Arc<SpotifyProxy>),
+        (pool, spotify, settings): (Handle, SpotifyRef, SettingsRef),
     ) -> SettingsModel {
         let stream = relm.stream().clone();
         let config = Config::new();
         SettingsModel {
+            pool,
             stream,
             settings,
             spotify,

@@ -1,20 +1,14 @@
 use crate::components::lists::{ContainerMsg, PlaylistList, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabMsg, TracksObserver};
+use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
 use crate::loaders::{ShowLoader, ShowsLoader};
-use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use std::sync::Arc;
-
-pub struct ShowsModel {
-    spotify: Arc<SpotifyProxy>,
-}
 
 #[widget]
 impl Widget for ShowsTab {
-    fn model(spotify: Arc<SpotifyProxy>) -> ShowsModel {
-        ShowsModel { spotify }
+    fn model(params: MusicTabParams) -> MusicTabModel {
+        MusicTabModel::from_params(params)
     }
 
     fn update(&mut self, event: MusicTabMsg) {
@@ -47,12 +41,12 @@ impl Widget for ShowsTab {
                 vexpand: true,
 
                 #[name="shows_view"]
-                PlaylistList::<ShowsLoader>(self.model.spotify.clone()) {
+                PlaylistList::<ShowsLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: { title: Some("Shows") },
                 },
 
                 #[name="tracks_view"]
-                TrackList::<ShowLoader>(self.model.spotify.clone()),
+                TrackList::<ShowLoader>((self.model.pool.clone(), self.model.spotify.clone())),
             }
         }
     }

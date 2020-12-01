@@ -1,8 +1,7 @@
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
-use crate::servers::{Proxy, SpotifyProxy};
-use futures::future::FutureExt;
+use crate::servers::{SpotifyProxy, SpotifyRef};
 use gdk_pixbuf::Pixbuf;
 use glib::{Cast, IsA, MainContext, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -17,6 +16,7 @@ use std::convert::TryInto;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 #[derive(Msg)]
 pub enum ContainerMsg<Loader: ContainerLoader> {
@@ -47,7 +47,8 @@ pub trait ItemsListView<Loader, Message> {
 
 #[doc(hidden)]
 pub struct ContainerModel<Loader> {
-    pub spotify: Arc<SpotifyProxy>,
+    pub pool: Handle,
+    pub spotify: SpotifyRef,
     pub store: gtk::ListStore,
     pub items_loader: Option<Loader>,
     pub image_loader: ImageLoader,
@@ -58,14 +59,15 @@ pub struct ContainerModel<Loader> {
 }
 
 impl<Loader> ContainerModel<Loader> {
-    pub fn from_row<R: RowLike>(spotify: Arc<SpotifyProxy>) -> Self {
-        Self::new(spotify, &R::content_types())
+    pub fn from_row<R: RowLike>(pool: Handle, spotify: SpotifyRef) -> Self {
+        Self::new(pool, spotify, &R::content_types())
     }
-    pub fn new(spotify: Arc<SpotifyProxy>, column_types: &[Type]) -> Self {
+    pub fn new(pool: Handle, spotify: SpotifyRef, column_types: &[Type]) -> Self {
         let store = gtk::ListStore::new(column_types);
         let image_loader = ImageLoader::new();
 
         Self {
+            pool,
             store,
             spotify,
             image_loader,
@@ -217,11 +219,11 @@ where
     Handler: MessageHandler<Self, Message>,
 {
     type Model = ContainerModel<Loader>;
-    type ModelParam = Arc<SpotifyProxy>;
+    type ModelParam = (Handle, SpotifyRef);
     type Msg = Message;
 
-    fn model(_relm: &Relm<Self>, spotify: Self::ModelParam) -> Self::Model {
-        ContainerModel::from_row::<Loader::Item>(spotify)
+    fn model(_relm: &Relm<Self>, (pool, spotify): Self::ModelParam) -> Self::Model {
+        ContainerModel::from_row::<Loader::Item>(pool, spotify)
     }
 
     fn update(&mut self, event: Self::Msg) {
@@ -313,7 +315,7 @@ where
                 LoadThumb(url, pos) => {
                     let mut image_loader = self.model.image_loader.clone();
                     let store = self.model.store.clone();
-                    let pool = self.model.spotify.pool.clone();
+                    let pool = self.model.pool.clone();
                     let ctx = MainContext::ref_thread_default();
                     ctx.spawn_local(async move {
                         if let Ok(Some(image)) = pool

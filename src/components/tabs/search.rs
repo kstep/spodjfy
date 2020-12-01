@@ -1,8 +1,10 @@
 // TODO
 #![allow(unused_imports, dead_code)]
 use crate::components::lists::TrackList;
+use crate::components::tabs::MusicTabParams;
 use crate::loaders::RecommendLoader;
 use crate::servers::spotify::SpotifyProxy;
+use crate::servers::SpotifyRef;
 use crate::utils::{SearchTerm, SearchTerms};
 use gtk::{
     BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, EntryExt, FlowBoxChildExt, FlowBoxExt,
@@ -13,6 +15,7 @@ use relm_derive::{widget, Msg};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 #[derive(Msg, Copy, Clone)]
 pub enum SearchMsg {
@@ -22,16 +25,18 @@ pub enum SearchMsg {
 
 // TODO
 pub struct SearchModel {
-    spotify: Arc<SpotifyProxy>,
+    pool: Handle,
+    spotify: SpotifyRef,
     search_terms: Rc<RefCell<SearchTerms>>,
     _stream: EventStream<SearchMsg>,
 }
 
 #[widget]
 impl Widget for SearchTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> SearchModel {
+    fn model(relm: &Relm<Self>, (spotify, pool): MusicTabParams) -> SearchModel {
         let _stream = relm.stream().clone();
         SearchModel {
+            pool,
             spotify,
             _stream,
             search_terms: Rc::new(RefCell::new(SearchTerms::default())),
@@ -371,7 +376,7 @@ impl Widget for SearchTab {
                 },
 
             },
-            //TrackList::<RecommendLoader>(self.model.spotify.clone())
+            //TrackList::<RecommendLoader>((self.model.pool.clone(), self.model.spotify.clone()))
         }
     }
 

@@ -1,20 +1,14 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabMsg, TracksObserver};
+use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
 use crate::loaders::{MyTopTracksLoader, SavedTracksLoader as SavedLoader};
-use crate::servers::spotify::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use std::sync::Arc;
-
-pub struct FavoritesModel {
-    spotify: Arc<SpotifyProxy>,
-}
 
 #[widget]
 impl Widget for TracksTab {
-    fn model(spotify: Arc<SpotifyProxy>) -> FavoritesModel {
-        FavoritesModel { spotify }
+    fn model(params: MusicTabParams) -> MusicTabModel {
+        MusicTabModel::from_params(params)
     }
 
     fn update(&mut self, event: MusicTabMsg) {
@@ -42,13 +36,13 @@ impl Widget for TracksTab {
                 vexpand: true,
 
                 #[name="saved_tracks_view"]
-                TrackList::<SavedLoader>(self.model.spotify.clone()) {
+                TrackList::<SavedLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: {
                         title: Some("Saved Tracks"),
                     }
                 },
                 #[name="top_tracks_view"]
-                TrackList::<MyTopTracksLoader>(self.model.spotify.clone()) {
+                TrackList::<MyTopTracksLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: {
                         title: Some("Top Tracks"),
                     }

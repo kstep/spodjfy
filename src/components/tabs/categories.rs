@@ -1,20 +1,14 @@
 use crate::components::lists::{CategoryList, ContainerMsg, PlaylistList, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabMsg, TracksObserver};
+use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
 use crate::loaders::{CategoriesLoader, CategoryLoader, PlaylistLoader};
-use crate::servers::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use std::sync::Arc;
-
-pub struct CategoriesModel {
-    spotify: Arc<SpotifyProxy>,
-}
 
 #[widget]
 impl Widget for CategoriesTab {
-    fn model(spotify: Arc<SpotifyProxy>) -> CategoriesModel {
-        CategoriesModel { spotify }
+    fn model(params: MusicTabParams) -> MusicTabModel {
+        MusicTabModel::from_params(params)
     }
 
     fn update(&mut self, event: MusicTabMsg) {
@@ -54,17 +48,17 @@ impl Widget for CategoriesTab {
                 vexpand: true,
 
                 #[name="categories_view"]
-                CategoryList<CategoriesLoader>(self.model.spotify.clone()) {
+                CategoryList<CategoriesLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: {
                         title: Some("Categories"),
                     },
                 },
 
                 #[name="playlists_view"]
-                PlaylistList::<CategoryLoader>(self.model.spotify.clone()),
+                PlaylistList::<CategoryLoader>((self.model.pool.clone(), self.model.spotify.clone())),
 
                 #[name="tracks_view"]
-                TrackList::<PlaylistLoader>(self.model.spotify.clone()),
+                TrackList::<PlaylistLoader>((self.model.pool.clone(), self.model.spotify.clone())),
             }
         }
     }

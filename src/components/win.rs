@@ -4,10 +4,10 @@ use gtk::{
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
-use crate::components::notifier::{Notifier, NotifierMsg};
+use crate::components::notifier::Notifier;
 use crate::components::tabs::albums::AlbumsTab;
 use crate::components::tabs::artists::ArtistsTab;
 use crate::components::tabs::categories::CategoriesTab;
@@ -22,14 +22,16 @@ use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
 use crate::components::tabs::shows::ShowsTab;
 use crate::components::tabs::tracks::TracksTab;
 use crate::components::tabs::MusicTabMsg;
-use crate::config::Settings;
-use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
+use crate::config::{Settings, SettingsRef};
+use crate::servers::spotify::SpotifyRef;
 use rspotify::model::Type;
+use tokio::runtime::Handle;
+use tokio::sync::RwLock;
 
 pub struct State {
-    pub settings: Arc<RwLock<Settings>>,
-    pub spotify: Arc<SpotifyProxy>,
-    pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
+    pub settings: SettingsRef,
+    pub spotify: SpotifyRef,
+    pub pool: Handle,
 
     pub screen: gdk::Screen,
     pub style: gtk::CssProvider,
@@ -62,9 +64,9 @@ pub enum Tab {
 }
 
 pub struct Params {
+    pub pool: Handle,
     pub settings: Settings,
-    pub spotify: SpotifyProxy,
-    pub spotify_errors: relm::EventStream<rspotify::client::ClientError>,
+    pub spotify: SpotifyRef,
 }
 
 #[widget]
@@ -129,8 +131,8 @@ impl Widget for Win {
         let stream = relm.stream().clone();
         State {
             settings: Arc::new(RwLock::new(params.settings)),
-            spotify: Arc::new(params.spotify),
-            spotify_errors: params.spotify_errors,
+            spotify: params.spotify,
+            pool: params.pool,
             notifier: relm::create_component::<Notifier>(()),
             screen,
             style,
@@ -217,7 +219,7 @@ impl Widget for Win {
                         },
                         gtk::Box(gtk::Orientation::Vertical, 1) {
                             #[name="media_controls"]
-                            MediaControls((self.model.spotify.clone(), self.model.settings.clone())) {
+                            MediaControls((self.model.pool.clone(), self.model.spotify.clone(), self.model.settings.clone())) {
                                 widget_name: "media_controls",
                             },
 
@@ -228,7 +230,7 @@ impl Widget for Win {
                                 transition_type: gtk::StackTransitionType::SlideUpDown,
 
                                 #[name="search_tab"]
-                                SearchTab(self.model.spotify.clone()) {
+                                SearchTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "search_tab",
                                     child: {
                                         name: Some("search_tab"),
@@ -237,7 +239,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="recent_tab"]
-                                RecentTab(self.model.spotify.clone()) {
+                                RecentTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "recent_tab",
                                     child: {
                                         name: Some("recent_tab"),
@@ -246,7 +248,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="queue_tab"]
-                                QueueTab(self.model.spotify.clone()) {
+                                QueueTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "queue_tab",
                                     child: {
                                         name: Some("queue_tab"),
@@ -255,7 +257,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="tracks_tab"]
-                                TracksTab(self.model.spotify.clone()) {
+                                TracksTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "tracks_tab",
                                     child: {
                                         name: Some("tracks_tab"),
@@ -264,7 +266,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="playlists_tab"]
-                                PlaylistsTab(self.model.spotify.clone()) {
+                                PlaylistsTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "playlists_tab",
                                     child: {
                                         name: Some("playlists_tab"),
@@ -273,7 +275,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="artists_tab"]
-                                ArtistsTab(self.model.spotify.clone()) {
+                                ArtistsTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "artists_tab",
                                     child: {
                                         name: Some("artists_tab"),
@@ -282,7 +284,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="albums_tab"]
-                                AlbumsTab(self.model.spotify.clone()) {
+                                AlbumsTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "albums_tab",
                                     child: {
                                         name: Some("albums_tab"),
@@ -291,7 +293,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="shows_tab"]
-                                ShowsTab(self.model.spotify.clone()) {
+                                ShowsTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "shows_tab",
                                     child: {
                                         name: Some("shows_tab"),
@@ -300,7 +302,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="categories_tab"]
-                                CategoriesTab(self.model.spotify.clone()) {
+                                CategoriesTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "categories_tab",
                                     child: {
                                         name: Some("categories_tab"),
@@ -309,7 +311,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="featured_tab"]
-                                FeaturedTab(self.model.spotify.clone()) {
+                                FeaturedTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "featured_tab",
                                     child: {
                                         name: Some("featured_tab"),
@@ -318,7 +320,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="new_releases_tab"]
-                                NewReleasesTab(self.model.spotify.clone()) {
+                                NewReleasesTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "new_releases_tab",
                                     child: {
                                         name: Some("new_releases_tab"),
@@ -327,7 +329,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="devices_tab"]
-                                DevicesTab(self.model.spotify.clone()) {
+                                DevicesTab((self.model.pool.clone(), self.model.spotify.clone())) {
                                     widget_name: "devices_tab",
                                     child: {
                                         name: Some("devices_tab"),
@@ -336,7 +338,7 @@ impl Widget for Win {
                                 },
 
                                 #[name="settings_tab"]
-                                SettingsTab((self.model.settings.clone(), self.model.spotify.clone())) {
+                                SettingsTab((self.model.pool.clone(), self.model.spotify.clone(), self.model.settings.clone())) {
                                     widget_name: "settings_tab",
                                     child: {
                                         name: Some("settings_tab"),
@@ -365,6 +367,7 @@ impl Widget for Win {
     }
 
     fn subscriptions(&mut self, relm: &Relm<Self>) {
+        /*
         let stream = relm.stream().clone();
         let notifier = self.model.notifier.stream().clone();
         let spotify = self.model.spotify.clone();
@@ -395,6 +398,7 @@ impl Widget for Win {
                 }),
             }
         });
+        */
 
         let artists_stream = self.artists_tab.stream().clone();
         let albums_stream = self.albums_tab.stream().clone();

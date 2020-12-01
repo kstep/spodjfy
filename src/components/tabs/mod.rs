@@ -14,8 +14,10 @@ pub mod tracks;
 
 use crate::components::lists::TrackMsg;
 use crate::loaders::ContainerLoader;
+use crate::servers::SpotifyRef;
 use relm_derive::Msg;
 use rspotify::model::Type;
+use tokio::runtime::Handle;
 
 #[derive(Msg)]
 pub enum MusicTabMsg {
@@ -28,6 +30,17 @@ pub enum MusicTabMsg {
 
 pub struct TracksObserver {
     upstream: relm::EventStream<MusicTabMsg>,
+}
+
+pub struct MusicTabModel {
+    pool: Handle,
+    spotify: SpotifyRef,
+}
+pub type MusicTabParams = (Handle, SpotifyRef);
+impl MusicTabModel {
+    fn from_params((pool, spotify): MusicTabParams) -> Self {
+        Self { pool, spotify }
+    }
 }
 
 impl TracksObserver {

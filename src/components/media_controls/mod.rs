@@ -23,12 +23,11 @@
 mod play_context;
 
 use self::play_context::PlayContext;
-use crate::config::Settings;
+use crate::config::{Settings, SettingsRef};
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
-use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
-use futures::future::FutureExt;
+use crate::servers::{SpotifyCmd, SpotifyRef};
 use gdk_pixbuf::Pixbuf;
 use glib::MainContext;
 use gtk::prelude::*;
@@ -43,6 +42,7 @@ use rspotify::model::show::FullEpisode;
 use rspotify::model::track::FullTrack;
 use rspotify::model::{CurrentPlaybackContext, PlayingItem, RepeatState, Type};
 use std::sync::{Arc, RwLock};
+use tokio::runtime::Handle;
 
 /// Media controls component messages
 #[derive(Msg)]
@@ -77,9 +77,10 @@ pub enum MediaControlsMsg {
 
 #[doc(hidden)]
 pub struct MediaControlsModel {
+    pool: Handle,
     stream: EventStream<MediaControlsMsg>,
     devices: gtk::ListStore,
-    spotify: Arc<SpotifyProxy>,
+    spotify: SpotifyRef,
     state: Option<CurrentPlaybackContext>,
     context: Option<PlayContext>,
     track_cover: Option<Pixbuf>,
@@ -87,7 +88,7 @@ pub struct MediaControlsModel {
     image_loaders: [ImageLoader; 2],
     track_saved: bool,
     context_saved: bool,
-    settings: Arc<RwLock<Settings>>,
+    settings: SettingsRef,
 }
 
 #[doc(hidden)]
@@ -99,7 +100,7 @@ const CONTEXT_COVER_SIZE: i32 = 128;
 impl Widget for MediaControls {
     fn model(
         relm: &Relm<Self>,
-        (spotify, settings): (Arc<SpotifyProxy>, Arc<RwLock<Settings>>),
+        (pool, spotify, settings): (Handle, SpotifyRef, SettingsRef),
     ) -> MediaControlsModel {
         let stream = relm.stream().clone();
 
@@ -123,6 +124,7 @@ impl Widget for MediaControls {
         let context_image_loader = ImageLoader::with_resize(CONTEXT_COVER_SIZE, false);
 
         MediaControlsModel {
+            pool,
             stream,
             spotify,
             devices,
@@ -304,7 +306,7 @@ impl Widget for MediaControls {
                 let stream = self.model.stream.clone();
                 let mut loader = self.model.image_loaders[is_for_track as usize].clone();
                 let ctx = MainContext::ref_thread_default();
-                let pool = self.model.spotify.pool.clone();
+                let pool = self.model.pool.clone();
                 ctx.spawn_local(async move {
                     if let Ok(Some(image)) = pool
                         .spawn(async move { loader.load_image(&url).await })

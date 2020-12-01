@@ -5,6 +5,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
@@ -17,8 +18,8 @@ impl LoginServer {
         LoginServer { client }
     }
 
-    pub fn spawn(self) -> JoinHandle<Result<(), Error>> {
-        tokio::spawn(self.run().inspect_err(|error| {
+    pub fn spawn(self, runtime: &Runtime) -> JoinHandle<Result<(), Error>> {
+        runtime.spawn(self.run().inspect_err(|error| {
             error!("login server error (no autologin is possible): {}", error);
         }))
     }

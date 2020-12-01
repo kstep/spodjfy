@@ -1,19 +1,13 @@
 use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabMsg, TracksObserver};
+use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
 use crate::loaders::RecentLoader;
-use crate::servers::spotify::SpotifyProxy;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use std::sync::Arc;
-
-pub struct RecentModel {
-    spotify: Arc<SpotifyProxy>,
-}
 
 #[widget]
 impl Widget for RecentTab {
-    fn model(spotify: Arc<SpotifyProxy>) -> RecentModel {
-        RecentModel { spotify }
+    fn model(params: MusicTabParams) -> MusicTabModel {
+        MusicTabModel::from_params(params)
     }
 
     fn update(&mut self, event: MusicTabMsg) {
@@ -31,7 +25,7 @@ impl Widget for RecentTab {
 
     view! {
         #[name="tracks_view"]
-        TrackList::<RecentLoader>(self.model.spotify.clone()),
+        TrackList::<RecentLoader>((self.model.pool.clone(), self.model.spotify.clone())),
     }
 
     fn subscriptions(&mut self, relm: &Relm<Self>) {

@@ -1,26 +1,20 @@
 use crate::components::lists::{AlbumList, ArtistList, ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabMsg, TracksObserver};
+use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
 use crate::loaders::{
     AlbumLoader, ArtistLoader, ArtistTopTracksLoader, MyTopArtistsLoader, RelatedArtistsLoader,
     SavedArtistsLoader as SavedLoader,
 };
-use crate::servers::SpotifyProxy;
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
-use std::sync::Arc;
-
-pub struct ArtistsModel {
-    spotify: Arc<SpotifyProxy>,
-}
 
 const ARTIST_TAB_ALBUMS: u8 = 0;
 const ARTIST_TAB_ALBUM_TRACKS: u8 = 1;
 
 #[widget]
 impl Widget for ArtistsTab {
-    fn model(spotify: Arc<SpotifyProxy>) -> ArtistsModel {
-        ArtistsModel { spotify }
+    fn model(params: MusicTabParams) -> MusicTabModel {
+        MusicTabModel::from_params(params)
     }
 
     fn update(&mut self, event: MusicTabMsg) {
@@ -64,13 +58,13 @@ impl Widget for ArtistsTab {
                 vexpand: true,
 
                 #[name="followed_artists_view"]
-                ArtistList::<SavedLoader>(self.model.spotify.clone()) {
+                ArtistList::<SavedLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: {
                         title: Some("Followed Artists"),
                     }
                 },
                 #[name="top_artists_view"]
-                ArtistList::<MyTopArtistsLoader>(self.model.spotify.clone()) {
+                ArtistList::<MyTopArtistsLoader>((self.model.pool.clone(), self.model.spotify.clone())) {
                     child: {
                         title: Some("Top Artists"),
                     }
@@ -82,16 +76,16 @@ impl Widget for ArtistsTab {
                     gtk::Paned(gtk::Orientation::Vertical) {
                         hexpand: true,
                         #[name="top_tracks_view"]
-                        TrackList::<ArtistTopTracksLoader>(self.model.spotify.clone()),
+                        TrackList::<ArtistTopTracksLoader>((self.model.pool.clone(), self.model.spotify.clone())),
                         #[name="albums_view"]
-                        AlbumList::<ArtistLoader>(self.model.spotify.clone()),
+                        AlbumList::<ArtistLoader>((self.model.pool.clone(), self.model.spotify.clone())),
                     },
                     #[name="related_artists_view"]
-                    ArtistList::<RelatedArtistsLoader>(self.model.spotify.clone()),
+                    ArtistList::<RelatedArtistsLoader>((self.model.pool.clone(), self.model.spotify.clone())),
                 },
 
                 #[name="tracks_view"]
-                TrackList::<AlbumLoader>(self.model.spotify.clone()),
+                TrackList::<AlbumLoader>((self.model.pool.clone(), self.model.spotify.clone())),
             }
         }
     }

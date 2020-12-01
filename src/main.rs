@@ -13,29 +13,27 @@ fn main() {
 
     let (client_id, client_secret) = (settings.client_id.clone(), settings.client_secret.clone());
 
-    let rt = tokio::runtime::Builder::new()
+    let mut runtime = tokio::runtime::Builder::new()
         .threaded_scheduler()
+        .max_threads(100)
         .enable_all()
         .build()
         .unwrap();
 
-    let (spotify, rx, spotify_errors) = SpotifyProxy::new(&rt);
-
-    rt.spawn(async {
-        let client = Arc::new(RwLock::new(
-            Spotify::new(client_id, client_secret, spotify_cache_path).await,
-        ));
-
-        let _ = join! {
-            LoginServer::new(client.clone()).spawn(),
-            SpotifyServer::new(client, rx).spawn(),
-        };
+    let mut spotify = Spotify::new(client_id, client_secret, spotify_cache_path);
+    runtime.block_on(async {
+        spotify.load_token_from_cache().await;
     });
+    let spotify = Arc::new(RwLock::new(spotify));
+
+    LoginServer::new(spotify.clone()).spawn(&runtime);
+
+    let pool = runtime.handle().clone();
 
     Win::run(Params {
+        pool,
         settings,
         spotify,
-        spotify_errors,
     })
     .unwrap();
 }

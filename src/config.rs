@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 const SETTINGS_FILE: &str = "settings.toml";
 const SPOTIFY_TOKEN_FILE: &str = "token.json";
@@ -15,6 +17,8 @@ pub struct Settings {
     #[serde(default)]
     pub show_notifications: bool,
 }
+
+pub type SettingsRef = Arc<RwLock<Settings>>;
 
 impl Default for Settings {
     fn default() -> Self {

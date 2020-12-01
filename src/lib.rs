@@ -20,4 +20,4 @@ mod utils;
 
 pub use components::win::{Params, Win};
 pub use config::Config;
-pub use servers::{LoginServer, Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
+pub use servers::{LoginServer, Spotify, SpotifyCmd, SpotifyProxy};

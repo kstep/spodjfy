@@ -1,4 +1,5 @@
-use crate::servers::{Proxy, SpotifyCmd, SpotifyProxy};
+use crate::components::tabs::MusicTabParams;
+use crate::servers::{SpotifyCmd, SpotifyRef};
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -6,7 +7,7 @@ use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::{Device, DeviceType};
-use std::sync::Arc;
+use tokio::runtime::Handle;
 
 #[derive(Msg)]
 pub enum DevicesMsg {
@@ -18,8 +19,9 @@ pub enum DevicesMsg {
 }
 
 pub struct DevicesModel {
+    pool: Handle,
     stream: EventStream<DevicesMsg>,
-    spotify: Arc<SpotifyProxy>,
+    spotify: SpotifyRef,
     store: gtk::ListStore,
 }
 
@@ -34,7 +36,7 @@ const COL_DEVICE_TYPE: u32 = 4;
 
 #[widget]
 impl Widget for DevicesTab {
-    fn model(relm: &Relm<Self>, spotify: Arc<SpotifyProxy>) -> DevicesModel {
+    fn model(relm: &Relm<Self>, (pool, spotify): MusicTabParams) -> DevicesModel {
         let store = gtk::ListStore::new(&[
             gdk_pixbuf::Pixbuf::static_type(), // icon
             String::static_type(),             // id
@@ -44,6 +46,7 @@ impl Widget for DevicesTab {
         ]);
         let stream = relm.stream().clone();
         DevicesModel {
+            pool,
             stream,
             spotify,
             store,

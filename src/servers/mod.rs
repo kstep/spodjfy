@@ -8,7 +8,7 @@ pub mod spotify;
 pub mod store;
 
 pub use login::LoginServer;
-pub use spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyServer};
+pub use spotify::{Spotify, SpotifyCmd, SpotifyProxy, SpotifyRef};
 
 pub type ResultSender<T> = Sender<Result<T, ClientError>>;
 
