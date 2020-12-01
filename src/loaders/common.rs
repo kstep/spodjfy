@@ -1,6 +1,10 @@
 use crate::models::PageLike;
-use crate::servers::spotify::SpotifyCmd;
+use crate::Spotify;
+use async_trait::async_trait;
+use rspotify::client::ClientResult;
+use std::ops::Deref;
 
+#[async_trait]
 pub trait ContainerLoader {
     type ParentId;
     type Item;
@@ -10,11 +14,11 @@ pub trait ContainerLoader {
 
     fn new(id: Self::ParentId) -> Self;
     fn parent_id(&self) -> &Self::ParentId;
-    fn load_page(
+    async fn load_page(
         self,
-        tx: ResultSender<Self::Page>,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
         offset: <<Self as ContainerLoader>::Page as PageLike<Self::Item>>::Offset,
-    ) -> SpotifyCmd;
+    ) -> ClientResult<Self::Page>;
     fn epoch(&self) -> usize {
         self as *const _ as *const () as usize
     }

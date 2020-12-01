@@ -27,7 +27,7 @@ use crate::config::SettingsRef;
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
-use crate::servers::{SpotifyCmd, SpotifyRef};
+use crate::servers::SpotifyRef;
 use gdk_pixbuf::Pixbuf;
 use glib::MainContext;
 use gtk::prelude::*;

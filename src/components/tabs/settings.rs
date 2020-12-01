@@ -1,5 +1,5 @@
 use crate::config::{Config, Settings, SettingsRef};
-use crate::servers::{SpotifyCmd, SpotifyRef};
+use crate::servers::SpotifyRef;
 use gtk::{
     self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
     WidgetExt,
@@ -51,7 +51,7 @@ impl Widget for SettingsTab {
                 self.model.stream.emit(GetAuthorizeUrl);
             }
             GetAuthorizeUrl => {
-                let spotify: &SpotifyProxy = &self.model.spotify;
+                let spotify = &self.model.spotify;
                 spotify
                     .ask(
                         self.model.stream.clone(),

@@ -1,12 +1,16 @@
 use crate::loaders::common::ContainerLoader;
-use crate::servers::SpotifyCmd;
+use crate::Spotify;
+use async_trait::async_trait;
+use rspotify::client::ClientResult;
 use rspotify::model::{Page, Show, SimplifiedPlaylist};
+use std::ops::Deref;
 
 const NAME: &str = "playlists";
 
 #[derive(Clone, Copy)]
 pub struct FeaturedLoader(usize);
 
+#[async_trait]
 impl ContainerLoader for FeaturedLoader {
     type ParentId = ();
     type Item = SimplifiedPlaylist;
@@ -22,12 +26,14 @@ impl ContainerLoader for FeaturedLoader {
         &()
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetFeaturedPlaylists {
-            tx,
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify
+            .get_featured_playlists(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -38,6 +44,7 @@ impl ContainerLoader for FeaturedLoader {
 #[derive(Clone, Copy)]
 pub struct SavedLoader(usize);
 
+#[async_trait]
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
     type Item = SimplifiedPlaylist;
@@ -53,12 +60,12 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetMyPlaylists {
-            tx,
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify.get_my_playlists(offset, Self::PAGE_LIMIT).await
     }
 
     fn epoch(&self) -> usize {
@@ -69,6 +76,7 @@ impl ContainerLoader for SavedLoader {
 #[derive(Clone, Copy)]
 pub struct ShowsLoader(usize);
 
+#[async_trait]
 impl ContainerLoader for ShowsLoader {
     type ParentId = ();
     type Item = Show;
@@ -84,12 +92,12 @@ impl ContainerLoader for ShowsLoader {
         &()
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetMyShows {
-            tx,
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify.get_my_shows(offset, Self::PAGE_LIMIT).await
     }
 
     fn epoch(&self) -> usize {
@@ -102,6 +110,7 @@ pub struct CategoryLoader {
     id: String,
 }
 
+#[async_trait]
 impl ContainerLoader for CategoryLoader {
     type ParentId = String;
     type Item = SimplifiedPlaylist;
@@ -117,13 +126,14 @@ impl ContainerLoader for CategoryLoader {
         &self.id
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetCategoryPlaylists {
-            tx,
-            category_id: self.parent_id().clone(),
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify
+            .get_category_playlists(&self.id, offset, Self::PAGE_LIMIT)
+            .await
     }
 }
 
@@ -131,6 +141,7 @@ pub struct UserLoader {
     user_id: String,
 }
 
+#[async_trait]
 impl ContainerLoader for UserLoader {
     type ParentId = String;
     type Item = SimplifiedPlaylist;
@@ -146,12 +157,13 @@ impl ContainerLoader for UserLoader {
         &self.user_id
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetUserPlaylists {
-            tx,
-            user_id: self.user_id,
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify
+            .get_user_playlists(&self.user_id, offset, Self::PAGE_LIMIT)
+            .await
     }
 }

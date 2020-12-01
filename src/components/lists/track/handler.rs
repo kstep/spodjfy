@@ -5,7 +5,6 @@ use crate::loaders::ContainerLoader;
 use crate::models::common::*;
 use crate::models::page::*;
 use crate::models::track::*;
-use crate::servers::SpotifyCmd;
 use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,

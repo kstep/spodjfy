@@ -1,5 +1,5 @@
 use crate::components::tabs::MusicTabParams;
-use crate::servers::{SpotifyCmd, SpotifyRef};
+use crate::servers::SpotifyRef;
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
 use gtk::prelude::*;

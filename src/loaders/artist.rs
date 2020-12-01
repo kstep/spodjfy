@@ -1,12 +1,16 @@
 use crate::loaders::ContainerLoader;
-use crate::servers::spotify::SpotifyCmd;
+use crate::Spotify;
+use async_trait::async_trait;
+use rspotify::client::ClientResult;
 use rspotify::model::{CursorBasedPage, FullArtist, Page};
+use std::ops::Deref;
 
 const NAME: &str = "artists";
 
 #[derive(Clone, Copy)]
 pub struct SavedLoader(usize);
 
+#[async_trait]
 impl ContainerLoader for SavedLoader {
     type ParentId = ();
     type Item = FullArtist;
@@ -22,17 +26,17 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, cursor: String) -> SpotifyCmd {
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        cursor: String,
+    ) -> ClientResult<Self::Page> {
         let cursor = if cursor.is_empty() {
             None
         } else {
             Some(cursor)
         };
-        SpotifyCmd::GetMyArtists {
-            tx,
-            cursor,
-            limit: Self::PAGE_LIMIT,
-        }
+        spotify.get_my_artists(cursor, Self::PAGE_LIMIT).await
     }
 
     fn epoch(&self) -> usize {
@@ -43,6 +47,7 @@ impl ContainerLoader for SavedLoader {
 #[derive(Clone, Copy)]
 pub struct MyTopArtistsLoader(usize);
 
+#[async_trait]
 impl ContainerLoader for MyTopArtistsLoader {
     type ParentId = ();
     type Item = FullArtist;
@@ -58,12 +63,12 @@ impl ContainerLoader for MyTopArtistsLoader {
         &()
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, offset: u32) -> SpotifyCmd {
-        SpotifyCmd::GetMyTopArtists {
-            tx,
-            offset,
-            limit: Self::PAGE_LIMIT,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        offset: u32,
+    ) -> ClientResult<Self::Page> {
+        spotify.get_my_top_artists(offset, Self::PAGE_LIMIT).await
     }
 
     fn epoch(&self) -> usize {
@@ -76,6 +81,7 @@ pub struct RelatedArtistsLoader {
     artist_id: String,
 }
 
+#[async_trait]
 impl ContainerLoader for RelatedArtistsLoader {
     type ParentId = String;
     type Item = FullArtist;
@@ -91,10 +97,11 @@ impl ContainerLoader for RelatedArtistsLoader {
         &self.artist_id
     }
 
-    fn load_page(self, tx: ResultSender<Self::Page>, _offset: ()) -> SpotifyCmd {
-        SpotifyCmd::GetArtistRelatedArtists {
-            tx,
-            uri: self.artist_id,
-        }
+    async fn load_page(
+        self,
+        spotify: impl Deref<Target = Spotify> + Send + 'static,
+        _offset: (),
+    ) -> ClientResult<Self::Page> {
+        spotify.get_artist_related_artists(&self.artist_id).await
     }
 }
