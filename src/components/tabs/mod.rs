@@ -14,7 +14,7 @@ pub mod tracks;
 
 use crate::components::lists::TrackMsg;
 use crate::loaders::ContainerLoader;
-use crate::servers::SpotifyRef;
+use crate::services::SpotifyRef;
 use relm_derive::Msg;
 use rspotify::model::Type;
 use tokio::runtime::Handle;

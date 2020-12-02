@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 const SETTINGS_FILE: &str = "settings.toml";
 const SPOTIFY_TOKEN_FILE: &str = "token.json";

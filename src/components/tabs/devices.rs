@@ -1,5 +1,6 @@
 use crate::components::tabs::MusicTabParams;
-use crate::servers::SpotifyRef;
+use crate::components::Spawn;
+use crate::services::SpotifyRef;
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -65,14 +66,12 @@ impl Widget for DevicesTab {
                 self.model.stream.emit(LoadList);
             }
             LoadList => {
-                self.model
-                    .spotify
-                    .ask(
-                        self.model.stream.clone(),
-                        move |tx| SpotifyCmd::GetMyDevices { tx },
-                        NewList,
-                    )
-                    .unwrap();
+                self.spawn(async move |pool, (stream, spotify)| {
+                    Ok(stream.emit(NewList(
+                        pool.spawn(async move { spotify.read().await.get_my_devices().await })
+                            .await??,
+                    )))
+                });
             }
             NewList(devices) => {
                 let store = &self.model.store;
@@ -142,10 +141,11 @@ impl Widget for DevicesTab {
                         false
                     });
 
-                    self.model
-                        .spotify
-                        .tell(SpotifyCmd::UseDevice { id, play: false })
-                        .unwrap();
+                    self.spawn(async move |pool, (_, spotify)| {
+                        Ok(pool
+                            .spawn(async move { spotify.read().await.use_device(id, false).await })
+                            .await??)
+                    });
                 }
             }
         }
@@ -247,5 +247,15 @@ impl Widget for DevicesTab {
                 },
             }
         }
+    }
+}
+
+impl Spawn for DevicesTab {
+    type Scope = (EventStream<DevicesMsg>, SpotifyRef);
+    fn pool(&self) -> Handle {
+        self.model.pool.clone()
+    }
+    fn scope(&self) -> Self::Scope {
+        (self.model.stream.clone(), self.model.spotify.clone())
     }
 }

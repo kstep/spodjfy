@@ -1,6 +1,5 @@
-use futures::join;
 use relm::Widget;
-use spodjfy::{Config, LoginServer, Params, Spotify, SpotifyProxy, SpotifyServer, Win};
+use spodjfy::{Config, LoginService, Params, RefreshTokenService, Spotify, Win};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -26,7 +25,8 @@ fn main() {
     });
     let spotify = Arc::new(RwLock::new(spotify));
 
-    LoginServer::new(spotify.clone()).spawn(&runtime);
+    LoginService::new(spotify.clone()).spawn(&runtime);
+    RefreshTokenService::new(spotify.clone()).spawn(&runtime);
 
     let pool = runtime.handle().clone();
 

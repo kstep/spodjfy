@@ -4,7 +4,7 @@ use gtk::{
 };
 use relm::{Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
 use crate::components::notifier::Notifier;
@@ -23,10 +23,9 @@ use crate::components::tabs::shows::ShowsTab;
 use crate::components::tabs::tracks::TracksTab;
 use crate::components::tabs::MusicTabMsg;
 use crate::config::{Settings, SettingsRef};
-use crate::servers::spotify::SpotifyRef;
+use crate::services::spotify::SpotifyRef;
 use rspotify::model::Type;
 use tokio::runtime::Handle;
-use tokio::sync::RwLock;
 
 pub struct State {
     pub settings: SettingsRef,
@@ -366,7 +365,7 @@ impl Widget for Win {
         self.overlay.set_overlay_pass_through(notifier, true);
     }
 
-    fn subscriptions(&mut self, relm: &Relm<Self>) {
+    fn subscriptions(&mut self, _relm: &Relm<Self>) {
         /*
         let stream = relm.stream().clone();
         let notifier = self.model.notifier.stream().clone();

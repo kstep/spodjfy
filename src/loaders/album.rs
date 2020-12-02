@@ -1,9 +1,8 @@
 use crate::loaders::ContainerLoader;
-use crate::Spotify;
+use crate::services::SpotifyRef;
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 use rspotify::model::{Page, SavedAlbum, SimplifiedAlbum};
-use std::ops::Deref;
 
 const NAME: &str = "albums";
 
@@ -26,12 +25,12 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_albums(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_albums(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -58,12 +57,12 @@ impl ContainerLoader for NewReleasesLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_new_releases(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_new_releases(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -92,12 +91,10 @@ impl ContainerLoader for ArtistLoader {
         &self.uri
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_artist_albums(&self.uri, offset, Self::PAGE_LIMIT)
             .await
     }

@@ -4,7 +4,8 @@
     unboxed_closures,
     never_type,
     associated_type_defaults,
-    specialization
+    specialization,
+    async_closure
 )]
 
 #[macro_use]
@@ -15,9 +16,11 @@ mod config;
 mod loaders;
 mod models;
 mod scopes;
-mod servers;
+mod services;
 mod utils;
+
+pub static mut DEFAULT_TOKIO_RUNTIME: Option<tokio::runtime::Runtime> = None;
 
 pub use components::win::{Params, Win};
 pub use config::Config;
-pub use servers::{LoginServer, Spotify};
+pub use services::{LoginService, RefreshTokenService, Spotify};

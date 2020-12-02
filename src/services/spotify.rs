@@ -1,4 +1,5 @@
 use crate::scopes::Scope::{self, *};
+use futures::TryFutureExt;
 use rspotify::client::{ClientError, ClientResult, Spotify as Client};
 use rspotify::model::{
     offset, AdditionalType, AudioFeatures, Category, CurrentPlaybackContext, CursorBasedPage,
@@ -12,9 +13,12 @@ use std::collections::VecDeque;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 
-const DEFAULT_REFRESH_TOKEN_TIMEOUT: u64 = 20 * 60;
+const DEFAULT_REFRESH_TOKEN_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 
 pub type SpotifyRef = Arc<RwLock<Spotify>>;
 
@@ -24,30 +28,29 @@ pub struct Spotify {
     queue: VecDeque<String>,
 }
 
-#[derive(Debug)]
-pub enum ProxyError {
-    Receive,
-    Send,
-    Backpressure(usize),
-    Timeout,
-    Upstream,
+pub struct RefreshTokenService {
+    client: SpotifyRef,
 }
 
-impl From<tokio::time::Elapsed> for ProxyError {
-    fn from(_err: tokio::time::Elapsed) -> ProxyError {
-        ProxyError::Timeout
+impl RefreshTokenService {
+    pub fn new(client: Arc<RwLock<Spotify>>) -> RefreshTokenService {
+        RefreshTokenService { client }
     }
-}
 
-impl<T> From<std::sync::mpsc::SendError<T>> for ProxyError {
-    fn from(_err: std::sync::mpsc::SendError<T>) -> ProxyError {
-        ProxyError::Send
+    pub fn spawn(self, runtime: &Runtime) -> JoinHandle<Result<!, ClientError>> {
+        runtime.spawn(self.run().inspect_err(|error| {
+            error!("refresh token thread stopped: {:?}", error);
+        }))
     }
-}
 
-impl From<std::sync::mpsc::RecvError> for ProxyError {
-    fn from(_err: std::sync::mpsc::RecvError) -> ProxyError {
-        ProxyError::Receive
+    pub async fn run(self) -> Result<!, ClientError> {
+        let mut timer = tokio::time::interval(DEFAULT_REFRESH_TOKEN_TIMEOUT);
+        let spotify = self.client;
+        loop {
+            timer.tick().await;
+            info!("refresh access token");
+            spotify.write().await.refresh_user_token().await?;
+        }
     }
 }
 
@@ -491,6 +494,42 @@ impl Spotify {
         self.client
             .current_user_saved_tracks_contains(uris.iter().map(Deref::deref))
             .await
+    }
+
+    pub async fn are_in_my_library(&self, tpe: Type, uris: &[String]) -> ClientResult<Vec<bool>> {
+        match tpe {
+            Type::Artist => self.are_my_artists(uris).await,
+            Type::Album => self.are_my_albums(uris).await,
+            Type::Track => self.are_my_tracks(uris).await,
+            Type::Playlist => self.are_my_playlists(uris).await,
+            Type::User => self.are_my_users(uris).await,
+            Type::Show => self.are_my_shows(uris).await,
+            Type::Episode => Ok(vec![false; uris.len()]),
+        }
+    }
+
+    pub async fn add_to_my_library(&self, tpe: Type, uris: &[String]) -> ClientResult<()> {
+        match tpe {
+            Type::Artist => self.add_my_artists(uris).await,
+            Type::Album => self.add_my_albums(uris).await,
+            Type::Track => self.add_my_tracks(uris).await,
+            Type::Playlist => self.add_my_playlists(uris, false).await,
+            Type::User => self.add_my_users(uris).await,
+            Type::Show => self.add_my_shows(uris).await,
+            Type::Episode => Ok(()),
+        }
+    }
+
+    pub async fn remove_from_my_library(&self, tpe: Type, uris: &[String]) -> ClientResult<()> {
+        match tpe {
+            Type::Artist => self.remove_my_artists(uris).await,
+            Type::Album => self.remove_my_albums(uris).await,
+            Type::Track => self.remove_my_tracks(uris).await,
+            Type::Playlist => self.remove_my_playlists(uris).await,
+            Type::User => self.remove_my_users(uris).await,
+            Type::Show => self.remove_my_shows(uris).await,
+            Type::Episode => Ok(()),
+        }
     }
 
     pub async fn get_categories(&self, offset: u32, limit: u32) -> ClientResult<Page<Category>> {

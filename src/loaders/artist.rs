@@ -1,9 +1,8 @@
 use crate::loaders::ContainerLoader;
-use crate::Spotify;
+use crate::services::SpotifyRef;
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 use rspotify::model::{CursorBasedPage, FullArtist, Page};
-use std::ops::Deref;
 
 const NAME: &str = "artists";
 
@@ -26,17 +25,17 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        cursor: String,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, cursor: String) -> ClientResult<Self::Page> {
         let cursor = if cursor.is_empty() {
             None
         } else {
             Some(cursor)
         };
-        spotify.get_my_artists(cursor, Self::PAGE_LIMIT).await
+        spotify
+            .read()
+            .await
+            .get_my_artists(cursor, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -63,12 +62,12 @@ impl ContainerLoader for MyTopArtistsLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_top_artists(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_top_artists(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -97,11 +96,11 @@ impl ContainerLoader for RelatedArtistsLoader {
         &self.artist_id
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        _offset: (),
-    ) -> ClientResult<Self::Page> {
-        spotify.get_artist_related_artists(&self.artist_id).await
+    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_artist_related_artists(&self.artist_id)
+            .await
     }
 }

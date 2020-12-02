@@ -1,25 +1,28 @@
 use crate::components::lists::{
     ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
 };
+use crate::components::Spawn;
 use crate::loaders::ContainerLoader;
 use crate::models::common::*;
 use crate::models::page::*;
 use crate::models::track::*;
+use crate::services::SpotifyRef;
+use async_trait::async_trait;
 use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,
 };
-use rspotify::model::Type;
-use serde_json::Map;
+use rspotify::client::ClientError;
 
 pub struct TrackMsgHandler;
 
 impl<Loader> MessageHandler<TrackList<Loader>, TrackMsg<Loader>> for TrackMsgHandler
 where
     Loader: ContainerLoader + 'static,
-    Loader::Page: PageLike<Loader::Item>,
+    Loader::Page: PageLike<Loader::Item>, // + Send,
+    //<Loader::Page as PageLike<Loader::Item>>::Offset: Send,
     Loader::Item: RowLike + HasImages + TrackLike + HasDuration + MissingColumns,
-    Loader::ParentId: Clone + PlayContextCmd,
+    Loader::ParentId: Clone + Send + PlayTracksContext,
     ContainerMsg<Loader>: Into<TrackMsg<Loader>>,
 {
     fn handle(this: &mut TrackList<Loader>, message: TrackMsg<Loader>) -> Option<TrackMsg<Loader>> {
@@ -84,30 +87,19 @@ where
                 return Some(event);
             }
             LoadTracksInfo(uris, iters) => {
-                {
-                    let uris = uris.clone();
-                    let iters = iters.clone();
-                    this.model
-                        .spotify
-                        .ask(
-                            this.stream.clone(),
-                            |tx| SpotifyCmd::AreInMyLibrary {
-                                tx,
-                                kind: Type::Track,
-                                uris,
-                            },
-                            move |saved| NewTracksSaved(saved, iters.clone()),
-                        )
-                        .unwrap();
-                }
-                this.model
-                    .spotify
-                    .ask(
-                        this.stream.clone(),
-                        |tx| SpotifyCmd::GetTracksFeatures { tx, uris },
-                        move |feats| NewTracksInfo(feats, iters.clone()),
-                    )
-                    .unwrap();
+                this.spawn(async move |pool, (stream, spotify)| {
+                    let (saved, feats) = pool
+                        .spawn(async move {
+                            let spotify = spotify.read().await;
+                            let saved = spotify.are_my_tracks(&uris).await?;
+                            let feats = spotify.get_tracks_features(&uris).await?;
+                            Ok::<_, ClientError>((saved, feats))
+                        })
+                        .await??;
+                    stream.emit(NewTracksInfo(feats, iters.clone()));
+                    stream.emit(NewTracksSaved(saved, iters.clone()));
+                    Ok(())
+                });
             }
             NewTracksSaved(saved, iters) => {
                 let store = &this.model.store;
@@ -166,34 +158,33 @@ where
                 let uris = this.get_selected_tracks_uris();
                 this.stream.emit(PlayTracks(uris));
             }
-
             EnqueueChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.model
-                    .spotify
-                    .tell(SpotifyCmd::EnqueueTracks { uris })
-                    .unwrap();
+                this.spawn(async move |pool, (_, spotify)| {
+                    pool.spawn(async move {
+                        let mut spotify = spotify.write().await;
+                        spotify.enqueue_tracks(uris).await
+                    })
+                    .await??;
+                    Ok(())
+                });
             }
             AddChosenTracks => {}
             SaveChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.model
-                    .spotify
-                    .tell(SpotifyCmd::AddToMyLibrary {
-                        kind: Type::Track,
-                        uris,
-                    })
-                    .unwrap();
+                this.spawn(async move |pool, (_, spotify)| {
+                    pool.spawn(async move { spotify.write().await.add_my_tracks(&uris).await })
+                        .await??;
+                    Ok(())
+                });
             }
             UnsaveChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.model
-                    .spotify
-                    .tell(SpotifyCmd::RemoveFromMyLibrary {
-                        kind: Type::Track,
-                        uris,
-                    })
-                    .unwrap();
+                this.spawn(async move |pool, (_, spotify)| {
+                    pool.spawn(async move { spotify.write().await.remove_my_tracks(&uris).await })
+                        .await??;
+                    Ok(())
+                });
             }
             RecommendTracks => {}
             GoToChosenTrackAlbum => {
@@ -246,11 +237,12 @@ where
             GoToArtist(_, _) => {}
             PlayTracks(uris) => {
                 if let Some(ref loader) = this.model.items_loader {
-                    this.model
-                        .spotify
-                        .tell(loader.parent_id().clone().play_tracks_cmd(uris))
-                        .unwrap();
-                    this.stream.emit(PlayingNewTrack);
+                    let play_ctx = loader.parent_id().clone();
+                    this.spawn(async move |pool, (stream, spotify)| {
+                        pool.spawn(play_ctx.play_tracks(spotify, uris)).await??;
+                        stream.emit(PlayingNewTrack);
+                        Ok(())
+                    });
                 }
             }
             PlayingNewTrack => {}
@@ -265,24 +257,34 @@ where
     }
 }
 
-pub trait PlayContextCmd {
-    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd;
+#[async_trait]
+pub trait PlayTracksContext {
+    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError>;
 }
 
-impl PlayContextCmd for () {
-    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
-        SpotifyCmd::PlayTracks { uris }
+#[async_trait]
+impl PlayTracksContext for () {
+    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
+        spotify.read().await.play_tracks(uris).await
     }
 }
 
-impl<K, V> PlayContextCmd for Map<K, V> {
-    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
-        SpotifyCmd::PlayTracks { uris }
+/*
+#[async_trait]
+impl<K, V> PlayTracksContext for Map<K, V> {
+    async fn play_tracks(
+        self,
+        spotify: SpotifyRef,
+        uris: Vec<String>,
+    ) {
+        spotify.play_tracks(uris).await;
     }
 }
+ */
 
-impl PlayContextCmd for String {
-    fn play_tracks_cmd(self, uris: Vec<String>) -> SpotifyCmd {
+#[async_trait]
+impl PlayTracksContext for String {
+    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
         let start_uri = if self.starts_with("spotify:album:")
             || self.starts_with("spotify:playlist:")
             || self.starts_with("spotify:show:")
@@ -292,9 +294,6 @@ impl PlayContextCmd for String {
             None
         };
 
-        SpotifyCmd::PlayContext {
-            uri: self,
-            start_uri,
-        }
+        spotify.read().await.play_context(self, start_uri).await
     }
 }

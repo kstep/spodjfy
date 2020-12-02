@@ -1,10 +1,9 @@
 use itertools::Itertools;
-use rspotify::model::{FullEpisode, FullPlaylist, FullTrack};
+//use rspotify::model::{FullEpisode, FullPlaylist, FullTrack};
 use serde::{de::DeserializeOwned, Serialize};
 use sled::{Batch, Db, Error, IVec, Tree};
 use std::marker::PhantomData;
 use std::path::Path;
-use std::sync::mpsc::Receiver;
 
 pub trait StoreModel: Sized {
     const TREE_NAME: &'static str;
@@ -24,34 +23,7 @@ default impl<T: Serialize + DeserializeOwned> StoreModel for T {
     }
 }
 
-pub enum StorageCmd {
-    PutTracks {
-        items: Vec<FullTrack>,
-    },
-    GetTrack {
-        tx: ResultSender<Option<FullTrack>>,
-        id: String,
-    },
-
-    PutEpisodes {
-        items: Vec<FullEpisode>,
-    },
-    GetEpisode {
-        tx: ResultSender<Option<FullEpisode>>,
-        id: String,
-    },
-
-    PutPlaylist {
-        items: Vec<FullPlaylist>,
-    },
-    GetPlaylist {
-        tx: ResultSender<Option<FullPlaylist>>,
-        id: String,
-    },
-}
-
 pub struct StorageServer {
-    channel: Receiver<StorageCmd>,
     store: Storage,
     //tracks_coll: Collection<FullTrack>,
     //episodes_coll: Collection<FullEpisode>,
@@ -59,9 +31,8 @@ pub struct StorageServer {
 }
 
 impl StorageServer {
-    fn new(store: Storage, channel: Receiver<StorageCmd>) -> Self {
+    fn new(store: Storage) -> Self {
         StorageServer {
-            channel,
             store,
             //tracks_coll: store.collection().unwrap(),
             //episodes_coll: store.collection().unwrap(),

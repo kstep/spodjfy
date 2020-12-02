@@ -2,7 +2,7 @@ use crate::models::{
     Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull,
     ToSimple, Wrapper, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
 };
-use crate::servers::store::StoreModel;
+use crate::services::store::StoreModel;
 use chrono::{DateTime, Utc};
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};

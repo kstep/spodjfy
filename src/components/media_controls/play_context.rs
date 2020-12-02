@@ -13,6 +13,32 @@ pub enum PlayContext {
     User(PublicUser),
 }
 
+impl From<FullAlbum> for PlayContext {
+    fn from(value: FullAlbum) -> Self {
+        PlayContext::Album(value)
+    }
+}
+impl From<FullPlaylist> for PlayContext {
+    fn from(value: FullPlaylist) -> Self {
+        PlayContext::Playlist(value)
+    }
+}
+impl From<FullArtist> for PlayContext {
+    fn from(value: FullArtist) -> Self {
+        PlayContext::Artist(value)
+    }
+}
+impl From<FullShow> for PlayContext {
+    fn from(value: FullShow) -> Self {
+        PlayContext::Show(value)
+    }
+}
+impl From<PublicUser> for PlayContext {
+    fn from(value: PublicUser) -> Self {
+        PlayContext::User(value)
+    }
+}
+
 impl PlayContext {
     pub fn uri(&self) -> &str {
         match self {

@@ -23,19 +23,20 @@
 mod play_context;
 
 use self::play_context::PlayContext;
+use crate::components::Spawn;
 use crate::config::SettingsRef;
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
-use crate::servers::SpotifyRef;
+use crate::services::SpotifyRef;
 use gdk_pixbuf::Pixbuf;
-use glib::MainContext;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
 use itertools::Itertools;
 use notify_rust::Notification;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
+use rspotify::client::ClientError;
 use rspotify::model::context::Context;
 use rspotify::model::device::Device;
 use rspotify::model::show::FullEpisode;
@@ -81,12 +82,12 @@ pub struct MediaControlsModel {
     devices: gtk::ListStore,
     spotify: SpotifyRef,
     state: Option<CurrentPlaybackContext>,
-    context: Option<PlayContext>,
+    play_context: Option<PlayContext>,
+    play_context_cover: Option<Pixbuf>,
+    play_context_saved: bool,
     track_cover: Option<Pixbuf>,
-    context_cover: Option<Pixbuf>,
-    image_loaders: [ImageLoader; 2],
     track_saved: bool,
-    context_saved: bool,
+    image_loaders: [ImageLoader; 2],
     settings: SettingsRef,
 }
 
@@ -130,11 +131,11 @@ impl Widget for MediaControls {
             settings,
             image_loaders: [context_image_loader, track_image_loader],
             state: None,
-            context: None,
+            play_context: None,
             track_saved: false,
-            context_saved: false,
+            play_context_saved: false,
             track_cover: None,
-            context_cover: None,
+            play_context_cover: None,
         }
     }
 
@@ -146,14 +147,12 @@ impl Widget for MediaControls {
                 self.model.stream.emit(LoadState);
             }
             LoadDevices => {
-                self.model
-                    .spotify
-                    .ask(
-                        self.model.stream.clone(),
-                        |tx| SpotifyCmd::GetMyDevices { tx },
-                        NewDevices,
-                    )
-                    .unwrap();
+                self.spawn(async move |pool, (stream, spotify)| {
+                    Ok(stream.emit(NewDevices(
+                        pool.spawn(async move { spotify.read().await.get_my_devices().await })
+                            .await??,
+                    )))
+                });
             }
             NewDevices(devices) => {
                 let store = &self.model.devices;
@@ -175,21 +174,21 @@ impl Widget for MediaControls {
                     } else {
                         false
                     };
-                    self.model
-                        .spotify
-                        .tell(SpotifyCmd::UseDevice { id, play })
-                        .unwrap();
+
+                    self.spawn(async move |pool, (_, spotify)| {
+                        Ok(pool
+                            .spawn(async move { spotify.read().await.use_device(id, play).await })
+                            .await??)
+                    });
                 }
             }
             LoadState => {
-                self.model
-                    .spotify
-                    .ask(
-                        self.model.stream.clone(),
-                        move |tx| SpotifyCmd::GetPlaybackState { tx },
-                        |reply| NewState(Box::new(reply)),
-                    )
-                    .unwrap();
+                self.spawn(async move |pool, (stream, spotify)| {
+                    Ok(stream.emit(NewState(Box::new(
+                        pool.spawn(async move { spotify.read().await.get_playback_state().await })
+                            .await??,
+                    ))))
+                });
             }
             NewState(state) => {
                 let old_state: Option<&CurrentPlaybackContext> = self.model.state.as_ref();
@@ -236,19 +235,20 @@ impl Widget for MediaControls {
 
                         {
                             let uris = vec![track_uri.to_owned()];
-                            self.model
-                                .spotify
-                                .ask(
-                                    self.model.stream.clone(),
-                                    move |tx| SpotifyCmd::AreInMyLibrary { tx, kind, uris },
-                                    |reply| IsTrackSaved(reply[0]),
-                                )
-                                .unwrap();
+                            self.spawn(async move |pool, (stream, spotify)| {
+                                let reply = pool
+                                    .spawn(async move {
+                                        spotify.read().await.are_in_my_library(kind, &uris).await
+                                    })
+                                    .await??;
+                                stream.emit(IsTrackSaved(reply[0]));
+                                Ok(())
+                            });
                         }
 
                         self.track_seek_bar.set_range(0.0, duration_ms as f64);
 
-                        let item = state.as_ref().as_ref().unwrap().item.as_ref().unwrap();
+                        let _item = state.as_ref().as_ref().unwrap().item.as_ref().unwrap();
 
                         if self.model.settings.read().unwrap().show_notifications {
                             let _ = Notification::new()
@@ -272,14 +272,15 @@ impl Widget for MediaControls {
                         {
                             let uris = vec![ctx.uri.clone()];
                             let kind = ctx._type;
-                            self.model
-                                .spotify
-                                .ask(
-                                    self.model.stream.clone(),
-                                    move |tx| SpotifyCmd::AreInMyLibrary { tx, kind, uris },
-                                    |reply| IsContextSaved(reply[0]),
-                                )
-                                .unwrap();
+                            self.spawn(async move |pool, (stream, spotify)| {
+                                let saved = pool
+                                    .spawn(async move {
+                                        spotify.read().await.are_in_my_library(kind, &uris).await
+                                    })
+                                    .await??;
+                                stream.emit(IsContextSaved(saved[0]));
+                                Ok(())
+                            });
                         }
                     }
                 } else {
@@ -289,8 +290,8 @@ impl Widget for MediaControls {
                             .emit(LoadContext(Type::User, String::new()));
                     }
 
-                    self.model.context = None;
-                    self.model.context_cover = None;
+                    self.model.play_context = None;
+                    self.model.play_context_cover = None;
                 }
 
                 self.model.state = *state;
@@ -299,34 +300,33 @@ impl Widget for MediaControls {
                 self.model.track_saved = saved;
             }
             IsContextSaved(saved) => {
-                self.model.context_saved = saved;
+                self.model.play_context_saved = saved;
             }
             LoadCover(url, is_for_track) => {
-                let stream = self.model.stream.clone();
-                let mut loader = self.model.image_loaders[is_for_track as usize].clone();
-                let ctx = MainContext::ref_thread_default();
-                let pool = self.model.pool.clone();
-                ctx.spawn_local(async move {
-                    if let Ok(Some(image)) = pool
+                let loader = self.model.image_loaders[is_for_track as usize].clone();
+                self.spawn(async move |pool, (stream, _)| {
+                    if let Some(image) = pool
                         .spawn(async move { loader.load_image(&url).await })
-                        .await
+                        .await?
                     {
                         stream.emit(NewCover(image, is_for_track));
                     }
+                    Ok(())
                 });
             }
             NewCover(cover, is_for_track) => {
                 if is_for_track {
                     self.model.track_cover = Some(cover.into());
                 } else {
-                    self.model.context_cover = Some(cover.into());
+                    self.model.play_context_cover = Some(cover.into());
                 }
             }
             SeekTrack(pos) => {
-                self.model
-                    .spotify
-                    .tell(SpotifyCmd::SeekTrack { pos })
-                    .unwrap();
+                self.spawn(async move |pool, (_, spotify)| {
+                    Ok(pool
+                        .spawn(async move { spotify.read().await.seek_track(pos).await })
+                        .await??)
+                });
 
                 if let Some(CurrentPlaybackContext {
                     progress_ms: Some(ref mut progress),
@@ -341,19 +341,21 @@ impl Widget for MediaControls {
                 if let Some(state) = self.model.state.as_mut() {
                     state.device.volume_percent = Some(value as u32);
                 }
-                self.model
-                    .spotify
-                    .tell(SpotifyCmd::SetVolume { value })
-                    .unwrap();
+                self.spawn(async move |pool, (_, spotify)| {
+                    Ok(pool
+                        .spawn(async move { spotify.read().await.set_volume(value).await })
+                        .await??)
+                });
             }
             SetShuffle(state) => {
                 if let Some(st) = self.model.state.as_mut() {
                     st.shuffle_state = state;
                 }
-                self.model
-                    .spotify
-                    .tell(SpotifyCmd::SetShuffle { state })
-                    .unwrap();
+                self.spawn(async move |pool, (_, spotify)| {
+                    Ok(pool
+                        .spawn(async move { spotify.read().await.set_shuffle(state).await })
+                        .await??)
+                });
             }
             ToggleRepeatMode => {
                 let mode = match self
@@ -379,10 +381,11 @@ impl Widget for MediaControls {
                     }),
                     gtk::IconSize::LargeToolbar,
                 )));
-                self.model
-                    .spotify
-                    .tell(SpotifyCmd::SetRepeatMode { mode })
-                    .unwrap();
+                self.spawn(async move |pool, (_, spotify)| {
+                    Ok(pool
+                        .spawn(async move { spotify.read().await.set_repeat_mode(mode).await })
+                        .await??)
+                });
             }
             SaveCurrentTrack(save) => {
                 if let Some(ref state) = self.model.state {
@@ -393,125 +396,109 @@ impl Widget for MediaControls {
                         };
 
                         let uris = vec![uri];
-                        self.model
-                            .spotify
-                            .tell(if save {
-                                SpotifyCmd::AddToMyLibrary { uris, kind }
+                        self.spawn(async move |pool, (_, spotify)| {
+                            if save {
+                                pool.spawn(async move {
+                                    spotify.read().await.add_to_my_library(kind, &uris).await
+                                })
+                                .await??;
                             } else {
-                                SpotifyCmd::RemoveFromMyLibrary { uris, kind }
-                            })
-                            .unwrap();
+                                pool.spawn(async move {
+                                    spotify
+                                        .read()
+                                        .await
+                                        .remove_from_my_library(kind, &uris)
+                                        .await
+                                })
+                                .await??;
+                            }
+                            Ok(())
+                        });
 
                         self.model.track_saved = save;
                     }
                 }
             }
             SaveCurrentContext(save) => {
-                if let Some(ref context) = self.model.context {
+                if let Some(ref context) = self.model.play_context {
                     let kind = context.kind();
                     let uris = vec![context.uri().to_owned()];
-                    self.model
-                        .spotify
-                        .tell(if save {
-                            SpotifyCmd::AddToMyLibrary { uris, kind }
-                        } else {
-                            SpotifyCmd::RemoveFromMyLibrary { uris, kind }
-                        })
-                        .unwrap();
+                    self.spawn(async move |pool, (_, spotify)| {
+                        Ok(pool
+                            .spawn(async move {
+                                let spotify = spotify.read().await;
+                                if save {
+                                    spotify.add_to_my_library(kind, &uris).await
+                                } else {
+                                    spotify.remove_from_my_library(kind, &uris).await
+                                }
+                            })
+                            .await??)
+                    });
 
-                    self.model.context_saved = save;
+                    self.model.play_context_saved = save;
                 }
             }
             ShowInfo(state) => {
                 self.state_info.set_reveal_child(state);
             }
             Play => {
-                self.model.spotify.tell(SpotifyCmd::StartPlayback).unwrap();
-                self.model.stream.emit(LoadState);
+                self.spawn(async move |pool, (stream, spotify)| {
+                    pool.spawn(async move { spotify.read().await.start_playback().await })
+                        .await??;
+                    stream.emit(LoadState);
+                    Ok(())
+                });
             }
             Pause => {
-                self.model.spotify.tell(SpotifyCmd::PausePlayback).unwrap();
-                self.model.stream.emit(LoadState);
+                self.spawn(async move |pool, (stream, spotify)| {
+                    pool.spawn(async move { spotify.read().await.pause_playback().await })
+                        .await??;
+                    stream.emit(LoadState);
+                    Ok(())
+                });
             }
             NextTrack => {
-                self.model.spotify.tell(SpotifyCmd::PlayNextTrack).unwrap();
-                self.model.stream.emit(LoadState);
+                self.spawn(async move |pool, (stream, spotify)| {
+                    pool.spawn(async move { spotify.read().await.play_next_track().await })
+                        .await??;
+                    stream.emit(LoadState);
+                    Ok(())
+                });
             }
             PrevTrack => {
-                self.model.spotify.tell(SpotifyCmd::PlayPrevTrack).unwrap();
-                self.model.stream.emit(LoadState);
+                self.spawn(async move |pool, (stream, spotify)| {
+                    pool.spawn(async move { spotify.read().await.play_prev_track().await })
+                        .await??;
+                    stream.emit(LoadState);
+                    Ok(())
+                });
             }
             LoadContext(kind, uri) => {
-                let stream = &self.model.stream;
+                self.spawn(async move |pool, (stream, spotify)| {
+                    let play_context = pool
+                        .spawn(async move {
+                            let spotify = spotify.read().await;
+                            let reply: PlayContext = match kind {
+                                Type::Playlist => spotify.get_playlist(&uri).await?.into(),
+                                Type::Album => spotify.get_album(&uri).await?.into(),
+                                Type::Artist => spotify.get_artist(&uri).await?.into(),
+                                Type::Show => spotify.get_show(&uri).await?.into(),
+                                Type::User if uri.is_empty() => {
+                                    spotify.get_my_profile().await?.into_simple().into()
+                                }
+                                Type::User => spotify.get_user_profile(&uri).await?.into(),
+                                _ => unreachable!(),
+                            };
+                            Ok::<_, ClientError>(Box::new(reply))
+                        })
+                        .await??;
+                    stream.emit(NewContext(play_context));
+                    Ok(())
+                });
 
-                match kind {
-                    Type::Playlist => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetPlaylist { tx, uri },
-                                |reply| NewContext(Box::new(PlayContext::Playlist(reply))),
-                            )
-                            .unwrap();
-                    }
-                    Type::Album => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetAlbum { tx, uri },
-                                |reply| NewContext(Box::new(PlayContext::Album(reply))),
-                            )
-                            .unwrap();
-                    }
-                    Type::Artist => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetArtist { tx, uri },
-                                |reply| NewContext(Box::new(PlayContext::Artist(reply))),
-                            )
-                            .unwrap();
-                    }
-                    Type::Show => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetShow { tx, uri },
-                                |reply| NewContext(Box::new(PlayContext::Show(reply))),
-                            )
-                            .unwrap();
-                    }
-                    Type::User if uri.is_empty() => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetMyProfile { tx },
-                                |reply| {
-                                    NewContext(Box::new(PlayContext::User(reply.into_simple())))
-                                },
-                            )
-                            .unwrap();
-                    }
-                    Type::User => {
-                        self.model
-                            .spotify
-                            .ask(
-                                stream.clone(),
-                                |tx| SpotifyCmd::GetUserProfile { tx, uri },
-                                |reply| NewContext(Box::new(PlayContext::User(reply))),
-                            )
-                            .unwrap();
-                    }
-                    _ => {
-                        self.model.context = None;
-                        self.model.context_cover = None;
-                    }
-                };
+                self.model.play_context = None;
+                self.model.play_context_cover = None;
             }
             NewContext(context) => {
                 let images = context.images();
@@ -520,7 +507,7 @@ impl Widget for MediaControls {
                         .stream
                         .emit(LoadCover(cover_url.to_owned(), false));
                 }
-                self.model.context = Some(*context);
+                self.model.play_context = Some(*context);
             }
             Tick(timeout) => {
                 if let Some(CurrentPlaybackContext {
@@ -536,7 +523,7 @@ impl Widget for MediaControls {
             ClickTrackUri(Some(uri)) => {
                 let (kind, context_info) =
                     self.model
-                        .context
+                        .play_context
                         .as_ref()
                         .map_or((Type::Track, None), |ctx| {
                             (
@@ -640,7 +627,7 @@ impl Widget for MediaControls {
                         #[name="context_cover_image"]
                         gtk::Image {
                             valign: gtk::Align::Start,
-                            from_pixbuf: self.model.context_cover.as_ref(),
+                            from_pixbuf: self.model.play_context_cover.as_ref(),
                         },
                         #[name="context_infobox"]
                         gtk::Box(gtk::Orientation::Vertical, 10) {
@@ -649,13 +636,13 @@ impl Widget for MediaControls {
                                 gtk::ToggleButton {
                                     tooltip_text: Some("Add to library"),
                                     image: Some(&gtk::Image::from_icon_name(Some("emblem-favorite"), gtk::IconSize::LargeToolbar)),
-                                    active: self.model.context_saved,
+                                    active: self.model.play_context_saved,
                                     toggled(btn) => MediaControlsMsg::SaveCurrentContext(btn.get_active()),
                                 },
                                 gtk::Label {
                                     halign: gtk::Align::Start,
                                     valign: gtk::Align::Center,
-                                    text: self.model.context.as_ref().map_or("", |ctx| ctx.emoji()),
+                                    text: self.model.play_context.as_ref().map_or("", |ctx| ctx.emoji()),
                                 },
                                 #[name="context_name_label"]
                                 gtk::Label {
@@ -664,7 +651,7 @@ impl Widget for MediaControls {
                                     selectable: true,
                                     line_wrap: true,
                                     xalign: 0.0,
-                                    text: self.model.context.as_ref().map_or("", |c| c.name()),
+                                    text: self.model.play_context.as_ref().map_or("", |c| c.name()),
                                 },
                             },
                             #[name="context_artists_label"]
@@ -672,7 +659,7 @@ impl Widget for MediaControls {
                                 halign: gtk::Align::Start,
                                 selectable: true,
                                 line_wrap: true,
-                                text: self.model.context.as_ref()
+                                text: self.model.play_context.as_ref()
                                     .and_then(|ctx| ctx.artists())
                                     .as_deref()
                                     .unwrap_or("")
@@ -682,7 +669,7 @@ impl Widget for MediaControls {
                                 halign: gtk::Align::Start,
                                 selectable: true,
                                 line_wrap: true,
-                                text: self.model.context.as_ref()
+                                text: self.model.play_context.as_ref()
                                     .and_then(|c| c.genres())
                                     .map(|gs| gs.iter().join(", "))
                                     .as_deref()
@@ -692,7 +679,7 @@ impl Widget for MediaControls {
                             gtk::Label {
                                 halign: gtk::Align::Start,
                                 selectable: true,
-                                text: self.model.context.as_ref()
+                                text: self.model.play_context.as_ref()
                                     .map(|c| match (c.tracks_number(), c.duration()) {
                                         (0, _) => String::new(),
                                         (n, Ok(d)) => format!("Tracks: {}, duration: {}", n, crate::utils::humanize_time(d)),
@@ -708,7 +695,7 @@ impl Widget for MediaControls {
                                     line_wrap: true,
                                     selectable: true,
                                     xalign: 0.0,
-                                    text: self.model.context.as_ref()
+                                    text: self.model.play_context.as_ref()
                                         .map_or("", |c| c.description())
                                 },
                             //},
@@ -852,5 +839,15 @@ impl Widget for MediaControls {
         self.buttons.get_style_context().add_class("linked");
 
         stream.emit(MediaControlsMsg::Reload);
+    }
+}
+
+impl Spawn for MediaControls {
+    type Scope = (EventStream<MediaControlsMsg>, SpotifyRef);
+    fn pool(&self) -> Handle {
+        self.model.pool.clone()
+    }
+    fn scope(&self) -> Self::Scope {
+        (self.model.stream.clone(), self.model.spotify.clone())
     }
 }

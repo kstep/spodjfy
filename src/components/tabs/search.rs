@@ -3,7 +3,7 @@
 use crate::components::lists::TrackList;
 use crate::components::tabs::MusicTabParams;
 use crate::loaders::RecommendLoader;
-use crate::servers::SpotifyRef;
+use crate::services::SpotifyRef;
 use crate::utils::{SearchTerm, SearchTerms};
 use gtk::{
     BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, EntryExt, FlowBoxChildExt, FlowBoxExt,
@@ -32,7 +32,7 @@ pub struct SearchModel {
 
 #[widget]
 impl Widget for SearchTab {
-    fn model(relm: &Relm<Self>, (spotify, pool): MusicTabParams) -> SearchModel {
+    fn model(relm: &Relm<Self>, (pool, spotify): MusicTabParams) -> SearchModel {
         let _stream = relm.stream().clone();
         SearchModel {
             pool,

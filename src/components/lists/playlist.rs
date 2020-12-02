@@ -9,7 +9,7 @@
 //!
 //! ```
 //!# use std::sync::{Arc, mpsc::channel};
-//!# use spodjfy::servers::spotify::SpotifyProxy;
+//!# use spodjfy::services::spotify::SpotifyProxy;
 //!# macro_rules! view { ($body:tt*) => {} }
 //!# let (tx, rx) = channel();
 //!# let spotify = Arc::new(SpotifyProxy::new(tx));

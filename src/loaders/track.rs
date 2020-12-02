@@ -2,12 +2,11 @@
 #![allow(dead_code)]
 
 use crate::loaders::common::ContainerLoader;
-use crate::Spotify;
+use crate::services::SpotifyRef;
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 use rspotify::model::*;
 use serde_json::{Map, Value};
-use std::ops::Deref;
 
 const NAME: &str = "tracks";
 
@@ -155,11 +154,7 @@ impl ContainerLoader for RecommendLoader {
         //params
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        _offset: (),
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         let RecommendLoader {
             seed_tracks,
             seed_genres,
@@ -167,6 +162,8 @@ impl ContainerLoader for RecommendLoader {
             tunables,
         } = self;
         spotify
+            .read()
+            .await
             .get_recommended_tracks(
                 seed_tracks,
                 seed_genres,
@@ -197,12 +194,12 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_tracks(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_tracks(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -229,12 +226,12 @@ impl ContainerLoader for RecentLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        _offset: (),
-    ) -> ClientResult<Self::Page> {
-        spotify.get_recent_tracks(Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_recent_tracks(Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -261,12 +258,8 @@ impl ContainerLoader for QueueLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        _offset: (),
-    ) -> ClientResult<Self::Page> {
-        spotify.get_queue_tracks().await
+    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
+        spotify.read().await.get_queue_tracks().await
     }
 
     fn epoch(&self) -> usize {
@@ -295,12 +288,10 @@ impl ContainerLoader for AlbumLoader {
         &self.uri
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_album_tracks(&self.uri, offset, Self::PAGE_LIMIT)
             .await
     }
@@ -327,12 +318,10 @@ impl ContainerLoader for PlaylistLoader {
         &self.uri
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_playlist_tracks(&self.uri, offset, Self::PAGE_LIMIT)
             .await
     }
@@ -357,12 +346,12 @@ impl ContainerLoader for MyTopTracksLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_top_tracks(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_top_tracks(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -391,12 +380,10 @@ impl ContainerLoader for ShowLoader {
         &self.uri
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_show_episodes(&self.uri, offset, Self::PAGE_LIMIT)
             .await
     }
@@ -423,11 +410,11 @@ impl ContainerLoader for ArtistTopTracksLoader {
         &self.artist_id
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        _offset: (),
-    ) -> ClientResult<Self::Page> {
-        spotify.get_artist_top_tracks(&self.artist_id).await
+    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_artist_top_tracks(&self.artist_id)
+            .await
     }
 }

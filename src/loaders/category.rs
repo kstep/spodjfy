@@ -1,9 +1,8 @@
 use crate::loaders::ContainerLoader;
-use crate::Spotify;
+use crate::services::SpotifyRef;
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 use rspotify::model::{Category, Page};
-use std::ops::Deref;
 
 #[derive(Clone, Copy)]
 pub struct CategoriesLoader(usize);
@@ -24,12 +23,12 @@ impl ContainerLoader for CategoriesLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_categories(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_categories(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {

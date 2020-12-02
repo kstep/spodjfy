@@ -1,4 +1,5 @@
-use crate::servers::spotify::Spotify;
+use crate::services::spotify::Spotify;
+use crate::services::SpotifyRef;
 use futures_util::TryFutureExt;
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -9,22 +10,22 @@ use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-pub struct LoginServer {
-    client: Arc<RwLock<Spotify>>,
+pub struct LoginService {
+    client: SpotifyRef,
 }
 
-impl LoginServer {
-    pub fn new(client: Arc<RwLock<Spotify>>) -> LoginServer {
-        LoginServer { client }
+impl LoginService {
+    pub fn new(client: SpotifyRef) -> LoginService {
+        LoginService { client }
     }
 
-    pub fn spawn(self, runtime: &Runtime) -> JoinHandle<Result<(), Error>> {
+    pub fn spawn(self, runtime: &Runtime) -> JoinHandle<Result<!, Error>> {
         runtime.spawn(self.run().inspect_err(|error| {
             error!("login server error (no autologin is possible): {}", error);
         }))
     }
 
-    pub async fn run(self) -> Result<(), Error> {
+    pub async fn run(self) -> Result<!, Error> {
         let (mut server, address) = Self::bind_free_socket().await?;
 
         let redirect_uri = format!("http://{}/callback", address);

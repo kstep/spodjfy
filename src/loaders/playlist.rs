@@ -1,9 +1,8 @@
 use crate::loaders::common::ContainerLoader;
-use crate::Spotify;
+use crate::services::SpotifyRef;
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 use rspotify::model::{Page, Show, SimplifiedPlaylist};
-use std::ops::Deref;
 
 const NAME: &str = "playlists";
 
@@ -26,12 +25,10 @@ impl ContainerLoader for FeaturedLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_featured_playlists(offset, Self::PAGE_LIMIT)
             .await
     }
@@ -60,12 +57,12 @@ impl ContainerLoader for SavedLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_playlists(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_playlists(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -92,12 +89,12 @@ impl ContainerLoader for ShowsLoader {
         &()
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
-        spotify.get_my_shows(offset, Self::PAGE_LIMIT).await
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
+        spotify
+            .read()
+            .await
+            .get_my_shows(offset, Self::PAGE_LIMIT)
+            .await
     }
 
     fn epoch(&self) -> usize {
@@ -126,12 +123,10 @@ impl ContainerLoader for CategoryLoader {
         &self.id
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_category_playlists(&self.id, offset, Self::PAGE_LIMIT)
             .await
     }
@@ -157,12 +152,10 @@ impl ContainerLoader for UserLoader {
         &self.user_id
     }
 
-    async fn load_page(
-        self,
-        spotify: impl Deref<Target = Spotify> + Send + 'static,
-        offset: u32,
-    ) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
         spotify
+            .read()
+            .await
             .get_user_playlists(&self.user_id, offset, Self::PAGE_LIMIT)
             .await
     }

@@ -1949,6 +1949,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sled",
+ "thiserror",
  "tokio",
  "toml",
  "ttl_cache",

@@ -1,7 +1,8 @@
+use crate::components::Spawn;
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
-use crate::servers::SpotifyRef;
+use crate::services::SpotifyRef;
 use gdk_pixbuf::Pixbuf;
 use glib::{Cast, IsA, MainContext, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
@@ -48,6 +49,7 @@ pub trait ItemsListView<Loader, Message> {
 pub struct ContainerModel<Loader> {
     pub pool: Handle,
     pub spotify: SpotifyRef,
+    pub context: MainContext,
     pub store: gtk::ListStore,
     pub items_loader: Option<Loader>,
     pub image_loader: ImageLoader,
@@ -64,11 +66,13 @@ impl<Loader> ContainerModel<Loader> {
     pub fn new(pool: Handle, spotify: SpotifyRef, column_types: &[Type]) -> Self {
         let store = gtk::ListStore::new(column_types);
         let image_loader = ImageLoader::new();
+        let context = MainContext::ref_thread_default();
 
         Self {
             pool,
             store,
             spotify,
+            context,
             image_loader,
             items_loader: None,
             total_items: 0,
@@ -109,6 +113,18 @@ pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = Con
     pub search_btn: gtk::Button,
     pub context_menu: gtk::Menu,
     handler: PhantomData<Handler>,
+}
+
+impl<Loader, ItemsView, Handler, Message: 'static> Spawn
+    for ContainerList<Loader, ItemsView, Handler, Message>
+{
+    type Scope = (EventStream<Message>, SpotifyRef);
+    fn scope(&self) -> Self::Scope {
+        (self.stream.clone(), self.model.spotify.clone())
+    }
+    fn pool(&self) -> Handle {
+        self.model.pool.clone()
+    }
 }
 
 impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handler, Message> {
@@ -207,9 +223,10 @@ impl<Component, Message> MessageHandler<Component, Message> for NoopHandler {
 impl<Loader, ItemsView, Handler, Message> Update
     for ContainerList<Loader, ItemsView, Handler, Message>
 where
-    Loader: ContainerLoader + Clone + 'static,
+    Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
-    Loader::Page: PageLike<Loader::Item>,
+    Loader::Page: PageLike<Loader::Item> + Send,
+    <Loader::Page as PageLike<Loader::Item>>::Offset: Send,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
@@ -261,14 +278,15 @@ where
 
                     if let Some(ref loader) = self.model.items_loader {
                         let loader = loader.clone();
-                        self.model
-                            .spotify
-                            .ask(
-                                self.stream.clone(),
-                                move |tx| loader.load_page(tx, offset),
-                                move |page| NewPage(page, epoch).into(),
-                            )
-                            .unwrap();
+                        self.spawn(async move |pool, (stream, spotify)| {
+                            Ok(stream.emit(
+                                NewPage(
+                                    pool.spawn(loader.load_page(spotify, offset)).await??,
+                                    epoch,
+                                )
+                                .into(),
+                            ))
+                        });
                     }
                 }
                 NewPage(page, epoch) => {
@@ -312,7 +330,7 @@ where
                     }
                 }
                 LoadThumb(url, pos) => {
-                    let mut image_loader = self.model.image_loader.clone();
+                    let image_loader = self.model.image_loader.clone();
                     let store = self.model.store.clone();
                     let pool = self.model.pool.clone();
                     let ctx = MainContext::ref_thread_default();
@@ -362,9 +380,10 @@ where
 impl<Loader, ItemsView, Handler, Message> Widget
     for ContainerList<Loader, ItemsView, Handler, Message>
 where
-    Loader: ContainerLoader + Clone + 'static,
+    Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
-    Loader::Page: PageLike<Loader::Item>,
+    Loader::Page: PageLike<Loader::Item> + Send,
+    <Loader::Page as PageLike<Loader::Item>>::Offset: Send,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows + AsRef<gtk::Widget> + ItemsListView<Loader, Message>,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
