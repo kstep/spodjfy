@@ -25,6 +25,8 @@ pub struct ImageData {
     row_stride: i32,
 }
 
+const SCALE_TYPE: InterpType = InterpType::Bilinear;
+
 pub struct ImageDataLoader(PixbufLoader);
 impl ImageDataLoader {
     fn new() -> Self {
@@ -281,14 +283,14 @@ impl PixbufConvert for Pixbuf {
         } else {
             (width * size / height, size)
         };
-        self.scale_simple(new_width, new_height, InterpType::Nearest)
+        self.scale_simple(new_width, new_height, SCALE_TYPE)
     }
 
     fn resize_cutup(&self, size: i32) -> Option<Pixbuf> {
         let width = self.get_width();
         let height = self.get_height();
         if width == height {
-            return self.scale_simple(size, size, InterpType::Nearest);
+            return self.scale_simple(size, size, SCALE_TYPE);
         }
 
         let (new_width, new_height) = if width < height {
@@ -319,7 +321,7 @@ impl PixbufConvert for Pixbuf {
             (mid_y - half_size) as f64,
             new_width as f64 / width as f64,
             new_height as f64 / height as f64,
-            InterpType::Nearest,
+            SCALE_TYPE,
         );
 
         Some(new_pixbuf)
