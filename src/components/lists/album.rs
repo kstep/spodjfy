@@ -3,23 +3,9 @@
 //! A component to show list of albums of a given parent (e.g. artist, user followed albums, etc).
 //!
 //! Parameters:
-//!   - `Arc<SpotifyProxy>` - a reference to spotify proxy
+//!   - `Handle` - a tokio runtime handle
+//!   - `SpotifyRef` - a reference to spotify client
 //!
-//! Usage:
-//!
-//! ```
-//!# use std::sync::{Arc, mpsc::channel};
-//!# use crate::spodjfy::services::SpotifyProxy;
-//!# macro_rules! view { ($body:tt*) => {} }
-//!# let (tx, rx) = channel();
-//!# let spotify = Arc::new(SpotifyProxy::new(tx));
-//! use spodjfy::components::lists::AlbumList;
-//! use spodjfy::loaders::SavedAlbumsLoader;
-//!
-//! view! {
-//!     AlbumList::<SavedAlbumsLoader>(spotify.clone())
-//! }
-//! ```
 
 use crate::components::lists::common::{
     ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch,

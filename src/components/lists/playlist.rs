@@ -3,23 +3,10 @@
 //! A component to show list of playlists of a given parent (e.g. current user playlists, some other user playlists, etc).
 //!
 //! Parameters:
-//!   - `Arc<SpotifyProxy>` - a reference to spotify proxy
+//!   - `Handle` - a tokio runtime handle
+//!   - `SpotifyRef` - a reference to spotify client
 //!
-//! Usage:
-//!
-//! ```
-//!# use std::sync::{Arc, mpsc::channel};
-//!# use spodjfy::services::spotify::SpotifyProxy;
-//!# macro_rules! view { ($body:tt*) => {} }
-//!# let (tx, rx) = channel();
-//!# let spotify = Arc::new(SpotifyProxy::new(tx));
-//! use spodjfy::components::lists::PlaylistList;
-//! use spodjfy::loaders::playlist::SavedLoader;
-//!
-//! view! {
-//!     PlaylistList::<SavedLoader>(spotify.clone())
-//! }
-//! ```
+
 use crate::components::lists::common::SetupViewSearch;
 use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
 use crate::loaders::{ContainerLoader, ImageConverter};
