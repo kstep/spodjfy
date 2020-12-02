@@ -143,7 +143,7 @@ impl Widget for DevicesTab {
                         false
                     });
 
-                    self.spawn(async move |pool, spotify: SpotifyRef| {
+                    self.spawn_args(id, async move |pool, spotify: SpotifyRef, id| {
                         Ok(pool
                             .spawn(async move { spotify.read().await.use_device(id, false).await })
                             .await??)

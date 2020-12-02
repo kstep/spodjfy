@@ -88,8 +88,12 @@ where
                 return Some(event);
             }
             LoadTracksInfo(uris, iters) => {
-                this.spawn(
-                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                this.spawn_args(
+                    (uris, iters),
+                    async move |pool,
+                                (stream, spotify): (EventStream<_>, SpotifyRef),
+                                (uris, iters)| {
+                        let uris = uris.clone();
                         let (saved, feats) = pool
                             .spawn(async move {
                                 let spotify = spotify.read().await;
@@ -162,32 +166,40 @@ where
                 this.stream.emit(PlayTracks(uris));
             }
             EnqueueChosenTracks => {
-                let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, spotify: SpotifyRef| {
-                    pool.spawn(async move {
-                        let mut spotify = spotify.write().await;
-                        spotify.enqueue_tracks(uris).await
-                    })
-                    .await??;
-                    Ok(())
-                });
+                this.spawn_args(
+                    this.get_selected_tracks_uris(),
+                    async move |pool, spotify: SpotifyRef, uris| {
+                        pool.spawn(async move {
+                            let mut spotify = spotify.write().await;
+                            spotify.enqueue_tracks(uris).await
+                        })
+                        .await??;
+                        Ok(())
+                    },
+                );
             }
             AddChosenTracks => {}
             SaveChosenTracks => {
-                let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, spotify: SpotifyRef| {
-                    pool.spawn(async move { spotify.write().await.add_my_tracks(&uris).await })
-                        .await??;
-                    Ok(())
-                });
+                this.spawn_args(
+                    this.get_selected_tracks_uris(),
+                    async move |pool, spotify: SpotifyRef, uris| {
+                        pool.spawn(async move { spotify.write().await.add_my_tracks(&uris).await })
+                            .await??;
+                        Ok(())
+                    },
+                );
             }
             UnsaveChosenTracks => {
-                let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, spotify: SpotifyRef| {
-                    pool.spawn(async move { spotify.write().await.remove_my_tracks(&uris).await })
+                this.spawn_args(
+                    this.get_selected_tracks_uris(),
+                    async move |pool, spotify: SpotifyRef, uris| {
+                        pool.spawn(
+                            async move { spotify.write().await.remove_my_tracks(&uris).await },
+                        )
                         .await??;
-                    Ok(())
-                });
+                        Ok(())
+                    },
+                );
             }
             RecommendTracks => {}
             GoToChosenTrackAlbum => {
@@ -240,9 +252,11 @@ where
             GoToArtist(_, _) => {}
             PlayTracks(uris) => {
                 if let Some(ref loader) = this.model.items_loader {
-                    let play_ctx = loader.parent_id().clone();
-                    this.spawn(
-                        async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                    this.spawn_args(
+                        (loader.parent_id().clone(), uris),
+                        async move |pool,
+                                    (stream, spotify): (EventStream<_>, SpotifyRef),
+                                    (play_ctx, uris)| {
                             pool.spawn(play_ctx.play_tracks(spotify, uris)).await??;
                             stream.emit(PlayingNewTrack);
                             Ok(())

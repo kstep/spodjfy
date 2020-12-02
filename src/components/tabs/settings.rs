@@ -92,8 +92,11 @@ impl Widget for SettingsTab {
             .expect("error saving settings");
 
         let settings = self.model.settings.clone();
-        self.spawn(
-            async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+        self.spawn_args(
+            (settings, new_settings),
+            async move |pool,
+                        (stream, spotify): (EventStream<_>, SpotifyRef),
+                        (settings, new_settings)| {
                 let auth_url = pool
                     .spawn(async move {
                         let auth_url = spotify.write().await.setup_client(

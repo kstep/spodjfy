@@ -1,9 +1,9 @@
 #![allow(clippy::redundant_field_names)]
 
-use futures::FutureExt;
 use glib::MainContext;
 use rspotify::client::ClientError;
 use std::future::Future;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::runtime::Handle;
 use tokio::task::JoinError;
@@ -47,20 +47,59 @@ impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + Spaw
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum RetryPolicy<E> {
+    Repeat,
+    WaitRetry(Duration),
+    ForwardError(E),
+}
+
 pub trait Spawn {
-    fn spawn<S, F, R>(&self, body: F)
+    fn spawn<S, F, R>(&self, mut body: F)
     where
         R: Future<Output = Result<(), SpawnError>> + 'static,
-        F: FnOnce(Handle, S) -> R,
+        F: FnMut(Handle, S) -> R + 'static,
         Self: SpawnScope<S>,
-        S: 'static,
+        S: Clone + 'static,
     {
-        self.gcontext()
-            .spawn_local(body(self.pool(), self.scope()).map(|_| ()));
+        self.spawn_args((), move |pool, scope, _| body(pool, scope));
+    }
+
+    fn spawn_args<S, A, F, R>(&self, args: A, mut body: F)
+    where
+        A: Clone + 'static,
+        R: Future<Output = Result<(), SpawnError>> + 'static,
+        F: FnMut(Handle, S, A) -> R + 'static,
+        Self: SpawnScope<S>,
+        S: Clone + 'static,
+    {
+        let pool = self.pool();
+        let scope = self.scope();
+        self.gcontext().spawn_local(async move {
+            loop {
+                match body(pool.clone(), scope.clone(), args.clone()).await {
+                    Ok(_) => break (),
+                    Err(error) => match Self::retry_policy(error) {
+                        RetryPolicy::ForwardError(error) => {
+                            error!("spawn error: {}", error);
+                            break ();
+                        }
+                        RetryPolicy::Repeat => {}
+                        RetryPolicy::WaitRetry(timeout) => {
+                            glib::timeout_future(timeout.as_millis() as u32).await;
+                        }
+                    },
+                }
+            }
+        });
     }
 
     fn gcontext(&self) -> MainContext {
         MainContext::ref_thread_default()
     }
     fn pool(&self) -> Handle;
+
+    fn retry_policy(error: SpawnError) -> RetryPolicy<SpawnError> {
+        RetryPolicy::ForwardError(error)
+    }
 }

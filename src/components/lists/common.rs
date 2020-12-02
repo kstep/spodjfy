@@ -120,9 +120,18 @@ impl<L, V, H, M: 'static> SpawnScope<SpotifyRef> for ContainerList<L, V, H, M> {
         self.model.spotify.clone()
     }
 }
+
 impl<L, V, H, M: 'static> SpawnScope<EventStream<M>> for ContainerList<L, V, H, M> {
     fn scope(&self) -> EventStream<M> {
         self.stream.clone()
+    }
+}
+
+impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>>
+    for ContainerList<Loader, V, H, M>
+{
+    fn scope(&self) -> Option<Loader> {
+        self.model.items_loader.clone()
     }
 }
 
@@ -231,7 +240,7 @@ where
     Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
     Loader::Page: PageLike<Loader::Item> + Send,
-    <Loader::Page as PageLike<Loader::Item>>::Offset: Send,
+    <Loader::Page as PageLike<Loader::Item>>::Offset: Clone + Send,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
@@ -281,20 +290,23 @@ where
                         return;
                     }
 
-                    if let Some(ref loader) = self.model.items_loader {
-                        let loader = loader.clone();
-                        self.spawn(
-                            async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                                Ok(stream.emit(
+                    type Inject<M, L> = (EventStream<M>, SpotifyRef, Option<L>);
+                    self.spawn_args(
+                        offset,
+                        async move |pool, (stream, spotify, loader): Inject<_, Loader>, offset| {
+                            if let Some(loader) = loader {
+                                stream.emit(
                                     NewPage(
-                                        pool.spawn(loader.load_page(spotify, offset)).await??,
+                                        pool.spawn(loader.load_page(spotify, offset.clone()))
+                                            .await??,
                                         epoch,
                                     )
                                     .into(),
-                                ))
-                            },
-                        );
-                    }
+                                );
+                            }
+                            Ok(())
+                        },
+                    );
                 }
                 NewPage(page, epoch) => {
                     if epoch != self.current_epoch() {
@@ -390,7 +402,7 @@ where
     Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
     Loader::Page: PageLike<Loader::Item> + Send,
-    <Loader::Page as PageLike<Loader::Item>>::Offset: Send,
+    <Loader::Page as PageLike<Loader::Item>>::Offset: Clone + Send,
     Loader::ParentId: Clone + PartialEq,
     ItemsView: GetSelectedRows + AsRef<gtk::Widget> + ItemsListView<Loader, Message>,
     Message: TryInto<ContainerMsg<Loader>> + relm::DisplayVariant + 'static,
