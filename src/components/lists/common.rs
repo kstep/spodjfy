@@ -3,6 +3,7 @@ use crate::models::common::*;
 use crate::models::PageLike;
 use crate::services::SpotifyRef;
 use crate::utils::{RetryPolicy, Spawn, SpawnError, SpawnScope};
+use crate::{broadcast, AppEvent};
 use gdk_pixbuf::Pixbuf;
 use glib::bitflags::_core::time::Duration;
 use glib::{Cast, IsA, MainContext, ToValue, Type};
@@ -144,6 +145,15 @@ impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
 
     fn retry_policy(error: SpawnError, retry_count: usize) -> RetryPolicy<SpawnError> {
         match error {
+            SpawnError::Spotify(ClientError::InvalidAuth(msg)) => {
+                let _ = broadcast(AppEvent::SpotifyAuthError(msg));
+                RetryPolicy::WaitRetry(Duration::from_secs(30))
+            }
+            SpawnError::Spotify(error) => {
+                error!("spotify error: {}", error);
+                let _ = broadcast(AppEvent::SpotifyError(error.to_string()));
+                RetryPolicy::ForwardError(SpawnError::Spotify(error))
+            }
             SpawnError::Spotify(ClientError::RateLimited(timeout)) if retry_count < 10 => {
                 RetryPolicy::WaitRetry(Duration::from_secs(timeout.unwrap_or(4) as u64 + 1))
             }

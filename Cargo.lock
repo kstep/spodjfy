@@ -1935,6 +1935,7 @@ dependencies = [
  "gobject-sys",
  "gtk",
  "itertools",
+ "lazy_static",
  "libc",
  "log",
  "md5",

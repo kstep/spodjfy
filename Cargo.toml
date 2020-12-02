@@ -45,3 +45,4 @@ reqwest = { version = "0.10.9", features = ["stream"] }
 md5 = "0.7.0"
 async-trait = "0.1.42"
 thiserror = "1.0.22"
+lazy_static = "1.4.0"

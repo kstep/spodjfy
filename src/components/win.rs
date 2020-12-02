@@ -2,12 +2,12 @@ use gtk::{
     self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SettingsExt, StackExt,
     StackSidebarExt, WidgetExt,
 };
-use relm::{Relm, Widget};
+use relm::{Channel, Relm, Widget};
 use relm_derive::{widget, Msg};
 use std::sync::{Arc, RwLock};
 
 use crate::components::media_controls::{MediaControls, MediaControlsMsg};
-use crate::components::notifier::Notifier;
+use crate::components::notifier::{Notifier, NotifierMsg};
 use crate::components::tabs::albums::AlbumsTab;
 use crate::components::tabs::artists::ArtistsTab;
 use crate::components::tabs::categories::CategoriesTab;
@@ -24,6 +24,7 @@ use crate::components::tabs::tracks::TracksTab;
 use crate::components::tabs::MusicTabMsg;
 use crate::config::{Settings, SettingsRef};
 use crate::services::spotify::SpotifyRef;
+use crate::{observe, AppEvent};
 use rspotify::model::Type;
 use tokio::runtime::Handle;
 
@@ -365,13 +366,36 @@ impl Widget for Win {
         self.overlay.set_overlay_pass_through(notifier, true);
     }
 
-    fn subscriptions(&mut self, _relm: &Relm<Self>) {
-        /*
+    fn subscriptions(&mut self, relm: &Relm<Self>) {
         let stream = relm.stream().clone();
         let notifier = self.model.notifier.stream().clone();
+        let (_, notifier_tx) = Channel::new(move |msg| {
+            notifier.emit(msg);
+        });
+        let (_, stream_tx) = Channel::new(move |msg| {
+            stream.emit(msg);
+        });
+        observe(&self.model.pool, move |event| match event {
+            AppEvent::SpotifyAuthError(msg) => {
+                let _ = notifier_tx.send(NotifierMsg::Notify {
+                    message: format!("Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix", msg),
+                    kind: gtk::MessageType::Error,
+                    timeout_ms: 5000,
+                });
+                let _ = stream_tx.send(Msg::GoToTab(Tab::Settings));
+            }
+            AppEvent::SpotifyError(msg) => {
+                let _ = notifier_tx.send(NotifierMsg::Notify {
+                    message: msg,
+                    kind: gtk::MessageType::Warning,
+                    timeout_ms: 5000,
+                });
+            }
+            _ => {}
+        });
+        /*
         let spotify = self.model.spotify.clone();
         self.model.spotify_errors.observe(move |err| {
-            use rspotify::client::ClientError::*;
             match err {
                 InvalidAuth(msg) => {
                     notifier.emit(NotifierMsg::Notify {
