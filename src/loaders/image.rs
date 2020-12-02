@@ -119,7 +119,7 @@ impl ImageCache {
     }
 
     pub async fn put(&mut self, url: String, image: ImageData) -> ImageData {
-        let image: ImageData = self.converter.convert(image.into()).into();
+        let image: ImageData = self.converter.convert(image);
         self.cache
             .write()
             .await
@@ -140,6 +140,12 @@ impl ImageCache {
 pub struct ImageLoader {
     cache_dir: PathBuf,
     cache: ImageCache,
+}
+
+impl Default for ImageLoader {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ImageLoader {

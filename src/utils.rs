@@ -1,5 +1,12 @@
 use crate::models::{COL_ITEM_NAME, COL_ITEM_URI};
+use glib::bitflags::_core::future::Future;
+use glib::bitflags::_core::time::Duration;
+use glib::MainContext;
 use gtk::TreeModelExt;
+use rspotify::client::ClientError;
+use thiserror::Error;
+use tokio::runtime::Handle;
+use tokio::task::JoinError;
 
 pub fn humanize_time(time_ms: u32) -> String {
     let seconds = time_ms / 1000;
@@ -127,4 +134,102 @@ pub enum SearchTerm {
     Loudness = 2048,
     Popularity = 4096,
     TimeSign = 8192,
+}
+
+#[derive(Error, Debug)]
+pub enum SpawnError {
+    #[error("join error: {0}")]
+    Join(#[from] JoinError),
+    #[error(transparent)]
+    Spotify(#[from] ClientError),
+}
+
+pub trait SpawnScope<T: 'static> {
+    fn scope(&self) -> T;
+}
+
+impl<A: 'static, B: 'static, T: SpawnScope<A> + SpawnScope<B>> SpawnScope<(A, B)> for T {
+    fn scope(&self) -> (A, B) {
+        (
+            <Self as SpawnScope<A>>::scope(self),
+            <Self as SpawnScope<B>>::scope(self),
+        )
+    }
+}
+
+impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + SpawnScope<C>>
+    SpawnScope<(A, B, C)> for T
+{
+    fn scope(&self) -> (A, B, C) {
+        (
+            <Self as SpawnScope<A>>::scope(self),
+            <Self as SpawnScope<B>>::scope(self),
+            <Self as SpawnScope<C>>::scope(self),
+        )
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+pub enum RetryPolicy<E> {
+    Repeat,
+    WaitRetry(Duration),
+    ForwardError(E),
+}
+
+pub trait Spawn {
+    fn spawn<S, F, R>(&self, mut body: F)
+    where
+        R: Future<Output = Result<(), SpawnError>> + 'static,
+        F: FnMut(Handle, S) -> R + 'static,
+        Self: SpawnScope<S>,
+        S: Clone + 'static,
+    {
+        self.spawn_args((), move |pool, scope, _| body(pool, scope));
+    }
+
+    fn spawn_args<S, A, F, R>(&self, args: A, mut body: F)
+    where
+        A: Clone + 'static,
+        R: Future<Output = Result<(), SpawnError>> + 'static,
+        F: FnMut(Handle, S, A) -> R + 'static,
+        Self: SpawnScope<S>,
+        S: Clone + 'static,
+    {
+        let pool = self.pool();
+        let scope = self.scope();
+        self.gcontext().spawn_local(async move {
+            let mut retry_count = 0;
+            loop {
+                match body(pool.clone(), scope.clone(), args.clone()).await {
+                    Ok(_) => break,
+                    Err(error) => {
+                        error!("spawn error: {}", error);
+                        match Self::retry_policy(error, retry_count) {
+                            RetryPolicy::ForwardError(_) => {
+                                break;
+                            }
+                            RetryPolicy::Repeat => {
+                                info!("repeating...");
+                            }
+                            RetryPolicy::WaitRetry(timeout) => {
+                                info!("retry after {:.2} secs...", timeout.as_secs_f32());
+                                glib::timeout_future(timeout.as_millis() as u32).await;
+                            }
+                        }
+                    }
+                }
+                retry_count += 1;
+            }
+        });
+    }
+
+    fn gcontext(&self) -> MainContext {
+        MainContext::ref_thread_default()
+    }
+    fn pool(&self) -> Handle;
+
+    fn retry_policy(error: SpawnError, _retry_count: usize) -> RetryPolicy<SpawnError> {
+        RetryPolicy::ForwardError(error)
+    }
 }

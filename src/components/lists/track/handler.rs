@@ -1,12 +1,12 @@
 use crate::components::lists::{
     ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
 };
-use crate::components::Spawn;
 use crate::loaders::ContainerLoader;
 use crate::models::common::*;
 use crate::models::page::*;
 use crate::models::track::*;
 use crate::services::SpotifyRef;
+use crate::utils::Spawn;
 use async_trait::async_trait;
 use glib::{Continue, ToValue};
 use gtk::{
@@ -93,7 +93,6 @@ where
                     async move |pool,
                                 (stream, spotify): (EventStream<_>, SpotifyRef),
                                 (uris, iters)| {
-                        let uris = uris.clone();
                         let (saved, feats) = pool
                             .spawn(async move {
                                 let spotify = spotify.read().await;
@@ -283,6 +282,7 @@ pub trait PlayTracksContext {
 
 #[async_trait]
 impl PlayTracksContext for () {
+    #[allow(clippy::unit_arg)]
     async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
         spotify.read().await.play_tracks(uris).await
     }

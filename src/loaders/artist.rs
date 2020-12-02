@@ -96,6 +96,7 @@ impl ContainerLoader for RelatedArtistsLoader {
         &self.artist_id
     }
 
+    #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         spotify
             .read()

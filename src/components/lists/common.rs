@@ -1,8 +1,8 @@
-use crate::components::{RetryPolicy, Spawn, SpawnError, SpawnScope};
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
 use crate::services::SpotifyRef;
+use crate::utils::{RetryPolicy, Spawn, SpawnError, SpawnScope};
 use gdk_pixbuf::Pixbuf;
 use glib::bitflags::_core::time::Duration;
 use glib::{Cast, IsA, MainContext, ToValue, Type};

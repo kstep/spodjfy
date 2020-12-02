@@ -154,6 +154,7 @@ impl ContainerLoader for RecommendLoader {
         //params
     }
 
+    #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         let RecommendLoader {
             seed_tracks,
@@ -226,6 +227,7 @@ impl ContainerLoader for RecentLoader {
         &()
     }
 
+    #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         spotify
             .read()
@@ -258,6 +260,7 @@ impl ContainerLoader for QueueLoader {
         &()
     }
 
+    #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         spotify.read().await.get_queue_tracks().await
     }
@@ -410,6 +413,7 @@ impl ContainerLoader for ArtistTopTracksLoader {
         &self.artist_id
     }
 
+    #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
         spotify
             .read()

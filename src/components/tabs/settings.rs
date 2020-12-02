@@ -1,6 +1,6 @@
-use crate::components::{Spawn, SpawnScope};
 use crate::config::{Config, Settings, SettingsRef};
 use crate::services::SpotifyRef;
+use crate::utils::{Spawn, SpawnScope};
 use gtk::{
     self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
     WidgetExt,

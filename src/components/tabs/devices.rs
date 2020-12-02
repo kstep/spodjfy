@@ -1,6 +1,6 @@
 use crate::components::tabs::MusicTabParams;
-use crate::components::{Spawn, SpawnScope};
 use crate::services::SpotifyRef;
+use crate::utils::{Spawn, SpawnScope};
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
 use gtk::prelude::*;
@@ -68,10 +68,11 @@ impl Widget for DevicesTab {
             LoadList => {
                 self.spawn(
                     async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                        Ok(stream.emit(NewList(
+                        stream.emit(NewList(
                             pool.spawn(async move { spotify.read().await.get_my_devices().await })
                                 .await??,
-                        )))
+                        ));
+                        Ok(())
                     },
                 );
             }

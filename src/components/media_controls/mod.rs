@@ -23,12 +23,12 @@
 mod play_context;
 
 use self::play_context::PlayContext;
-use crate::components::{Spawn, SpawnScope};
 use crate::config::SettingsRef;
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
 use crate::models::TrackLike;
 use crate::services::SpotifyRef;
+use crate::utils::{Spawn, SpawnScope};
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 use gtk::{ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
@@ -149,10 +149,11 @@ impl Widget for MediaControls {
             LoadDevices => {
                 self.spawn(
                     async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                        Ok(stream.emit(NewDevices(
+                        stream.emit(NewDevices(
                             pool.spawn(async move { spotify.read().await.get_my_devices().await })
                                 .await??,
-                        )))
+                        ));
+                        Ok(())
                     },
                 );
             }
@@ -187,12 +188,13 @@ impl Widget for MediaControls {
             LoadState => {
                 self.spawn(
                     async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                        Ok(stream.emit(NewState(Box::new(
+                        stream.emit(NewState(Box::new(
                             pool.spawn(
                                 async move { spotify.read().await.get_playback_state().await },
                             )
                             .await??,
-                        ))))
+                        )));
+                        Ok(())
                     },
                 );
             }
