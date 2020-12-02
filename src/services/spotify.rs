@@ -347,7 +347,7 @@ impl Spotify {
         offset: u32,
         limit: u32,
     ) -> ClientResult<Page<SimplifiedEpisode>> {
-        let id = Id::from_id_or_uri(Type::Episode, uri)?.id().to_owned();
+        let id = Id::from_id_or_uri(Type::Show, uri)?.id().to_owned();
         self.client
             .get_shows_episodes(id, limit, offset, None)
             .await
