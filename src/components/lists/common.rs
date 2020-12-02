@@ -1,9 +1,10 @@
-use crate::components::{Spawn, SpawnScope};
+use crate::components::{RetryPolicy, Spawn, SpawnError, SpawnScope};
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
 use crate::services::SpotifyRef;
 use gdk_pixbuf::Pixbuf;
+use glib::bitflags::_core::time::Duration;
 use glib::{Cast, IsA, MainContext, ToValue, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use gtk::{
@@ -13,6 +14,7 @@ use gtk::{
 };
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
+use rspotify::client::ClientError;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -138,6 +140,19 @@ impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>>
 impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
     fn pool(&self) -> Handle {
         self.model.pool.clone()
+    }
+
+    fn retry_policy(error: SpawnError, retry_count: usize) -> RetryPolicy<SpawnError> {
+        match error {
+            SpawnError::Spotify(ClientError::RateLimited(timeout)) if retry_count < 10 => {
+                RetryPolicy::WaitRetry(Duration::from_secs(timeout.unwrap_or(4) as u64 + 1))
+            }
+            error if retry_count >= 10 => {
+                error!("aborting after {} retries...", retry_count);
+                RetryPolicy::ForwardError(error)
+            }
+            error => RetryPolicy::ForwardError(error),
+        }
     }
 }
 

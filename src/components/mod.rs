@@ -76,20 +76,27 @@ pub trait Spawn {
         let pool = self.pool();
         let scope = self.scope();
         self.gcontext().spawn_local(async move {
+            let mut retry_count = 0;
             loop {
                 match body(pool.clone(), scope.clone(), args.clone()).await {
                     Ok(_) => break (),
-                    Err(error) => match Self::retry_policy(error) {
-                        RetryPolicy::ForwardError(error) => {
-                            error!("spawn error: {}", error);
-                            break ();
+                    Err(error) => {
+                        error!("spawn error: {}", error);
+                        match Self::retry_policy(error, retry_count) {
+                            RetryPolicy::ForwardError(_) => {
+                                break ();
+                            }
+                            RetryPolicy::Repeat => {
+                                info!("repeating...");
+                            }
+                            RetryPolicy::WaitRetry(timeout) => {
+                                info!("retry after {:.2} secs...", timeout.as_secs_f32());
+                                glib::timeout_future(timeout.as_millis() as u32).await;
+                            }
                         }
-                        RetryPolicy::Repeat => {}
-                        RetryPolicy::WaitRetry(timeout) => {
-                            glib::timeout_future(timeout.as_millis() as u32).await;
-                        }
-                    },
+                    }
                 }
+                retry_count += 1;
             }
         });
     }
@@ -99,7 +106,7 @@ pub trait Spawn {
     }
     fn pool(&self) -> Handle;
 
-    fn retry_policy(error: SpawnError) -> RetryPolicy<SpawnError> {
+    fn retry_policy(error: SpawnError, _retry_count: usize) -> RetryPolicy<SpawnError> {
         RetryPolicy::ForwardError(error)
     }
 }
