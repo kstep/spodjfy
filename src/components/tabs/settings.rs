@@ -1,4 +1,4 @@
-use crate::components::Spawn;
+use crate::components::{Spawn, SpawnScope};
 use crate::config::{Config, Settings, SettingsRef};
 use crate::services::SpotifyRef;
 use gtk::{
@@ -53,13 +53,15 @@ impl Widget for SettingsTab {
                 self.model.stream.emit(GetAuthorizeUrl);
             }
             GetAuthorizeUrl => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    let auth_url = pool
-                        .spawn(async move { spotify.read().await.get_authorize_url() })
-                        .await??;
-                    stream.emit(SetAuthorizeUrl(auth_url));
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        let auth_url = pool
+                            .spawn(async move { spotify.read().await.get_authorize_url() })
+                            .await??;
+                        stream.emit(SetAuthorizeUrl(auth_url));
+                        Ok(())
+                    },
+                );
             }
             SetAuthorizeUrl(url) => {
                 self.client_auth_url_btn.set_uri(&url);
@@ -90,20 +92,22 @@ impl Widget for SettingsTab {
             .expect("error saving settings");
 
         let settings = self.model.settings.clone();
-        self.spawn(async move |pool, (stream, spotify)| {
-            let auth_url = pool
-                .spawn(async move {
-                    let auth_url = spotify.write().await.setup_client(
-                        new_settings.client_id.clone(),
-                        new_settings.client_secret.clone(),
-                    )?;
-                    *settings.write().unwrap() = new_settings;
-                    Ok::<_, ClientError>(auth_url)
-                })
-                .await??;
-            stream.emit(SettingsMsg::SetAuthorizeUrl(auth_url));
-            Ok(())
-        });
+        self.spawn(
+            async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                let auth_url = pool
+                    .spawn(async move {
+                        let auth_url = spotify.write().await.setup_client(
+                            new_settings.client_id.clone(),
+                            new_settings.client_secret.clone(),
+                        )?;
+                        *settings.write().unwrap() = new_settings;
+                        Ok::<_, ClientError>(auth_url)
+                    })
+                    .await??;
+                stream.emit(SettingsMsg::SetAuthorizeUrl(auth_url));
+                Ok(())
+            },
+        );
     }
 
     view! {
@@ -201,12 +205,14 @@ impl Widget for SettingsTab {
     }
 }
 
-impl Spawn for SettingsTab {
-    type Scope = (EventStream<SettingsMsg>, SpotifyRef);
-    fn pool(&self) -> Handle {
-        self.model.pool.clone()
-    }
+impl SpawnScope<(EventStream<SettingsMsg>, SpotifyRef)> for SettingsTab {
     fn scope(&self) -> (EventStream<SettingsMsg>, SpotifyRef) {
         (self.model.stream.clone(), self.model.spotify.clone())
+    }
+}
+
+impl Spawn for SettingsTab {
+    fn pool(&self) -> Handle {
+        self.model.pool.clone()
     }
 }

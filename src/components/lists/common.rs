@@ -1,4 +1,4 @@
-use crate::components::Spawn;
+use crate::components::{Spawn, SpawnScope};
 use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
 use crate::models::common::*;
 use crate::models::PageLike;
@@ -115,13 +115,18 @@ pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = Con
     handler: PhantomData<Handler>,
 }
 
-impl<Loader, ItemsView, Handler, Message: 'static> Spawn
-    for ContainerList<Loader, ItemsView, Handler, Message>
-{
-    type Scope = (EventStream<Message>, SpotifyRef);
-    fn scope(&self) -> Self::Scope {
-        (self.stream.clone(), self.model.spotify.clone())
+impl<L, V, H, M: 'static> SpawnScope<SpotifyRef> for ContainerList<L, V, H, M> {
+    fn scope(&self) -> SpotifyRef {
+        self.model.spotify.clone()
     }
+}
+impl<L, V, H, M: 'static> SpawnScope<EventStream<M>> for ContainerList<L, V, H, M> {
+    fn scope(&self) -> EventStream<M> {
+        self.stream.clone()
+    }
+}
+
+impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
     fn pool(&self) -> Handle {
         self.model.pool.clone()
     }
@@ -278,15 +283,17 @@ where
 
                     if let Some(ref loader) = self.model.items_loader {
                         let loader = loader.clone();
-                        self.spawn(async move |pool, (stream, spotify)| {
-                            Ok(stream.emit(
-                                NewPage(
-                                    pool.spawn(loader.load_page(spotify, offset)).await??,
-                                    epoch,
-                                )
-                                .into(),
-                            ))
-                        });
+                        self.spawn(
+                            async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                                Ok(stream.emit(
+                                    NewPage(
+                                        pool.spawn(loader.load_page(spotify, offset)).await??,
+                                        epoch,
+                                    )
+                                    .into(),
+                                ))
+                            },
+                        );
                     }
                 }
                 NewPage(page, epoch) => {

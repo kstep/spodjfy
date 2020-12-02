@@ -1,5 +1,5 @@
 use crate::components::tabs::MusicTabParams;
-use crate::components::Spawn;
+use crate::components::{Spawn, SpawnScope};
 use crate::services::SpotifyRef;
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
@@ -66,12 +66,14 @@ impl Widget for DevicesTab {
                 self.model.stream.emit(LoadList);
             }
             LoadList => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    Ok(stream.emit(NewList(
-                        pool.spawn(async move { spotify.read().await.get_my_devices().await })
-                            .await??,
-                    )))
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        Ok(stream.emit(NewList(
+                            pool.spawn(async move { spotify.read().await.get_my_devices().await })
+                                .await??,
+                        )))
+                    },
+                );
             }
             NewList(devices) => {
                 let store = &self.model.store;
@@ -141,7 +143,7 @@ impl Widget for DevicesTab {
                         false
                     });
 
-                    self.spawn(async move |pool, (_, spotify)| {
+                    self.spawn(async move |pool, spotify: SpotifyRef| {
                         Ok(pool
                             .spawn(async move { spotify.read().await.use_device(id, false).await })
                             .await??)
@@ -250,12 +252,20 @@ impl Widget for DevicesTab {
     }
 }
 
+impl SpawnScope<EventStream<DevicesMsg>> for DevicesTab {
+    fn scope(&self) -> EventStream<DevicesMsg> {
+        self.model.stream.clone()
+    }
+}
+
+impl SpawnScope<SpotifyRef> for DevicesTab {
+    fn scope(&self) -> SpotifyRef {
+        self.model.spotify.clone()
+    }
+}
+
 impl Spawn for DevicesTab {
-    type Scope = (EventStream<DevicesMsg>, SpotifyRef);
     fn pool(&self) -> Handle {
         self.model.pool.clone()
-    }
-    fn scope(&self) -> Self::Scope {
-        (self.model.stream.clone(), self.model.spotify.clone())
     }
 }

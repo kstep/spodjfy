@@ -22,18 +22,42 @@ pub enum SpawnError {
     Spotify(#[from] ClientError),
 }
 
+pub trait SpawnScope<T: 'static> {
+    fn scope(&self) -> T;
+}
+
+impl<A: 'static, B: 'static, T: SpawnScope<A> + SpawnScope<B>> SpawnScope<(A, B)> for T {
+    fn scope(&self) -> (A, B) {
+        (
+            <Self as SpawnScope<A>>::scope(self),
+            <Self as SpawnScope<B>>::scope(self),
+        )
+    }
+}
+
+impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + SpawnScope<C>>
+    SpawnScope<(A, B, C)> for T
+{
+    fn scope(&self) -> (A, B, C) {
+        (
+            <Self as SpawnScope<A>>::scope(self),
+            <Self as SpawnScope<B>>::scope(self),
+            <Self as SpawnScope<C>>::scope(self),
+        )
+    }
+}
+
 pub trait Spawn {
-    type Scope: 'static;
-    fn spawn<F, R>(&self, body: F)
+    fn spawn<S, F, R>(&self, body: F)
     where
         R: Future<Output = Result<(), SpawnError>> + 'static,
-        F: FnOnce(Handle, Self::Scope) -> R,
+        F: FnOnce(Handle, S) -> R,
+        Self: SpawnScope<S>,
+        S: 'static,
     {
         self.gcontext()
             .spawn_local(body(self.pool(), self.scope()).map(|_| ()));
     }
-
-    fn scope(&self) -> Self::Scope;
 
     fn gcontext(&self) -> MainContext {
         MainContext::ref_thread_default()

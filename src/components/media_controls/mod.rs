@@ -23,7 +23,7 @@
 mod play_context;
 
 use self::play_context::PlayContext;
-use crate::components::Spawn;
+use crate::components::{Spawn, SpawnScope};
 use crate::config::SettingsRef;
 use crate::loaders::{ImageData, ImageLoader};
 use crate::models::common::*;
@@ -147,12 +147,14 @@ impl Widget for MediaControls {
                 self.model.stream.emit(LoadState);
             }
             LoadDevices => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    Ok(stream.emit(NewDevices(
-                        pool.spawn(async move { spotify.read().await.get_my_devices().await })
-                            .await??,
-                    )))
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        Ok(stream.emit(NewDevices(
+                            pool.spawn(async move { spotify.read().await.get_my_devices().await })
+                                .await??,
+                        )))
+                    },
+                );
             }
             NewDevices(devices) => {
                 let store = &self.model.devices;
@@ -175,7 +177,7 @@ impl Widget for MediaControls {
                         false
                     };
 
-                    self.spawn(async move |pool, (_, spotify)| {
+                    self.spawn(async move |pool, spotify: SpotifyRef| {
                         Ok(pool
                             .spawn(async move { spotify.read().await.use_device(id, play).await })
                             .await??)
@@ -183,12 +185,16 @@ impl Widget for MediaControls {
                 }
             }
             LoadState => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    Ok(stream.emit(NewState(Box::new(
-                        pool.spawn(async move { spotify.read().await.get_playback_state().await })
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        Ok(stream.emit(NewState(Box::new(
+                            pool.spawn(
+                                async move { spotify.read().await.get_playback_state().await },
+                            )
                             .await??,
-                    ))))
-                });
+                        ))))
+                    },
+                );
             }
             NewState(state) => {
                 let old_state: Option<&CurrentPlaybackContext> = self.model.state.as_ref();
@@ -235,7 +241,7 @@ impl Widget for MediaControls {
 
                         {
                             let uris = vec![track_uri.to_owned()];
-                            self.spawn(async move |pool, (stream, spotify)| {
+                            self.spawn(async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
                                 let reply = pool
                                     .spawn(async move {
                                         spotify.read().await.are_in_my_library(kind, &uris).await
@@ -272,7 +278,7 @@ impl Widget for MediaControls {
                         {
                             let uris = vec![ctx.uri.clone()];
                             let kind = ctx._type;
-                            self.spawn(async move |pool, (stream, spotify)| {
+                            self.spawn(async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
                                 let saved = pool
                                     .spawn(async move {
                                         spotify.read().await.are_in_my_library(kind, &uris).await
@@ -304,7 +310,7 @@ impl Widget for MediaControls {
             }
             LoadCover(url, is_for_track) => {
                 let loader = self.model.image_loaders[is_for_track as usize].clone();
-                self.spawn(async move |pool, (stream, _)| {
+                self.spawn(async move |pool, stream: EventStream<_>| {
                     if let Some(image) = pool
                         .spawn(async move { loader.load_image(&url).await })
                         .await?
@@ -322,7 +328,7 @@ impl Widget for MediaControls {
                 }
             }
             SeekTrack(pos) => {
-                self.spawn(async move |pool, (_, spotify)| {
+                self.spawn(async move |pool, spotify: SpotifyRef| {
                     Ok(pool
                         .spawn(async move { spotify.read().await.seek_track(pos).await })
                         .await??)
@@ -341,7 +347,7 @@ impl Widget for MediaControls {
                 if let Some(state) = self.model.state.as_mut() {
                     state.device.volume_percent = Some(value as u32);
                 }
-                self.spawn(async move |pool, (_, spotify)| {
+                self.spawn(async move |pool, spotify: SpotifyRef| {
                     Ok(pool
                         .spawn(async move { spotify.read().await.set_volume(value).await })
                         .await??)
@@ -351,7 +357,7 @@ impl Widget for MediaControls {
                 if let Some(st) = self.model.state.as_mut() {
                     st.shuffle_state = state;
                 }
-                self.spawn(async move |pool, (_, spotify)| {
+                self.spawn(async move |pool, spotify: SpotifyRef| {
                     Ok(pool
                         .spawn(async move { spotify.read().await.set_shuffle(state).await })
                         .await??)
@@ -381,7 +387,7 @@ impl Widget for MediaControls {
                     }),
                     gtk::IconSize::LargeToolbar,
                 )));
-                self.spawn(async move |pool, (_, spotify)| {
+                self.spawn(async move |pool, spotify: SpotifyRef| {
                     Ok(pool
                         .spawn(async move { spotify.read().await.set_repeat_mode(mode).await })
                         .await??)
@@ -396,7 +402,7 @@ impl Widget for MediaControls {
                         };
 
                         let uris = vec![uri];
-                        self.spawn(async move |pool, (_, spotify)| {
+                        self.spawn(async move |pool, spotify: SpotifyRef| {
                             if save {
                                 pool.spawn(async move {
                                     spotify.read().await.add_to_my_library(kind, &uris).await
@@ -423,7 +429,7 @@ impl Widget for MediaControls {
                 if let Some(ref context) = self.model.play_context {
                     let kind = context.kind();
                     let uris = vec![context.uri().to_owned()];
-                    self.spawn(async move |pool, (_, spotify)| {
+                    self.spawn(async move |pool, spotify: SpotifyRef| {
                         Ok(pool
                             .spawn(async move {
                                 let spotify = spotify.read().await;
@@ -443,59 +449,69 @@ impl Widget for MediaControls {
                 self.state_info.set_reveal_child(state);
             }
             Play => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    pool.spawn(async move { spotify.read().await.start_playback().await })
-                        .await??;
-                    stream.emit(LoadState);
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        pool.spawn(async move { spotify.read().await.start_playback().await })
+                            .await??;
+                        stream.emit(LoadState);
+                        Ok(())
+                    },
+                );
             }
             Pause => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    pool.spawn(async move { spotify.read().await.pause_playback().await })
-                        .await??;
-                    stream.emit(LoadState);
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        pool.spawn(async move { spotify.read().await.pause_playback().await })
+                            .await??;
+                        stream.emit(LoadState);
+                        Ok(())
+                    },
+                );
             }
             NextTrack => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    pool.spawn(async move { spotify.read().await.play_next_track().await })
-                        .await??;
-                    stream.emit(LoadState);
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        pool.spawn(async move { spotify.read().await.play_next_track().await })
+                            .await??;
+                        stream.emit(LoadState);
+                        Ok(())
+                    },
+                );
             }
             PrevTrack => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    pool.spawn(async move { spotify.read().await.play_prev_track().await })
-                        .await??;
-                    stream.emit(LoadState);
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        pool.spawn(async move { spotify.read().await.play_prev_track().await })
+                            .await??;
+                        stream.emit(LoadState);
+                        Ok(())
+                    },
+                );
             }
             LoadContext(kind, uri) => {
-                self.spawn(async move |pool, (stream, spotify)| {
-                    let play_context = pool
-                        .spawn(async move {
-                            let spotify = spotify.read().await;
-                            let reply: PlayContext = match kind {
-                                Type::Playlist => spotify.get_playlist(&uri).await?.into(),
-                                Type::Album => spotify.get_album(&uri).await?.into(),
-                                Type::Artist => spotify.get_artist(&uri).await?.into(),
-                                Type::Show => spotify.get_show(&uri).await?.into(),
-                                Type::User if uri.is_empty() => {
-                                    spotify.get_my_profile().await?.into_simple().into()
-                                }
-                                Type::User => spotify.get_user_profile(&uri).await?.into(),
-                                _ => unreachable!(),
-                            };
-                            Ok::<_, ClientError>(Box::new(reply))
-                        })
-                        .await??;
-                    stream.emit(NewContext(play_context));
-                    Ok(())
-                });
+                self.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        let play_context = pool
+                            .spawn(async move {
+                                let spotify = spotify.read().await;
+                                let reply: PlayContext = match kind {
+                                    Type::Playlist => spotify.get_playlist(&uri).await?.into(),
+                                    Type::Album => spotify.get_album(&uri).await?.into(),
+                                    Type::Artist => spotify.get_artist(&uri).await?.into(),
+                                    Type::Show => spotify.get_show(&uri).await?.into(),
+                                    Type::User if uri.is_empty() => {
+                                        spotify.get_my_profile().await?.into_simple().into()
+                                    }
+                                    Type::User => spotify.get_user_profile(&uri).await?.into(),
+                                    _ => unreachable!(),
+                                };
+                                Ok::<_, ClientError>(Box::new(reply))
+                            })
+                            .await??;
+                        stream.emit(NewContext(play_context));
+                        Ok(())
+                    },
+                );
 
                 self.model.play_context = None;
                 self.model.play_context_cover = None;
@@ -842,12 +858,20 @@ impl Widget for MediaControls {
     }
 }
 
+impl SpawnScope<EventStream<MediaControlsMsg>> for MediaControls {
+    fn scope(&self) -> EventStream<MediaControlsMsg> {
+        self.model.stream.clone()
+    }
+}
+
+impl SpawnScope<SpotifyRef> for MediaControls {
+    fn scope(&self) -> SpotifyRef {
+        self.model.spotify.clone()
+    }
+}
+
 impl Spawn for MediaControls {
-    type Scope = (EventStream<MediaControlsMsg>, SpotifyRef);
     fn pool(&self) -> Handle {
         self.model.pool.clone()
-    }
-    fn scope(&self) -> Self::Scope {
-        (self.model.stream.clone(), self.model.spotify.clone())
     }
 }

@@ -12,6 +12,7 @@ use glib::{Continue, ToValue};
 use gtk::{
     prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,
 };
+use relm::EventStream;
 use rspotify::client::ClientError;
 
 pub struct TrackMsgHandler;
@@ -87,19 +88,21 @@ where
                 return Some(event);
             }
             LoadTracksInfo(uris, iters) => {
-                this.spawn(async move |pool, (stream, spotify)| {
-                    let (saved, feats) = pool
-                        .spawn(async move {
-                            let spotify = spotify.read().await;
-                            let saved = spotify.are_my_tracks(&uris).await?;
-                            let feats = spotify.get_tracks_features(&uris).await?;
-                            Ok::<_, ClientError>((saved, feats))
-                        })
-                        .await??;
-                    stream.emit(NewTracksInfo(feats, iters.clone()));
-                    stream.emit(NewTracksSaved(saved, iters.clone()));
-                    Ok(())
-                });
+                this.spawn(
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                        let (saved, feats) = pool
+                            .spawn(async move {
+                                let spotify = spotify.read().await;
+                                let saved = spotify.are_my_tracks(&uris).await?;
+                                let feats = spotify.get_tracks_features(&uris).await?;
+                                Ok::<_, ClientError>((saved, feats))
+                            })
+                            .await??;
+                        stream.emit(NewTracksInfo(feats, iters.clone()));
+                        stream.emit(NewTracksSaved(saved, iters.clone()));
+                        Ok(())
+                    },
+                );
             }
             NewTracksSaved(saved, iters) => {
                 let store = &this.model.store;
@@ -160,7 +163,7 @@ where
             }
             EnqueueChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, (_, spotify)| {
+                this.spawn(async move |pool, spotify: SpotifyRef| {
                     pool.spawn(async move {
                         let mut spotify = spotify.write().await;
                         spotify.enqueue_tracks(uris).await
@@ -172,7 +175,7 @@ where
             AddChosenTracks => {}
             SaveChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, (_, spotify)| {
+                this.spawn(async move |pool, spotify: SpotifyRef| {
                     pool.spawn(async move { spotify.write().await.add_my_tracks(&uris).await })
                         .await??;
                     Ok(())
@@ -180,7 +183,7 @@ where
             }
             UnsaveChosenTracks => {
                 let uris = this.get_selected_tracks_uris();
-                this.spawn(async move |pool, (_, spotify)| {
+                this.spawn(async move |pool, spotify: SpotifyRef| {
                     pool.spawn(async move { spotify.write().await.remove_my_tracks(&uris).await })
                         .await??;
                     Ok(())
@@ -238,11 +241,13 @@ where
             PlayTracks(uris) => {
                 if let Some(ref loader) = this.model.items_loader {
                     let play_ctx = loader.parent_id().clone();
-                    this.spawn(async move |pool, (stream, spotify)| {
-                        pool.spawn(play_ctx.play_tracks(spotify, uris)).await??;
-                        stream.emit(PlayingNewTrack);
-                        Ok(())
-                    });
+                    this.spawn(
+                        async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                            pool.spawn(play_ctx.play_tracks(spotify, uris)).await??;
+                            stream.emit(PlayingNewTrack);
+                            Ok(())
+                        },
+                    );
                 }
             }
             PlayingNewTrack => {}
