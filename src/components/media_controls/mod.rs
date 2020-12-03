@@ -35,7 +35,7 @@ use crate::{
         },
         SpotifyRef,
     },
-    utils::{Spawn, SpawnScope},
+    utils::{Spawn, Extract},
 };
 use gdk_pixbuf::Pixbuf;
 use gtk::{prelude::*, ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
@@ -846,12 +846,12 @@ impl Widget for MediaControls {
     }
 }
 
-impl SpawnScope<EventStream<MediaControlsMsg>> for MediaControls {
-    fn scope(&self) -> EventStream<MediaControlsMsg> { self.model.stream.clone() }
+impl Extract<EventStream<MediaControlsMsg>> for MediaControls {
+    fn extract(&self) -> EventStream<MediaControlsMsg> { self.model.stream.clone() }
 }
 
-impl SpawnScope<SpotifyRef> for MediaControls {
-    fn scope(&self) -> SpotifyRef { self.model.spotify.clone() }
+impl Extract<SpotifyRef> for MediaControls {
+    fn extract(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
 impl Spawn for MediaControls {

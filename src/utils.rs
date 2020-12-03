@@ -146,20 +146,20 @@ pub enum SpawnError {
     Spotify(#[from] ClientError),
 }
 
-pub trait SpawnScope<T: 'static> {
-    fn scope(&self) -> T;
+pub trait Extract<T: 'static> {
+    fn extract(&self) -> T;
 }
 
-impl<A: 'static, B: 'static, T: SpawnScope<A> + SpawnScope<B>> SpawnScope<(A, B)> for T {
-    fn scope(&self) -> (A, B) { (<Self as SpawnScope<A>>::scope(self), <Self as SpawnScope<B>>::scope(self)) }
+impl<A: 'static, B: 'static, T: Extract<A> + Extract<B>> Extract<(A, B)> for T {
+    fn extract(&self) -> (A, B) { (<Self as Extract<A>>::extract(self), <Self as Extract<B>>::extract(self)) }
 }
 
-impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + SpawnScope<C>> SpawnScope<(A, B, C)> for T {
-    fn scope(&self) -> (A, B, C) {
+impl<A: 'static, B: 'static, C: 'static, T: Extract<A> + Extract<B> + Extract<C>> Extract<(A, B, C)> for T {
+    fn extract(&self) -> (A, B, C) {
         (
-            <Self as SpawnScope<A>>::scope(self),
-            <Self as SpawnScope<B>>::scope(self),
-            <Self as SpawnScope<C>>::scope(self),
+            <Self as Extract<A>>::extract(self),
+            <Self as Extract<B>>::extract(self),
+            <Self as Extract<C>>::extract(self),
         )
     }
 }
@@ -177,7 +177,7 @@ pub trait Spawn {
     where
         R: Future<Output = Result<(), SpawnError>> + 'static,
         F: FnMut(Handle, S) -> R + 'static,
-        Self: SpawnScope<S>,
+        Self: Extract<S>,
         S: Clone + 'static,
     {
         self.spawn_args((), move |pool, scope, _| body(pool, scope));
@@ -188,11 +188,11 @@ pub trait Spawn {
         A: Clone + 'static,
         R: Future<Output = Result<(), SpawnError>> + 'static,
         F: FnMut(Handle, S, A) -> R + 'static,
-        Self: SpawnScope<S>,
+        Self: Extract<S>,
         S: Clone + 'static,
     {
         let pool = self.pool();
-        let scope = self.scope();
+        let scope = self.extract();
 
         self.gcontext().spawn_local(async move {
             let mut retry_count = 0;
