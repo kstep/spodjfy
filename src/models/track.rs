@@ -9,7 +9,7 @@ use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
-use rspotify::model::{FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum, SimplifiedArtist, SimplifiedTrack, Type as ModelType, AudioAnalysis};
+use rspotify::model::{FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum, SimplifiedArtist, SimplifiedTrack, Type as ModelType, TrackLink, Restriction};
 use std::{collections::HashMap, time::SystemTime};
 
 pub mod constants {
@@ -487,7 +487,49 @@ impl StorageModel for FullTrack {
     fn key(&self) -> &str { self.id() }
 }
 
-impl StorageModel for AudioAnalysis {
-    const TREE_NAME: &'static str = "audio:analysis";
-    fn key(&self) -> &str { self. }
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "tracks")]
+pub struct TrackModel {
+    pub id: String,
+    pub name: String,
+    pub album_id: String,
+    pub artist_ids: Vec<String>,
+    pub available_markets: Vec<String>,
+    pub disc_number: i32,
+    pub duration_ms: u32,
+    pub explicit: bool,
+    pub spotify_url: Option<String>,
+    pub href: String,
+    pub is_local: bool,
+    pub is_playable: bool,
+    pub popularity: u32,
+    pub preview_url: Option<String>,
+    pub track_number: u32,
+}
+
+impl From<TrackModel> for FullTrack {
+    fn from(model: TrackModel) -> Self {
+        FullTrack {
+            album: SimplifiedAlbum {},
+            artists: vec![],
+            available_markets: vec![],
+            disc_number: 0,
+            duration_ms: 0,
+            explicit: false,
+            external_ids: Default::default(),
+            external_urls: Default::default(),
+            href: None,
+            id: None,
+            is_local: false,
+            is_playable: None,
+            linked_from: None,
+            restrictions: None,
+            name: "".to_string(),
+            popularity: 0,
+            preview_url: None,
+            track_number: 0,
+            _type: Type::Artist,
+            uri: "".to_string()
+        }
+    }
 }

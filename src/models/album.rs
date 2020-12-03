@@ -4,9 +4,7 @@ use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
-use rspotify::model::{
-    AlbumType, DatePrecision, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist, Type as ModelType,
-};
+use rspotify::model::{AlbumType, DatePrecision, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist, Type as ModelType, Copyright};
 use std::{collections::HashMap, time::SystemTime};
 
 pub mod constants {
@@ -375,4 +373,23 @@ impl Empty for SimplifiedAlbum {
     }
 
     fn is_empty(&self) -> bool { self.name.is_empty() }
+}
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "albums")]
+pub struct AlbumModel {
+    pub id: String,
+    pub name: String,
+    pub artist_ids: Vec<String>,
+    pub album_type: AlbumType,
+    pub available_markets: Vec<String>,
+    pub copyrights: Vec<Copyright>,
+    pub isrc_id: Option<String>,
+    pub spotify_url: Option<String>,
+    pub genres: Vec<String>,
+    pub href: String,
+    pub images: Vec<Image>,
+    pub popularity: u32,
+    pub release_date: String,
+    pub release_date_precision: DatePrecision,
 }

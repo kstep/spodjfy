@@ -2,9 +2,11 @@ use crate::models::common::*;
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
-use rspotify::model::{Followers, FullPlaylist, Image, Page, PublicUser, SimplifiedPlaylist, Type as ModelType};
+use rspotify::model::{Followers, FullPlaylist, Image, Page, PublicUser, SimplifiedPlaylist, Type as ModelType, TrackLink, Restriction, TimeInterval, AudioAnalysisMeta, AudioAnalysisSection, AudioAnalysisSegment, AudioAnalysisTrack};
 use serde_json::Value;
 use std::collections::HashMap;
+use pallet::DocumentLike;
+use pallet_macros::DocumentLike;
 
 pub mod constants {
     use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
@@ -254,4 +256,21 @@ impl Merge for FullPlaylist {
             uri: self.uri.merge(other.uri),
         }
     }
+}
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "playlists")]
+pub struct PlaylistModel {
+    pub id: String,
+    pub collaborative: bool,
+    pub description: String,
+    pub spotify_url: Option<String>,
+    pub total_followers: u32,
+    pub href: String,
+    pub images: Vec<Image>,
+    pub name: String,
+    pub owner: PublicUser,
+    pub public: bool,
+    pub snapshot_id: String,
+    pub track_ids: Vec<String>,
 }

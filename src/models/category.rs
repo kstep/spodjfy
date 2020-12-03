@@ -44,3 +44,12 @@ impl Merge for Category {
         }
     }
 }
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "categories")]
+pub struct CategoryModel {
+    pub id: String,
+    pub name: String,
+    pub href: String,
+    pub icons: Vec<Image>,
+}

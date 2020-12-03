@@ -191,3 +191,16 @@ impl Merge for FullArtist {
         }
     }
 }
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "artists")]
+pub struct ArtistModel {
+    pub id: String,
+    pub name: String,
+    pub spotify_url: Option<String>,
+    pub total_followers: u32,
+    pub genres: Vec<String>,
+    pub href: String,
+    pub images: Vec<Image>,
+    pub popularity: u32,
+}

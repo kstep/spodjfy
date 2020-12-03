@@ -1,7 +1,7 @@
 use crate::models::{common::*, PlaylistLike, playlist::constants::*};
 use chrono::{DateTime, Utc};
 use glib::{IsA, Type};
-use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType};
+use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType, Copyright};
 use std::{collections::HashMap, time::SystemTime};
 
 impl PlaylistLike for FullShow {
@@ -244,4 +244,21 @@ impl Wrapper for Show {
             show,
         }
     }
+}
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "shows")]
+pub struct ShowModel {
+    pub id: String,
+    pub name: String,
+    pub publisher: String,
+    pub available_markets: Vec<String>,
+    pub description: String,
+    pub explicit: bool,
+    pub spotify_url: Option<String>,
+    pub href: String,
+    pub images: Vec<Image>,
+    pub is_externally_hosted: bool,
+    pub languages: Vec<String>,
+    pub media_type: String,
 }

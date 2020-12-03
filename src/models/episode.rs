@@ -1,5 +1,5 @@
 use crate::models::{common::*, TrackLike, track::constants::*};
-use rspotify::model::{DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType};
+use rspotify::model::{DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType, ResumePoint};
 
 impl TrackLike for FullEpisode {
     fn id(&self) -> &str { &self.id }
@@ -213,4 +213,26 @@ impl Merge for FullEpisode {
             uri: self.uri.merge(other.uri),
         }
     }
+}
+
+#[derive(Clone, Debug, DocumentLike)]
+#[pallet(tree_name = "episodes")]
+pub struct EpisodeModel {
+    pub id: String,
+    pub show_id: String,
+    pub name: String,
+    pub audio_preview_url: Option<String>,
+    pub description: String,
+    pub duration_ms: u32,
+    pub explicit: bool,
+    pub spotify_url: Option<String>,
+    pub href: String,
+    pub images: Vec<Image>,
+    pub is_externally_hosted: bool,
+    pub is_playable: bool,
+    pub languages: Vec<String>,
+    pub release_date: String,
+    pub release_date_precision: DatePrecision,
+    pub fully_played: bool,
+    pub resume_position_ms: u32,
 }
