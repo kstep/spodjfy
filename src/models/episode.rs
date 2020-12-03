@@ -1,55 +1,32 @@
-use crate::models::common::*;
-use crate::models::{
-    TrackLike, COL_TRACK_ALBUM, COL_TRACK_ARTISTS, COL_TRACK_BPM, COL_TRACK_RATE, COL_TRACK_SAVED,
-};
-use rspotify::model::{
-    DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType,
-};
+use crate::models::{common::*, TrackLike, COL_TRACK_ALBUM, COL_TRACK_ARTISTS, COL_TRACK_BPM, COL_TRACK_RATE, COL_TRACK_SAVED};
+use rspotify::model::{DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType};
 
 impl TrackLike for FullEpisode {
-    fn id(&self) -> &str {
-        &self.id
-    }
+    fn id(&self) -> &str { &self.id }
 
-    fn description(&self) -> Option<&str> {
-        Some(&self.description)
-    }
+    fn description(&self) -> Option<&str> { Some(&self.description) }
 
-    fn is_playable(&self) -> bool {
-        self.is_playable
-    }
+    fn is_playable(&self) -> bool { self.is_playable }
 
-    fn rate(&self) -> u32 {
-        0
-    }
+    fn rate(&self) -> u32 { 0 }
 
-    fn release_date(&self) -> Option<&str> {
-        Some(&self.release_date)
-    }
+    fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 
 impl HasUri for FullEpisode {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for FullEpisode {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasDuration for FullEpisode {
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
+    fn duration(&self) -> u32 { self.duration_ms }
 }
 
 impl HasImages for FullEpisode {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl MissingColumns for FullEpisode {
@@ -68,49 +45,31 @@ impl MissingColumns for FullEpisode {
 }
 
 impl TrackLike for SimplifiedEpisode {
-    fn id(&self) -> &str {
-        &self.id
-    }
+    fn id(&self) -> &str { &self.id }
 
-    fn description(&self) -> Option<&str> {
-        Some(&self.description)
-    }
+    fn description(&self) -> Option<&str> { Some(&self.description) }
 
-    fn is_playable(&self) -> bool {
-        self.is_playable
-    }
+    fn is_playable(&self) -> bool { self.is_playable }
 
-    fn rate(&self) -> u32 {
-        0
-    }
+    fn rate(&self) -> u32 { 0 }
 
-    fn release_date(&self) -> Option<&str> {
-        Some(&self.release_date)
-    }
+    fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 
 impl HasUri for SimplifiedEpisode {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for SimplifiedEpisode {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasDuration for SimplifiedEpisode {
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
+    fn duration(&self) -> u32 { self.duration_ms }
 }
 
 impl HasImages for SimplifiedEpisode {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl MissingColumns for SimplifiedEpisode {
@@ -129,6 +88,7 @@ impl MissingColumns for SimplifiedEpisode {
 }
 
 #[allow(deprecated)]
+
 impl ToFull for SimplifiedEpisode {
     type Full = FullEpisode;
 
@@ -182,6 +142,7 @@ impl ToFull for SimplifiedEpisode {
 }
 
 #[allow(deprecated)]
+
 impl ToSimple for FullEpisode {
     type Simple = SimplifiedEpisode;
 

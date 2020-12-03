@@ -1,10 +1,11 @@
-use crate::components::tabs::MusicTabParams;
-use crate::services::SpotifyRef;
-use crate::utils::{Spawn, SpawnScope};
+use crate::{
+    components::tabs::MusicTabParams,
+    services::{spotify::PlaybackControlApi, SpotifyRef},
+    utils::{Spawn, SpawnScope},
+};
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
-use gtk::prelude::*;
-use gtk::{IconThemeExt, IconView, IconViewExt, TreeModelExt};
+use gtk::{prelude::*, IconThemeExt, IconView, IconViewExt, TreeModelExt};
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::model::{Device, DeviceType};
@@ -37,6 +38,32 @@ const COL_DEVICE_TYPE: u32 = 4;
 
 #[widget]
 impl Widget for DevicesTab {
+    view! {
+        gtk::ScrolledWindow {
+            #[name="devices_view"]
+            gtk::IconView {
+                item_width: ICON_SIZE,
+                pixbuf_column: COL_DEVICE_ICON as i32,
+                text_column: COL_DEVICE_NAME as i32,
+                model: Some(&self.model.store),
+                selection_mode: gtk::SelectionMode::Single,
+
+                item_activated(view, path) => DevicesMsg::UseDevice(
+                    view.get_model().and_then(|model| {
+                        model.get_iter(path).and_then(|pos| model.get_value(&pos, COL_DEVICE_ID as i32).get::<String>().ok().flatten())
+                    })),
+            },
+
+            #[name="context_menu"]
+            gtk::Menu {
+                gtk::MenuItem {
+                    label: "Play on this device",
+                    activate(_) => DevicesMsg::UseChosenDevice,
+                },
+            }
+        }
+    }
+
     fn model(relm: &Relm<Self>, (pool, spotify): MusicTabParams) -> DevicesModel {
         let store = gtk::ListStore::new(&[
             gdk_pixbuf::Pixbuf::static_type(), // icon
@@ -45,7 +72,9 @@ impl Widget for DevicesTab {
             bool::static_type(),               // active
             u8::static_type(),                 // type
         ]);
+
         let stream = relm.stream().clone();
+
         DevicesModel {
             pool,
             stream,
@@ -54,31 +83,30 @@ impl Widget for DevicesTab {
         }
     }
 
-    fn icon_theme(&self) -> gtk::IconTheme {
-        gtk::IconTheme::new()
-    }
+    fn icon_theme(&self) -> gtk::IconTheme { gtk::IconTheme::new() }
 
     fn update(&mut self, event: DevicesMsg) {
         use DevicesMsg::*;
+
         match event {
             ShowTab => {
                 self.model.store.clear();
                 self.model.stream.emit(LoadList);
             }
             LoadList => {
-                self.spawn(
-                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                        stream.emit(NewList(
-                            pool.spawn(async move { spotify.read().await.get_my_devices().await })
-                                .await??,
-                        ));
-                        Ok(())
-                    },
-                );
+                self.spawn(async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                    stream.emit(NewList(
+                        pool.spawn(async move { spotify.read().await.get_my_devices().await })
+                            .await??,
+                    ));
+
+                    Ok(())
+                });
             }
             NewList(devices) => {
                 let store = &self.model.store;
                 let icon_theme = self.icon_theme();
+
                 for device in devices {
                     let type_num = device._type.clone() as u8;
                     let icon = self.get_device_icon(&icon_theme, device._type, device.is_active);
@@ -92,13 +120,7 @@ impl Widget for DevicesTab {
                             COL_DEVICE_ACTIVE,
                             COL_DEVICE_TYPE,
                         ],
-                        &[
-                            &icon,
-                            &device.id,
-                            &device.name,
-                            &device.is_active,
-                            &type_num,
-                        ],
+                        &[&icon, &device.id, &device.name, &device.is_active, &type_num],
                     );
                 }
             }
@@ -111,13 +133,7 @@ impl Widget for DevicesTab {
                     selected
                         .first()
                         .and_then(|path| store.get_iter(path))
-                        .and_then(|pos| {
-                            store
-                                .get_value(&pos, COL_DEVICE_ID as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten()
-                        }),
+                        .and_then(|pos| store.get_value(&pos, COL_DEVICE_ID as i32).get::<String>().ok().flatten()),
                 ));
             }
             UseDevice(device_id) => {
@@ -127,26 +143,20 @@ impl Widget for DevicesTab {
 
                     store.foreach(|_model, _path, pos| {
                         let device_type = Self::device_type_from_num(
-                            store
-                                .get_value(pos, COL_DEVICE_TYPE as i32)
-                                .get::<u8>()
-                                .unwrap()
-                                .unwrap(),
+                            store.get_value(pos, COL_DEVICE_TYPE as i32).get::<u8>().unwrap().unwrap(),
                         );
-                        let is_active = store
-                            .get_value(pos, COL_DEVICE_ID as i32)
-                            .get::<&str>()
-                            .unwrap()
-                            .unwrap()
-                            == id;
+
+                        let is_active = store.get_value(pos, COL_DEVICE_ID as i32).get::<&str>().unwrap().unwrap() == id;
                         let icon = self.get_device_icon(&icon_theme, device_type, is_active);
+
                         store.set_value(pos, COL_DEVICE_ICON, &icon.to_value());
+
                         false
                     });
 
                     self.spawn_args(id, async move |pool, spotify: SpotifyRef, id| {
                         Ok(pool
-                            .spawn(async move { spotify.read().await.use_device(id, false).await })
+                            .spawn(async move { spotify.read().await.use_device(&id, false).await })
                             .await??)
                     });
                 }
@@ -172,13 +182,9 @@ impl Widget for DevicesTab {
         }
     }
 
-    fn get_device_icon(
-        &self,
-        icon_theme: &gtk::IconTheme,
-        tpe: DeviceType,
-        is_active: bool,
-    ) -> Pixbuf {
+    fn get_device_icon(&self, icon_theme: &gtk::IconTheme, tpe: DeviceType, is_active: bool) -> Pixbuf {
         use DeviceType::*;
+
         let icon_name = match tpe {
             Tablet => "computer-apple-ipad-symbolic",
             Smartphone => "phone-apple-iphone-symbolic",
@@ -210,63 +216,21 @@ impl Widget for DevicesTab {
             )
             .unwrap()
             .unwrap();
-        checkmark.composite(
-            &icon,
-            0,
-            0,
-            32,
-            32,
-            0.0,
-            0.0,
-            1.0,
-            1.0,
-            InterpType::Nearest,
-            255,
-        );
+
+        checkmark.composite(&icon, 0, 0, 32, 32, 0.0, 0.0, 1.0, 1.0, InterpType::Nearest, 255);
+
         icon
-    }
-
-    view! {
-        gtk::ScrolledWindow {
-            #[name="devices_view"]
-            gtk::IconView {
-                item_width: ICON_SIZE,
-                pixbuf_column: COL_DEVICE_ICON as i32,
-                text_column: COL_DEVICE_NAME as i32,
-                model: Some(&self.model.store),
-                selection_mode: gtk::SelectionMode::Single,
-
-                item_activated(view, path) => DevicesMsg::UseDevice(
-                    view.get_model().and_then(|model| {
-                        model.get_iter(path).and_then(|pos| model.get_value(&pos, COL_DEVICE_ID as i32).get::<String>().ok().flatten())
-                    })),
-            },
-
-            #[name="context_menu"]
-            gtk::Menu {
-                gtk::MenuItem {
-                    label: "Play on this device",
-                    activate(_) => DevicesMsg::UseChosenDevice,
-                },
-            }
-        }
     }
 }
 
 impl SpawnScope<EventStream<DevicesMsg>> for DevicesTab {
-    fn scope(&self) -> EventStream<DevicesMsg> {
-        self.model.stream.clone()
-    }
+    fn scope(&self) -> EventStream<DevicesMsg> { self.model.stream.clone() }
 }
 
 impl SpawnScope<SpotifyRef> for DevicesTab {
-    fn scope(&self) -> SpotifyRef {
-        self.model.spotify.clone()
-    }
+    fn scope(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
 impl Spawn for DevicesTab {
-    fn pool(&self) -> Handle {
-        self.model.pool.clone()
-    }
+    fn pool(&self) -> Handle { self.model.pool.clone() }
 }

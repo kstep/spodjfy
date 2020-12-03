@@ -1,8 +1,13 @@
-use crate::loaders::ContainerLoader;
-use crate::services::SpotifyRef;
+use crate::{
+    loaders::ContainerLoader,
+    services::spotify::{AlbumsStorageApi, ThreadSafe},
+    utils::AsyncCell,
+};
 use async_trait::async_trait;
-use rspotify::client::ClientResult;
-use rspotify::model::{Page, SavedAlbum, SimplifiedAlbum};
+use rspotify::{
+    client::ClientResult,
+    model::{Page, SavedAlbum, SimplifiedAlbum},
+};
 
 const NAME: &str = "albums";
 
@@ -10,64 +15,50 @@ const NAME: &str = "albums";
 pub struct SavedLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for SavedLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for SavedLoader
+where
+    Client: AlbumsStorageApi + ThreadSafe,
+{
     type Item = SavedAlbum;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 20;
+    type ParentId = ();
+
     const NAME: &'static str = NAME;
 
-    fn new(_id: Self::ParentId) -> Self {
-        SavedLoader(rand::random())
+    fn new(_id: Self::ParentId) -> Self { SavedLoader(rand::random()) }
+
+    fn parent_id(&self) -> &Self::ParentId { &() }
+
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_my_albums(offset, 20).await
     }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
-
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_my_albums(offset, Self::PAGE_LIMIT)
-            .await
-    }
-
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone, Copy)]
 pub struct NewReleasesLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for NewReleasesLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for NewReleasesLoader
+where
+    Client: AlbumsStorageApi + ThreadSafe,
+{
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 20;
+    type ParentId = ();
+
     const NAME: &'static str = "new releases";
 
-    fn new(_id: Self::ParentId) -> Self {
-        NewReleasesLoader(rand::random())
+    fn new(_id: Self::ParentId) -> Self { NewReleasesLoader(rand::random()) }
+
+    fn parent_id(&self) -> &Self::ParentId { &() }
+
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_new_releases(offset, 20).await
     }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
-
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_new_releases(offset, Self::PAGE_LIMIT)
-            .await
-    }
-
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone)]
@@ -76,26 +67,21 @@ pub struct ArtistLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for ArtistLoader {
-    type ParentId = String;
+impl<Client> ContainerLoader<Client> for ArtistLoader
+where
+    Client: AlbumsStorageApi + ThreadSafe,
+{
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 20;
+    type ParentId = String;
+
     const NAME: &'static str = "artist's albums";
 
-    fn new(uri: Self::ParentId) -> Self {
-        ArtistLoader { uri }
-    }
+    fn new(uri: Self::ParentId) -> Self { ArtistLoader { uri } }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &self.uri
-    }
+    fn parent_id(&self) -> &Self::ParentId { &self.uri }
 
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_artist_albums(&self.uri, offset, Self::PAGE_LIMIT)
-            .await
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_artist_albums(&self.uri, offset, 20).await
     }
 }

@@ -1,6 +1,8 @@
-use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::{ContainerLoader, ImageConverter};
-use crate::models::category::*;
+use crate::{
+    components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView},
+    loaders::{ContainerLoader, ImageConverter},
+    models::category::*,
+};
 use glib::{Cast, IsA};
 use gtk::IconViewExt;
 use relm::EventStream;
@@ -12,21 +14,15 @@ const THUMB_SIZE: i32 = 192;
 pub struct CategoryView(gtk::IconView);
 
 impl From<gtk::IconView> for CategoryView {
-    fn from(view: gtk::IconView) -> Self {
-        CategoryView(view)
-    }
+    fn from(view: gtk::IconView) -> Self { CategoryView(view) }
 }
 
 impl AsRef<gtk::Widget> for CategoryView {
-    fn as_ref(&self) -> &gtk::Widget {
-        self.0.upcast_ref()
-    }
+    fn as_ref(&self) -> &gtk::Widget { self.0.upcast_ref() }
 }
 
 impl GetSelectedRows for CategoryView {
-    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
-        self.0.get_selected_rows()
-    }
+    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) { self.0.get_selected_rows() }
 }
 
 impl<Loader, Message> ItemsListView<Loader, Message> for CategoryView
@@ -58,7 +54,5 @@ where
         CategoryView(categories_view)
     }
 
-    fn thumb_converter(&self) -> ImageConverter {
-        ImageConverter::new(THUMB_SIZE, true)
-    }
+    fn thumb_converter(&self) -> ImageConverter { ImageConverter::new(THUMB_SIZE, true) }
 }

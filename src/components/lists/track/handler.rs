@@ -1,17 +1,16 @@
-use crate::components::lists::{
-    ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg,
+use crate::{
+    components::lists::{ContainerMsg, GetSelectedRows, MessageHandler, TrackList, TrackMsg},
+    loaders::ContainerLoader,
+    models::{common::*, page::*, track::*},
+    services::{
+        spotify::{PlaybackControlApi, PlaybackQueueApi, TracksStorageApi},
+        SpotifyRef,
+    },
+    utils::Spawn,
 };
-use crate::loaders::ContainerLoader;
-use crate::models::common::*;
-use crate::models::page::*;
-use crate::models::track::*;
-use crate::services::SpotifyRef;
-use crate::utils::Spawn;
 use async_trait::async_trait;
 use glib::{Continue, ToValue};
-use gtk::{
-    prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt,
-};
+use gtk::{prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt};
 use relm::EventStream;
 use rspotify::client::ClientError;
 
@@ -47,18 +46,15 @@ where
 
                 let mut uris = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
-
                 let mut page_duration = 0;
+
                 for (idx, track) in tracks.iter().enumerate() {
                     let pos = track.append_to_store(store);
-                    store.set(
-                        &pos,
-                        &[COL_TRACK_NUMBER, COL_TRACK_TIMELINE],
-                        &[
-                            &(idx as u32 + offset + 1),
-                            &crate::utils::humanize_time(this.model.total_duration + page_duration),
-                        ],
-                    );
+
+                    store.set(&pos, &[COL_TRACK_NUMBER, COL_TRACK_TIMELINE], &[
+                        &(idx as u32 + offset + 1),
+                        &crate::utils::humanize_time(this.model.total_duration + page_duration),
+                    ]);
 
                     let image = this.model.image_loader.find_best_thumb(track.images());
 
@@ -67,7 +63,9 @@ where
                     }
 
                     uris.push(track.uri().to_owned());
+
                     iters.push(pos);
+
                     page_duration += track.duration();
                 }
 
@@ -81,6 +79,7 @@ where
                     stream.emit(LoadPage(next_offset, epoch).into());
                 } else {
                     this.model.total_items = page.total();
+
                     this.finish_load();
                 }
             }
@@ -90,9 +89,7 @@ where
             LoadTracksInfo(uris, iters) => {
                 this.spawn_args(
                     (uris, iters),
-                    async move |pool,
-                                (stream, spotify): (EventStream<_>, SpotifyRef),
-                                (uris, iters)| {
+                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef), (uris, iters)| {
                         let (saved, feats) = pool
                             .spawn(async move {
                                 let spotify = spotify.read().await;
@@ -123,9 +120,7 @@ where
                 let store = &this.model.store;
                 let found = if let Some(pos) = store.get_iter_first() {
                     loop {
-                        if let Ok(Some(uri)) =
-                            store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>()
-                        {
+                        if let Ok(Some(uri)) = store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>() {
                             if uri == track_id {
                                 let select = this.items_view.get_selection();
                                 select.unselect_all();
@@ -142,6 +137,7 @@ where
                                 break true;
                             }
                         }
+
                         if !store.iter_next(&pos) {
                             break false;
                         }
@@ -170,7 +166,7 @@ where
                     async move |pool, spotify: SpotifyRef, uris| {
                         pool.spawn(async move {
                             let mut spotify = spotify.write().await;
-                            spotify.enqueue_tracks(uris).await
+                            spotify.enqueue_tracks(&uris).await
                         })
                         .await??;
                         Ok(())
@@ -192,10 +188,8 @@ where
                 this.spawn_args(
                     this.get_selected_tracks_uris(),
                     async move |pool, spotify: SpotifyRef, uris| {
-                        pool.spawn(
-                            async move { spotify.write().await.remove_my_tracks(&uris).await },
-                        )
-                        .await??;
+                        pool.spawn(async move { spotify.write().await.remove_my_tracks(&uris).await })
+                            .await??;
                         Ok(())
                     },
                 );
@@ -203,21 +197,15 @@ where
             RecommendTracks => {}
             GoToChosenTrackAlbum => {
                 let (rows, model) = this.items_view.get_selected_rows();
-                if let Some(pos) = rows
-                    .into_iter()
-                    .filter_map(|path| model.get_iter(&path))
-                    .next()
-                {
+
+                if let Some(pos) = rows.into_iter().filter_map(|path| model.get_iter(&path)).next() {
                     let album_uri = model
                         .get_value(&pos, COL_TRACK_ALBUM_URI as i32)
                         .get::<String>()
                         .ok()
                         .flatten();
-                    let album_name = model
-                        .get_value(&pos, COL_TRACK_ALBUM as i32)
-                        .get::<String>()
-                        .ok()
-                        .flatten();
+
+                    let album_name = model.get_value(&pos, COL_TRACK_ALBUM as i32).get::<String>().ok().flatten();
 
                     if let (Some(uri), Some(name)) = (album_uri, album_name) {
                         this.stream.emit(GoToAlbum(uri, name));
@@ -226,36 +214,28 @@ where
             }
             GoToChosenTrackArtist => {
                 let (rows, model) = this.items_view.get_selected_rows();
-                if let Some(pos) = rows
-                    .into_iter()
-                    .filter_map(|path| model.get_iter(&path))
-                    .next()
-                {
+
+                if let Some(pos) = rows.into_iter().filter_map(|path| model.get_iter(&path)).next() {
                     let artist_uri = model
                         .get_value(&pos, COL_TRACK_ARTIST_URI as i32)
                         .get::<String>()
                         .ok()
                         .flatten();
-                    let artist_name = model
-                        .get_value(&pos, COL_TRACK_ARTISTS as i32)
-                        .get::<String>()
-                        .ok()
-                        .flatten();
+
+                    let artist_name = model.get_value(&pos, COL_TRACK_ARTISTS as i32).get::<String>().ok().flatten();
 
                     if let (Some(uri), Some(name)) = (artist_uri, artist_name) {
                         this.stream.emit(GoToArtist(uri, name));
                     }
                 }
             }
-            GoToAlbum(_, _) => {}
-            GoToArtist(_, _) => {}
+            GoToAlbum(..) => {}
+            GoToArtist(..) => {}
             PlayTracks(uris) => {
                 if let Some(ref loader) = this.model.items_loader {
                     this.spawn_args(
                         (loader.parent_id().clone(), uris),
-                        async move |pool,
-                                    (stream, spotify): (EventStream<_>, SpotifyRef),
-                                    (play_ctx, uris)| {
+                        async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef), (play_ctx, uris)| {
                             pool.spawn(play_ctx.play_tracks(spotify, uris)).await??;
                             stream.emit(PlayingNewTrack);
                             Ok(())
@@ -271,6 +251,7 @@ where
                 }
             }
         }
+
         None
     }
 }
@@ -284,7 +265,7 @@ pub trait PlayTracksContext {
 impl PlayTracksContext for () {
     #[allow(clippy::unit_arg)]
     async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
-        spotify.read().await.play_tracks(uris).await
+        spotify.read().await.play_tracks(&uris).await
     }
 }
 
@@ -304,14 +285,12 @@ impl<K, V> PlayTracksContext for Map<K, V> {
 #[async_trait]
 impl PlayTracksContext for String {
     async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
-        let start_uri = if self.starts_with("spotify:album:")
-            || self.starts_with("spotify:playlist:")
-            || self.starts_with("spotify:show:")
-        {
-            uris.first().cloned()
-        } else {
-            None
-        };
+        let start_uri =
+            if self.starts_with("spotify:album:") || self.starts_with("spotify:playlist:") || self.starts_with("spotify:show:") {
+                uris.first().cloned()
+            } else {
+                None
+            };
 
         spotify.read().await.play_context(self, start_uri).await
     }

@@ -1,21 +1,19 @@
 //! # Albums list component
 //!
-//! A component to show list of albums of a given parent (e.g. artist, user followed albums, etc).
+//! A component to show list of albums of a given parent (e.g. artist, user
+//! followed albums, etc).
 //!
 //! Parameters:
 //!   - `Handle` - a tokio runtime handle
 //!   - `SpotifyRef` - a reference to spotify client
-//!
 
-use crate::components::lists::common::{
-    ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch,
+use crate::{
+    components::lists::common::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView, SetupViewSearch},
+    loaders::{ContainerLoader, ImageConverter},
+    models::{album::*, common::*},
 };
-use crate::loaders::{ContainerLoader, ImageConverter};
-use crate::models::album::*;
-use crate::models::common::*;
 use glib::Cast;
-use gtk::prelude::*;
-use gtk::{CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};
+use gtk::{prelude::*, CellRendererExt, CellRendererTextExt, TreeModel, TreeModelExt, TreePath, TreeViewExt};
 use relm::EventStream;
 
 pub type AlbumList<Loader> = ContainerList<Loader, AlbumView>;
@@ -23,20 +21,17 @@ pub type AlbumList<Loader> = ContainerList<Loader, AlbumView>;
 const THUMB_SIZE: i32 = 48;
 
 pub struct AlbumView(gtk::TreeView);
+
 impl From<gtk::TreeView> for AlbumView {
-    fn from(view: gtk::TreeView) -> Self {
-        AlbumView(view)
-    }
+    fn from(view: gtk::TreeView) -> Self { AlbumView(view) }
 }
+
 impl AsRef<gtk::Widget> for AlbumView {
-    fn as_ref(&self) -> &gtk::Widget {
-        self.0.upcast_ref()
-    }
+    fn as_ref(&self) -> &gtk::Widget { self.0.upcast_ref() }
 }
+
 impl GetSelectedRows for AlbumView {
-    fn get_selected_rows(&self) -> (Vec<TreePath>, TreeModel) {
-        self.0.get_selected_rows()
-    }
+    fn get_selected_rows(&self) -> (Vec<TreePath>, TreeModel) { self.0.get_selected_rows() }
 }
 
 impl<Loader, Message> ItemsListView<Loader, Message> for AlbumView
@@ -47,6 +42,7 @@ where
     ContainerMsg<Loader>: Into<Message>,
 {
     #[allow(clippy::redundant_clone)]
+
     fn create<S: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &S) -> Self {
         let albums_view = gtk::TreeViewBuilder::new()
             .model(store)
@@ -63,13 +59,7 @@ where
                         .get::<String>()
                         .ok()
                         .flatten()
-                        .zip(
-                            model
-                                .get_value(&pos, COL_ALBUM_NAME as i32)
-                                .get::<String>()
-                                .ok()
-                                .flatten(),
-                        )
+                        .zip(model.get_value(&pos, COL_ALBUM_NAME as i32).get::<String>().ok().flatten())
                 })
             }) {
                 stream.emit(ContainerMsg::ActivateItem(uri, name).into());
@@ -87,6 +77,7 @@ where
             albums_view.append_column(&{
                 let cell = gtk::CellRendererPixbuf::new();
                 let col = gtk::TreeViewColumn::new();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "pixbuf", COL_ALBUM_THUMB as i32);
                 col
@@ -96,13 +87,16 @@ where
         if !missing_columns.contains(&COL_ALBUM_TYPE) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .sort_column_id(COL_ALBUM_TYPE as i32)
                     .expand(false)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_TYPE as i32);
+
                 gtk::TreeViewColumnExt::set_cell_data_func(
                     &col,
                     &cell,
@@ -121,6 +115,7 @@ where
                         }
                     })),
                 );
+
                 col
             });
         }
@@ -128,11 +123,13 @@ where
         if !missing_columns.contains(&COL_ALBUM_NAME) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Title")
                     .sort_column_id(COL_ALBUM_NAME as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_NAME as i32);
                 col
@@ -142,13 +139,16 @@ where
         if !missing_columns.contains(&COL_ALBUM_TOTAL_TRACKS) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 cell.set_alignment(1.0, 0.5);
+
                 let col = base_column
                     .clone()
                     .title("Tracks")
                     .expand(false)
                     .sort_column_id(COL_ALBUM_TOTAL_TRACKS as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_TOTAL_TRACKS as i32);
                 col
@@ -158,15 +158,19 @@ where
         if !missing_columns.contains(&COL_ALBUM_DURATION) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 cell.set_alignment(1.0, 0.5);
+
                 let col = base_column
                     .clone()
                     .title("Duration")
                     .expand(false)
                     .sort_column_id(COL_ALBUM_DURATION as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_DURATION as i32);
+
                 gtk::TreeViewColumnExt::set_cell_data_func(
                     &col,
                     &cell,
@@ -179,6 +183,7 @@ where
                         }
                     })),
                 );
+
                 col
             });
         }
@@ -186,12 +191,14 @@ where
         if !missing_columns.contains(&COL_ALBUM_RATE) {
             let column_index = albums_view.append_column(&{
                 let text_cell = gtk::CellRendererText::new();
+
                 let column = base_column
                     .clone()
                     .expand(false)
                     .title("Rate")
                     .sort_column_id(COL_ALBUM_RATE as i32)
                     .build();
+
                 column.pack_start(&text_cell, true);
                 column.add_attribute(&text_cell, "text", COL_ALBUM_RATE as i32);
 
@@ -207,6 +214,7 @@ where
                         }
                     })),
                 );
+
                 column
             }) - 1;
 
@@ -216,11 +224,10 @@ where
                     None => return false,
                 };
 
-                if let Some((Some(model), path, pos)) =
-                    tree.get_tooltip_context(&mut x, &mut y, kbd)
-                {
+                if let Some((Some(model), path, pos)) = tree.get_tooltip_context(&mut x, &mut y, kbd) {
                     let (col_x0, col_x1) = {
                         let rect = tree.get_cell_area(Some(&path), Some(&column));
+
                         (rect.x, rect.x + rect.width)
                     };
 
@@ -228,16 +235,10 @@ where
                         return false;
                     }
 
-                    if let Ok(Some(rate)) =
-                        model.get_value(&pos, COL_ALBUM_RATE as i32).get::<u32>()
-                    {
+                    if let Ok(Some(rate)) = model.get_value(&pos, COL_ALBUM_RATE as i32).get::<u32>() {
                         tooltip.set_text(Some(&format!("Rating: {}", rate)));
-                        tree.set_tooltip_cell(
-                            &tooltip,
-                            Some(&path),
-                            Some(&column),
-                            None::<&gtk::CellRendererText>,
-                        );
+                        tree.set_tooltip_cell(&tooltip, Some(&path), Some(&column), None::<&gtk::CellRendererText>);
+
                         return true;
                     }
                 }
@@ -249,13 +250,16 @@ where
         if !missing_columns.contains(&COL_ALBUM_RELEASE_DATE) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 cell.set_alignment(1.0, 0.5);
+
                 let col = base_column
                     .clone()
                     .title("Released")
                     .expand(false)
                     .sort_column_id(COL_ALBUM_RELEASE_DATE as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_RELEASE_DATE as i32);
                 col
@@ -265,11 +269,13 @@ where
         if !missing_columns.contains(&COL_ALBUM_GENRES) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Genres")
                     .sort_column_id(COL_ALBUM_GENRES as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_GENRES as i32);
                 col
@@ -279,11 +285,13 @@ where
         if !missing_columns.contains(&COL_ALBUM_ARTISTS) {
             albums_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Artists")
                     .sort_column_id(COL_ALBUM_ARTISTS as i32)
                     .build();
+
                 col.pack_start(&cell, true);
                 col.add_attribute(&cell, "text", COL_ALBUM_ARTISTS as i32);
                 col
@@ -293,9 +301,7 @@ where
         AlbumView(albums_view)
     }
 
-    fn thumb_converter(&self) -> ImageConverter {
-        ImageConverter::new(THUMB_SIZE, false)
-    }
+    fn thumb_converter(&self) -> ImageConverter { ImageConverter::new(THUMB_SIZE, false) }
 
     fn setup_search(&self, entry: &gtk::Entry) -> bool {
         self.0.setup_search(COL_ALBUM_NAME, Some(entry));

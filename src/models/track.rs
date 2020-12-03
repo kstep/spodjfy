@@ -1,36 +1,53 @@
-use crate::models::{
-    Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull,
-    ToSimple, Wrapper, COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI,
+use crate::{
+    models::{
+        Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull, ToSimple, Wrapper, COL_ITEM_NAME,
+        COL_ITEM_THUMB, COL_ITEM_URI,
+    },
+    services::store::StorageModel,
 };
-use crate::services::store::StorageModel;
 use chrono::{DateTime, Utc};
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{
-    FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum,
-    SimplifiedArtist, SimplifiedTrack, Type as ModelType,
+    FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum, SimplifiedArtist, SimplifiedTrack,
+    Type as ModelType,
 };
-use std::collections::HashMap;
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 pub const COL_TRACK_THUMB: u32 = COL_ITEM_THUMB;
+
 pub const COL_TRACK_URI: u32 = COL_ITEM_URI;
+
 pub const COL_TRACK_NAME: u32 = COL_ITEM_NAME;
+
 pub const COL_TRACK_ARTISTS: u32 = 3;
+
 pub const COL_TRACK_NUMBER: u32 = 4;
+
 pub const COL_TRACK_ALBUM: u32 = 5;
+
 pub const COL_TRACK_CANT_PLAY: u32 = 6;
+
 pub const COL_TRACK_DURATION: u32 = 7;
+
 pub const COL_TRACK_DURATION_MS: u32 = 8;
+
 pub const COL_TRACK_BPM: u32 = 9;
+
 pub const COL_TRACK_TIMELINE: u32 = 10;
+
 pub const COL_TRACK_RELEASE_DATE: u32 = 11;
+
 pub const COL_TRACK_DESCRIPTION: u32 = 12;
+
 pub const COL_TRACK_ALBUM_URI: u32 = 13;
+
 pub const COL_TRACK_ARTIST_URI: u32 = 14;
+
 pub const COL_TRACK_RATE: u32 = 15;
+
 pub const COL_TRACK_SAVED: u32 = 16;
 
 impl Merge for FullTrack {
@@ -84,6 +101,7 @@ impl ToSimple for FullTrack {
             uri: self.uri.clone(),
         }
     }
+
     fn into_simple(self) -> Self::Simple {
         SimplifiedTrack {
             artists: self.artists,
@@ -109,25 +127,20 @@ impl ToSimple for FullTrack {
 
 pub trait TrackLike: HasDuration + HasImages + HasUri + HasName {
     fn id(&self) -> &str;
-    fn description(&self) -> Option<&str> {
-        None
-    }
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &[]
-    }
-    fn number(&self) -> u32 {
-        0
-    }
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        None
-    }
-    fn is_playable(&self) -> bool {
-        true
-    }
+
+    fn description(&self) -> Option<&str> { None }
+
+    fn artists(&self) -> &[SimplifiedArtist] { &[] }
+
+    fn number(&self) -> u32 { 0 }
+
+    fn album(&self) -> Option<&SimplifiedAlbum> { None }
+
+    fn is_playable(&self) -> bool { true }
+
     fn rate(&self) -> u32;
-    fn release_date(&self) -> Option<&str> {
-        self.album().and_then(|album| album.release_date.as_deref())
-    }
+
+    fn release_date(&self) -> Option<&str> { self.album().and_then(|album| album.release_date.as_deref()) }
 }
 
 impl<T: TrackLike> RowLike for T {
@@ -181,11 +194,7 @@ impl<T: TrackLike> RowLike for T {
                 &self.release_date(),
                 &self.description(),
                 &self.album().and_then(|album| album.uri.as_deref()),
-                &self
-                    .artists()
-                    .iter()
-                    .next()
-                    .and_then(|artist| artist.uri.as_deref()),
+                &self.artists().iter().next().and_then(|artist| artist.uri.as_deref()),
                 &self.rate(),
             ],
         )
@@ -193,57 +202,35 @@ impl<T: TrackLike> RowLike for T {
 }
 
 impl TrackLike for PlayHistory {
-    fn id(&self) -> &str {
-        self.track.id()
-    }
+    fn id(&self) -> &str { self.track.id() }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.artists()
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { self.track.artists() }
 
-    fn number(&self) -> u32 {
-        self.track.number()
-    }
+    fn number(&self) -> u32 { self.track.number() }
 
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.album()
-    }
+    fn album(&self) -> Option<&SimplifiedAlbum> { self.track.album() }
 
-    fn is_playable(&self) -> bool {
-        self.track.is_playable()
-    }
+    fn is_playable(&self) -> bool { self.track.is_playable() }
 
-    fn rate(&self) -> u32 {
-        self.track.popularity
-    }
+    fn rate(&self) -> u32 { self.track.popularity }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.release_date()
-    }
+    fn release_date(&self) -> Option<&str> { self.track.release_date() }
 }
 
 impl HasUri for PlayHistory {
-    fn uri(&self) -> &str {
-        self.track.uri()
-    }
+    fn uri(&self) -> &str { self.track.uri() }
 }
 
 impl HasName for PlayHistory {
-    fn name(&self) -> &str {
-        self.track.name()
-    }
+    fn name(&self) -> &str { self.track.name() }
 }
 
 impl HasDuration for PlayHistory {
-    fn duration(&self) -> u32 {
-        self.track.duration_ms
-    }
+    fn duration(&self) -> u32 { self.track.duration_ms }
 }
 
 impl HasImages for PlayHistory {
-    fn images(&self) -> &[Image] {
-        self.album().map(|album| &*album.images).unwrap_or(&[])
-    }
+    fn images(&self) -> &[Image] { self.album().map(|album| &*album.images).unwrap_or(&[]) }
 }
 
 impl MissingColumns for PlayHistory {
@@ -256,56 +243,33 @@ impl MissingColumns for PlayHistory {
 }
 
 impl TrackLike for PlaylistItem {
-    fn id(&self) -> &str {
-        self.track.as_ref().map(FullTrack::id).unwrap_or("")
-    }
+    fn id(&self) -> &str { self.track.as_ref().map(FullTrack::id).unwrap_or("") }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.as_ref().map(FullTrack::artists).unwrap_or(&[])
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { self.track.as_ref().map(FullTrack::artists).unwrap_or(&[]) }
 
-    fn number(&self) -> u32 {
-        self.track.as_ref().map(FullTrack::number).unwrap_or(0)
-    }
+    fn number(&self) -> u32 { self.track.as_ref().map(FullTrack::number).unwrap_or(0) }
 
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.as_ref().and_then(FullTrack::album)
-    }
+    fn album(&self) -> Option<&SimplifiedAlbum> { self.track.as_ref().and_then(FullTrack::album) }
 
-    fn is_playable(&self) -> bool {
-        self.track
-            .as_ref()
-            .map(FullTrack::is_playable)
-            .unwrap_or(false)
-    }
+    fn is_playable(&self) -> bool { self.track.as_ref().map(FullTrack::is_playable).unwrap_or(false) }
 
-    fn rate(&self) -> u32 {
-        self.track.as_ref().map_or(0, |track| track.popularity)
-    }
+    fn rate(&self) -> u32 { self.track.as_ref().map_or(0, |track| track.popularity) }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.as_ref().and_then(FullTrack::release_date)
-    }
+    fn release_date(&self) -> Option<&str> { self.track.as_ref().and_then(FullTrack::release_date) }
 }
 
 impl HasUri for PlaylistItem {
-    fn uri(&self) -> &str {
-        self.track.as_ref().map(FullTrack::uri).unwrap_or("")
-    }
+    fn uri(&self) -> &str { self.track.as_ref().map(FullTrack::uri).unwrap_or("") }
 }
 
 impl HasName for PlaylistItem {
-    fn name(&self) -> &str {
-        self.track.as_ref().map(FullTrack::name).unwrap_or("")
-    }
+    fn name(&self) -> &str { self.track.as_ref().map(FullTrack::name).unwrap_or("") }
 }
 
 impl Wrapper for PlaylistItem {
     type For = FullTrack;
 
-    fn unwrap(self) -> Self::For {
-        self.track.unwrap()
-    }
+    fn unwrap(self) -> Self::For { self.track.unwrap() }
 
     fn wrap(track: Self::For) -> Self {
         PlaylistItem {
@@ -318,18 +282,13 @@ impl Wrapper for PlaylistItem {
 }
 
 impl HasDuration for PlaylistItem {
-    fn duration(&self) -> u32 {
-        self.track.as_ref().map_or(0, |track| track.duration_ms)
-    }
-    fn duration_exact(&self) -> bool {
-        self.track.is_some()
-    }
+    fn duration(&self) -> u32 { self.track.as_ref().map_or(0, |track| track.duration_ms) }
+
+    fn duration_exact(&self) -> bool { self.track.is_some() }
 }
 
 impl HasImages for PlaylistItem {
-    fn images(&self) -> &[Image] {
-        self.album().map(|album| &*album.images).unwrap_or(&[])
-    }
+    fn images(&self) -> &[Image] { self.album().map(|album| &*album.images).unwrap_or(&[]) }
 }
 
 impl MissingColumns for PlaylistItem {
@@ -342,57 +301,35 @@ impl MissingColumns for PlaylistItem {
 }
 
 impl TrackLike for FullTrack {
-    fn id(&self) -> &str {
-        self.id.as_deref().unwrap_or("")
-    }
+    fn id(&self) -> &str { self.id.as_deref().unwrap_or("") }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
 
-    fn number(&self) -> u32 {
-        self.track_number
-    }
+    fn number(&self) -> u32 { self.track_number }
 
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        Some(&self.album)
-    }
+    fn album(&self) -> Option<&SimplifiedAlbum> { Some(&self.album) }
 
-    fn is_playable(&self) -> bool {
-        self.is_playable.unwrap_or(true)
-    }
+    fn is_playable(&self) -> bool { self.is_playable.unwrap_or(true) }
 
-    fn rate(&self) -> u32 {
-        self.popularity
-    }
+    fn rate(&self) -> u32 { self.popularity }
 
-    fn release_date(&self) -> Option<&str> {
-        self.album.release_date.as_deref()
-    }
+    fn release_date(&self) -> Option<&str> { self.album.release_date.as_deref() }
 }
 
 impl HasUri for FullTrack {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for FullTrack {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasDuration for FullTrack {
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
+    fn duration(&self) -> u32 { self.duration_ms }
 }
 
 impl HasImages for FullTrack {
-    fn images(&self) -> &[Image] {
-        self.album().map(|album| &*album.images).unwrap_or(&[])
-    }
+    fn images(&self) -> &[Image] { self.album().map(|album| &*album.images).unwrap_or(&[]) }
 }
 
 impl MissingColumns for FullTrack {
@@ -405,49 +342,31 @@ impl MissingColumns for FullTrack {
 }
 
 impl TrackLike for SimplifiedTrack {
-    fn id(&self) -> &str {
-        self.id.as_deref().unwrap_or("")
-    }
+    fn id(&self) -> &str { self.id.as_deref().unwrap_or("") }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
 
-    fn number(&self) -> u32 {
-        self.track_number
-    }
+    fn number(&self) -> u32 { self.track_number }
 
-    fn rate(&self) -> u32 {
-        0
-    }
+    fn rate(&self) -> u32 { 0 }
 
-    fn is_playable(&self) -> bool {
-        self.is_playable.unwrap_or(true)
-    }
+    fn is_playable(&self) -> bool { self.is_playable.unwrap_or(true) }
 }
 
 impl HasUri for SimplifiedTrack {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for SimplifiedTrack {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasDuration for SimplifiedTrack {
-    fn duration(&self) -> u32 {
-        self.duration_ms
-    }
+    fn duration(&self) -> u32 { self.duration_ms }
 }
 
 impl HasImages for SimplifiedTrack {
-    fn images(&self) -> &[Image] {
-        self.album().map(|album| &*album.images).unwrap_or(&[])
-    }
+    fn images(&self) -> &[Image] { self.album().map(|album| &*album.images).unwrap_or(&[]) }
 }
 
 impl MissingColumns for SimplifiedTrack {
@@ -495,53 +414,33 @@ impl ToFull for SimplifiedTrack {
 }
 
 impl TrackLike for SavedTrack {
-    fn id(&self) -> &str {
-        self.track.id()
-    }
+    fn id(&self) -> &str { self.track.id() }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.track.artists()
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { self.track.artists() }
 
-    fn number(&self) -> u32 {
-        self.track.number()
-    }
+    fn number(&self) -> u32 { self.track.number() }
 
-    fn album(&self) -> Option<&SimplifiedAlbum> {
-        self.track.album()
-    }
+    fn album(&self) -> Option<&SimplifiedAlbum> { self.track.album() }
 
-    fn is_playable(&self) -> bool {
-        self.track.is_playable()
-    }
+    fn is_playable(&self) -> bool { self.track.is_playable() }
 
-    fn rate(&self) -> u32 {
-        self.track.popularity
-    }
+    fn rate(&self) -> u32 { self.track.popularity }
 
-    fn release_date(&self) -> Option<&str> {
-        self.track.release_date()
-    }
+    fn release_date(&self) -> Option<&str> { self.track.release_date() }
 }
 
 impl HasUri for SavedTrack {
-    fn uri(&self) -> &str {
-        self.track.uri()
-    }
+    fn uri(&self) -> &str { self.track.uri() }
 }
 
 impl HasName for SavedTrack {
-    fn name(&self) -> &str {
-        self.track.name()
-    }
+    fn name(&self) -> &str { self.track.name() }
 }
 
 impl Wrapper for SavedTrack {
     type For = FullTrack;
 
-    fn unwrap(self) -> Self::For {
-        self.track
-    }
+    fn unwrap(self) -> Self::For { self.track }
 
     fn wrap(track: Self::For) -> Self {
         SavedTrack {
@@ -552,15 +451,11 @@ impl Wrapper for SavedTrack {
 }
 
 impl HasDuration for SavedTrack {
-    fn duration(&self) -> u32 {
-        self.track.duration_ms
-    }
+    fn duration(&self) -> u32 { self.track.duration_ms }
 }
 
 impl HasImages for SavedTrack {
-    fn images(&self) -> &[Image] {
-        self.album().map(|album| &*album.images).unwrap_or(&[])
-    }
+    fn images(&self) -> &[Image] { self.album().map(|album| &*album.images).unwrap_or(&[]) }
 }
 
 impl MissingColumns for SavedTrack {
@@ -622,6 +517,7 @@ macro_rules! impl_track_like_for_playing_item {
         }
     }
 }
+
 impl_track_like_for_playing_item! {
     id -> &str, artists -> &[SimplifiedArtist], number -> u32,
     album -> Option<&SimplifiedAlbum>, is_playable -> bool,
@@ -633,7 +529,5 @@ impl_track_like_for_playing_item! {
 impl StorageModel for FullTrack {
     const TREE_NAME: &'static str = "tracks";
 
-    fn key(&self) -> &str {
-        self.id()
-    }
+    fn key(&self) -> &str { self.id() }
 }

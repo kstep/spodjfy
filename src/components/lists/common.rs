@@ -1,24 +1,22 @@
-use crate::loaders::{ContainerLoader, ImageConverter, ImageLoader};
-use crate::models::common::*;
-use crate::models::PageLike;
-use crate::services::SpotifyRef;
-use crate::utils::{RetryPolicy, Spawn, SpawnError, SpawnScope};
-use crate::{broadcast, AppEvent};
+use crate::{
+    broadcast,
+    loaders::{ContainerLoader, ImageConverter, ImageLoader},
+    models::{common::*, PageLike},
+    services::SpotifyRef,
+    utils::{RetryPolicy, Spawn, SpawnError, SpawnScope},
+    AppEvent,
+};
 use gdk_pixbuf::Pixbuf;
-use glib::bitflags::_core::time::Duration;
-use glib::{Cast, IsA, MainContext, ToValue, Type};
-use gtk::prelude::GtkListStoreExtManual;
+use glib::{bitflags::_core::time::Duration, Cast, IsA, MainContext, ToValue, Type};
 use gtk::{
-    BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
-    IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt,
-    TreeSelectionExt, TreeViewExt, WidgetExt,
+    prelude::GtkListStoreExtManual, BoxExt, ButtonExt, ContainerExt, EditableSignals, EntryExt, GtkListStoreExt, GtkMenuExt,
+    IconViewExt, Inhibit, ProgressBarExt, StatusbarExt, TreeModelExt, TreeModelFilterExt, TreeSelectionExt, TreeViewExt,
+    WidgetExt,
 };
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
 use rspotify::client::ClientError;
-use std::convert::TryInto;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use std::{convert::TryInto, fmt::Debug, marker::PhantomData};
 use tokio::runtime::Handle;
 
 #[derive(Msg)]
@@ -39,16 +37,13 @@ pub enum ContainerMsg<Loader: ContainerLoader> {
 
 pub trait ItemsListView<Loader, Message> {
     fn create<Store: IsA<gtk::TreeModel>>(stream: EventStream<Message>, store: &Store) -> Self;
-    fn context_menu(&self, _stream: EventStream<Message>) -> gtk::Menu {
-        gtk::Menu::new()
-    }
-    fn setup_search(&self, _entry: &gtk::Entry) -> bool {
-        false
-    }
+    fn context_menu(&self, _stream: EventStream<Message>) -> gtk::Menu { gtk::Menu::new() }
+    fn setup_search(&self, _entry: &gtk::Entry) -> bool { false }
     fn thumb_converter(&self) -> ImageConverter;
 }
 
 #[doc(hidden)]
+
 pub struct ContainerModel<Loader> {
     pub pool: Handle,
     pub spotify: SpotifyRef,
@@ -63,9 +58,8 @@ pub struct ContainerModel<Loader> {
 }
 
 impl<Loader> ContainerModel<Loader> {
-    pub fn from_row<R: RowLike>(pool: Handle, spotify: SpotifyRef) -> Self {
-        Self::new(pool, spotify, &R::content_types())
-    }
+    pub fn from_row<R: RowLike>(pool: Handle, spotify: SpotifyRef) -> Self { Self::new(pool, spotify, &R::content_types()) }
+
     pub fn new(pool: Handle, spotify: SpotifyRef, column_types: &[Type]) -> Self {
         let store = gtk::ListStore::new(column_types);
         let image_loader = ImageLoader::new();
@@ -119,29 +113,19 @@ pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = Con
 }
 
 impl<L, V, H, M: 'static> SpawnScope<SpotifyRef> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> SpotifyRef {
-        self.model.spotify.clone()
-    }
+    fn scope(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
 impl<L, V, H, M: 'static> SpawnScope<EventStream<M>> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> EventStream<M> {
-        self.stream.clone()
-    }
+    fn scope(&self) -> EventStream<M> { self.stream.clone() }
 }
 
-impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>>
-    for ContainerList<Loader, V, H, M>
-{
-    fn scope(&self) -> Option<Loader> {
-        self.model.items_loader.clone()
-    }
+impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>> for ContainerList<Loader, V, H, M> {
+    fn scope(&self) -> Option<Loader> { self.model.items_loader.clone() }
 }
 
 impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
-    fn pool(&self) -> Handle {
-        self.model.pool.clone()
-    }
+    fn pool(&self) -> Handle { self.model.pool.clone() }
 
     fn retry_policy(error: SpawnError, retry_count: usize) -> RetryPolicy<SpawnError> {
         match error {
@@ -149,17 +133,21 @@ impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
                 let _ = broadcast(AppEvent::SpotifyAuthError(msg));
                 RetryPolicy::WaitRetry(Duration::from_secs(30))
             }
+            SpawnError::Spotify(ClientError::RateLimited(timeout)) if retry_count < 10 => {
+                RetryPolicy::WaitRetry(Duration::from_secs(timeout.unwrap_or(4) as u64 + 1))
+            }
+            SpawnError::Spotify(ClientError::RateLimited(_)) => {
+                error!("aborting after {} retries...", retry_count);
+                let _ = broadcast(AppEvent::SpotifyError(format!(
+                    "Rate limit exceeded, requests stopped after {} retries",
+                    retry_count
+                )));
+                RetryPolicy::ForwardError(error)
+            }
             SpawnError::Spotify(error) => {
                 error!("spotify error: {}", error);
                 let _ = broadcast(AppEvent::SpotifyError(error.to_string()));
                 RetryPolicy::ForwardError(SpawnError::Spotify(error))
-            }
-            SpawnError::Spotify(ClientError::RateLimited(timeout)) if retry_count < 10 => {
-                RetryPolicy::WaitRetry(Duration::from_secs(timeout.unwrap_or(4) as u64 + 1))
-            }
-            error if retry_count >= 10 => {
-                error!("aborting after {} retries...", retry_count);
-                RetryPolicy::ForwardError(error)
             }
             error => RetryPolicy::ForwardError(error),
         }
@@ -174,6 +162,7 @@ impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handl
         self.model.total_duration_exact = true;
 
         let status_ctx = self.status_bar.get_context_id("totals");
+
         self.status_bar.remove_all(status_ctx);
     }
 }
@@ -182,12 +171,7 @@ impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handl
 where
     Loader: ContainerLoader,
 {
-    pub fn current_epoch(&self) -> usize {
-        self.model
-            .items_loader
-            .as_ref()
-            .map_or(0, |ldr| ldr.epoch())
-    }
+    pub fn current_epoch(&self) -> usize { self.model.items_loader.as_ref().map_or(0, |ldr| ldr.epoch()) }
 }
 
 impl<Loader, ItemsView, Handler, Message> ContainerList<Loader, ItemsView, Handler, Message>
@@ -199,13 +183,14 @@ where
     pub fn start_load(&mut self) {
         if let Some(ref mut loader) = self.model.items_loader {
             self.model.is_loading = true;
+
             *loader = Loader::new(loader.parent_id().clone());
+
             let epoch = loader.epoch();
 
             self.search_btn.set_visible(false);
             self.search_entry.set_text("");
             self.search_entry.set_visible(false);
-
             self.refresh_btn.set_visible(false);
             self.progress_bar.set_fraction(0.0);
             self.progress_bar.set_visible(true);
@@ -218,26 +203,21 @@ where
 
     pub fn finish_load(&mut self) {
         let status_ctx = self.status_bar.get_context_id("totals");
-        self.model.is_loading = false;
 
+        self.model.is_loading = false;
         self.progress_bar.set_visible(false);
         self.refresh_btn.set_visible(true);
-
         self.search_btn.set_visible(true);
         self.search_entry.set_visible(false);
-
         self.status_bar.remove_all(status_ctx);
+
         let totals = if self.model.total_duration > 0 {
             format!(
                 "Total {}: {}, total duration: {}{}",
                 Loader::NAME,
                 self.model.total_items,
                 crate::utils::humanize_time(self.model.total_duration),
-                if self.model.total_duration_exact {
-                    ""
-                } else {
-                    "+"
-                }
+                if self.model.total_duration_exact { "" } else { "+" }
             )
         } else {
             format!("Total {}: {}", Loader::NAME, self.model.total_items)
@@ -254,13 +234,10 @@ pub trait MessageHandler<Component, Message> {
 pub struct NoopHandler;
 
 impl<Component, Message> MessageHandler<Component, Message> for NoopHandler {
-    fn handle(_component: &mut Component, message: Message) -> Option<Message> {
-        Some(message)
-    }
+    fn handle(_component: &mut Component, message: Message) -> Option<Message> { Some(message) }
 }
 
-impl<Loader, ItemsView, Handler, Message> Update
-    for ContainerList<Loader, ItemsView, Handler, Message>
+impl<Loader, ItemsView, Handler, Message> Update for ContainerList<Loader, ItemsView, Handler, Message>
 where
     Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
@@ -283,6 +260,7 @@ where
 
     fn update(&mut self, event: Self::Msg) {
         use ContainerMsg::*;
+
         let event = match Handler::handle(self, event) {
             Some(ev) => ev,
             None => return,
@@ -302,6 +280,7 @@ where
                         .is_none()
                     {
                         self.model.items_loader = Some(Loader::new(parent_id));
+
                         self.clear_store();
                         self.start_load()
                     }
@@ -320,15 +299,9 @@ where
                         offset,
                         async move |pool, (stream, spotify, loader): Inject<_, Loader>, offset| {
                             if let Some(loader) = loader {
-                                stream.emit(
-                                    NewPage(
-                                        pool.spawn(loader.load_page(spotify, offset.clone()))
-                                            .await??,
-                                        epoch,
-                                    )
-                                    .into(),
-                                );
+                                stream.emit(NewPage(pool.spawn(loader.load_page(spotify, offset.clone())).await??, epoch).into());
                             }
+
                             Ok(())
                         },
                     );
@@ -342,12 +315,12 @@ where
                     let store = &self.model.store;
                     let items = page.items();
 
-                    self.progress_bar.set_fraction(
-                        (page.num_offset() as f64 + items.len() as f64) / page.total() as f64,
-                    );
+                    self.progress_bar
+                        .set_fraction((page.num_offset() as f64 + items.len() as f64) / page.total() as f64);
 
                     let mut page_duration = 0;
                     let mut page_duration_exact = true;
+
                     for item in items {
                         let pos = item.append_to_store(store);
 
@@ -362,6 +335,7 @@ where
                     }
 
                     self.model.total_duration += page_duration;
+
                     if !page_duration_exact {
                         self.model.total_duration_exact = false;
                     }
@@ -378,11 +352,9 @@ where
                     let store = self.model.store.clone();
                     let pool = self.model.pool.clone();
                     let ctx = MainContext::ref_thread_default();
+
                     ctx.spawn_local(async move {
-                        if let Ok(Some(image)) = pool
-                            .spawn(async move { image_loader.load_image(&url).await })
-                            .await
-                        {
+                        if let Ok(Some(image)) = pool.spawn(async move { image_loader.load_image(&url).await }).await {
                             store.set_value(&pos, COL_ITEM_THUMB, &Pixbuf::from(image).to_value());
                         }
                     });
@@ -390,14 +362,11 @@ where
                 ActivateChosenItems => {
                     let (rows, model) = self.items_view.get_selected_rows();
 
-                    if let Some((uri, name)) = rows
-                        .first()
-                        .and_then(|path| crate::utils::extract_uri_name(&model, path))
-                    {
+                    if let Some((uri, name)) = rows.first().and_then(|path| crate::utils::extract_uri_name(&model, path)) {
                         self.stream.emit(ActivateItem(uri, name).into());
                     }
                 }
-                ActivateItem(_, _) => {}
+                ActivateItem(..) => {}
                 ActivateItems(_) => {}
                 OpenContextMenu(event) => {
                     self.context_menu.popup_at_pointer(Some(&event));
@@ -421,8 +390,7 @@ where
     }
 }
 
-impl<Loader, ItemsView, Handler, Message> Widget
-    for ContainerList<Loader, ItemsView, Handler, Message>
+impl<Loader, ItemsView, Handler, Message> Widget for ContainerList<Loader, ItemsView, Handler, Message>
 where
     Loader: ContainerLoader + Clone + Send + 'static,
     Loader::Item: RowLike + HasImages + HasDuration,
@@ -437,27 +405,21 @@ where
 {
     type Root = gtk::Box;
 
-    fn root(&self) -> Self::Root {
-        self.root.clone()
-    }
+    fn root(&self) -> Self::Root { self.root.clone() }
 
     #[allow(non_upper_case_globals)]
+
     fn view(relm: &Relm<Self>, mut model: Self::Model) -> Self {
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
-
         let items_view = ItemsView::create(relm.stream().clone(), &model.store);
-        model
-            .image_loader
-            .set_converter(items_view.thumb_converter());
+
+        model.image_loader.set_converter(items_view.thumb_converter());
 
         scroller.add(items_view.as_ref());
-
         root.add(&scroller);
 
         let status_bar = gtk::Statusbar::new();
-
         let progress_bar = gtk::ProgressBarBuilder::new()
             .valign(gtk::Align::Center)
             .width_request(200)
@@ -472,19 +434,19 @@ where
             stream.emit(ContainerMsg::FinishSearch.into());
             Inhibit(false)
         });
+
         let stream = relm.stream().clone();
         search_entry.connect_key_press_event(move |_, event| {
-            use gdk::keys::constants::*;
-            use gdk::EventType::*;
+            use gdk::{keys::constants::*, EventType::*};
             if let (KeyPress, Escape) = (event.get_event_type(), event.get_keyval()) {
                 stream.emit(ContainerMsg::FinishSearch.into());
             }
             Inhibit(false)
         });
 
-        let search_btn =
-            gtk::Button::from_icon_name(Some("system-search"), gtk::IconSize::SmallToolbar);
+        let search_btn = gtk::Button::from_icon_name(Some("system-search"), gtk::IconSize::SmallToolbar);
         search_btn.set_tooltip_text(Some("Search list"));
+
         let stream = relm.stream().clone();
         search_btn.connect_clicked(move |_| {
             stream.emit(ContainerMsg::StartSearch.into());
@@ -496,9 +458,9 @@ where
             search_entry.hide();
         }
 
-        let refresh_btn =
-            gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
+        let refresh_btn = gtk::Button::from_icon_name(Some("view-refresh"), gtk::IconSize::SmallToolbar);
         refresh_btn.set_tooltip_text(Some("Reload list"));
+
         let stream = relm.stream().clone();
         refresh_btn.connect_clicked(move |_| stream.emit(ContainerMsg::Reload.into()));
         status_bar.pack_start(&refresh_btn, false, false, 0);
@@ -533,14 +495,10 @@ where
 pub trait SetupViewSearch {
     fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()>;
 
-    fn wrap_filter<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(
-        model: &gtk::TreeModel,
-        column: u32,
-        entry: &T,
-    ) -> gtk::TreeModel {
+    fn wrap_filter<T: IsA<gtk::Entry> + IsA<gtk::Editable>>(model: &gtk::TreeModel, column: u32, entry: &T) -> gtk::TreeModel {
         let buffer = entry.get_buffer();
-
         let filter = gtk::TreeModelFilter::new(model, None);
+
         filter.set_visible_func(move |model, pos| {
             let needle = buffer.get_text();
             if needle.is_empty() {
@@ -558,12 +516,7 @@ pub trait SetupViewSearch {
         filter.upcast()
     }
 
-    fn tree_view_search(
-        model: &gtk::TreeModel,
-        column: i32,
-        needle: &str,
-        pos: &gtk::TreeIter,
-    ) -> bool {
+    fn tree_view_search(model: &gtk::TreeModel, column: i32, needle: &str, pos: &gtk::TreeIter) -> bool {
         if let Ok(Some(haystack)) = model.get_value(pos, column).get::<&str>() {
             let haystack = haystack.to_ascii_lowercase();
             let needle = needle.to_ascii_lowercase();
@@ -580,8 +533,10 @@ impl SetupViewSearch for gtk::TreeView {
         self.set_enable_search(true);
         self.set_search_entry(entry);
         self.set_search_equal_func(Self::tree_view_search);
+
         if let Some(entry) = entry {
             let view = self.clone();
+
             entry.connect_activate(move |_| {
                 if let Some((model, pos)) = view.get_selection().get_selected() {
                     if let (Some(col), Some(path)) = (view.get_column(0), model.get_path(&pos)) {
@@ -590,6 +545,7 @@ impl SetupViewSearch for gtk::TreeView {
                 }
             });
         }
+
         Some(())
     }
 }
@@ -613,9 +569,11 @@ impl<'a> DoubleEndedIterator for TreeModelIterator<'a> {
         match self.iter {
             Some(ref iter) => {
                 let cur_iter = iter.clone();
+
                 if !self.model.iter_previous(iter) {
                     self.iter = None;
                 }
+
                 Some(cur_iter)
             }
             None => None,
@@ -630,9 +588,11 @@ impl<'a> Iterator for TreeModelIterator<'a> {
         match self.iter {
             Some(ref iter) => {
                 let cur_iter = iter.clone();
+
                 if !self.model.iter_next(iter) {
                     self.iter = None;
                 }
+
                 Some(cur_iter)
             }
             None => None,
@@ -642,47 +602,45 @@ impl<'a> Iterator for TreeModelIterator<'a> {
 
 impl SetupViewSearch for gtk::IconView {
     #[allow(non_upper_case_globals)]
+
     fn setup_search(&self, column: u32, entry: Option<&gtk::Entry>) -> Option<()> {
         let entry = entry?;
-
         let view = self.clone();
+
         entry.connect_key_press_event(move |entry, event| {
-            use gdk::keys::constants::*;
-            use gdk::EventType::*;
+            use gdk::{keys::constants::*, EventType::*};
+
             #[allow(clippy::never_loop)]
             Inhibit(loop {
                 if let Some(model) = view.get_model() {
                     let (iter, rev) = match (event.get_event_type(), event.get_keyval()) {
                         (KeyPress, key @ Up) | (KeyPress, key @ Down) => {
-                            let cur_pos = view
-                                .get_selected_items()
-                                .first()
-                                .and_then(|path| model.get_iter(path));
+                            let cur_pos = view.get_selected_items().first().and_then(|path| model.get_iter(path));
+
                             (TreeModelIterator::new(&model, cur_pos), key == Up)
                         }
                         _ => break false,
                     };
 
                     let needle = entry.get_text();
+
                     let found = if rev {
                         iter.rev()
                             .skip(1)
-                            .find(|pos| {
-                                !Self::tree_view_search(&model, column as i32, &needle, &pos)
-                            })
+                            .find(|pos| !Self::tree_view_search(&model, column as i32, &needle, &pos))
                             .and_then(|pos| model.get_path(&pos))
                     } else {
                         iter.skip(1)
-                            .find(|pos| {
-                                !Self::tree_view_search(&model, column as i32, &needle, &pos)
-                            })
+                            .find(|pos| !Self::tree_view_search(&model, column as i32, &needle, &pos))
                             .and_then(|pos| model.get_path(&pos))
                     };
+
                     if let Some(path) = found {
                         view.unselect_all();
                         view.select_path(&path);
                         view.scroll_to_path(&path, false, 0.0, 0.0);
                     }
+
                     break true;
                 } else {
                     break false;
@@ -691,9 +649,11 @@ impl SetupViewSearch for gtk::IconView {
         });
 
         let view = self.clone();
+
         entry.connect_changed(move |entry| {
             if let Some(model) = view.get_model() {
                 let needle = entry.get_text();
+
                 if let Some(path) = TreeModelIterator::new(&model, None)
                     .find(|pos| !Self::tree_view_search(&model, column as i32, &needle, &pos))
                     .and_then(|pos| model.get_path(&pos))
@@ -706,6 +666,7 @@ impl SetupViewSearch for gtk::IconView {
         });
 
         let view = self.clone();
+
         entry.connect_activate(move |_| {
             view.emit_activate_cursor_item();
         });

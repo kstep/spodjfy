@@ -20,9 +20,11 @@ fn main() {
         .unwrap();
 
     let mut spotify = Spotify::new(client_id, client_secret, spotify_cache_path);
+
     runtime.block_on(async {
         spotify.load_token_from_cache().await;
     });
+
     let spotify = Arc::new(RwLock::new(spotify));
 
     LoginService::new(spotify.clone()).spawn(&runtime);
@@ -30,10 +32,5 @@ fn main() {
 
     let pool = runtime.handle().clone();
 
-    Win::run(Params {
-        pool,
-        settings,
-        spotify,
-    })
-    .unwrap();
+    Win::run(Params { pool, settings, spotify }).unwrap();
 }

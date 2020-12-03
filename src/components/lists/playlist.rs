@@ -1,24 +1,25 @@
 //! # Playlists list component
 //!
-//! A component to show list of playlists of a given parent (e.g. current user playlists, some other user playlists, etc).
+//! A component to show list of playlists of a given parent (e.g. current user
+//! playlists, some other user playlists, etc).
 //!
 //! Parameters:
 //!   - `Handle` - a tokio runtime handle
 //!   - `SpotifyRef` - a reference to spotify client
-//!
 
-use crate::components::lists::common::SetupViewSearch;
-use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::{ContainerLoader, ImageConverter};
-use crate::models::common::*;
-use crate::models::playlist::*;
+use crate::{
+    components::lists::{common::SetupViewSearch, ContainerList, ContainerMsg, GetSelectedRows, ItemsListView},
+    loaders::{ContainerLoader, ImageConverter},
+    models::{common::*, playlist::*},
+};
 use glib::Cast;
-use gtk::prelude::*;
-use gtk::{CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
+use gtk::{prelude::*, CellRendererExt, CellRendererTextExt, TreeModelExt, TreeViewExt};
 use relm::EventStream;
 
 const TREE_THUMB_SIZE: i32 = 48;
+
 const ICON_THUMB_SIZE: i32 = 128;
+
 const ICON_ITEM_SIZE: i32 = (ICON_THUMB_SIZE as f32 * 2.25) as i32;
 
 pub type PlaylistList<Loader> = ContainerList<Loader, PlaylistView>;
@@ -38,10 +39,7 @@ impl AsRef<gtk::Widget> for PlaylistView {
 }
 
 impl PlaylistView {
-    fn build_icon_view<Loader, Message, Store>(
-        stream: EventStream<Message>,
-        store: &Store,
-    ) -> gtk::IconView
+    fn build_icon_view<Loader, Message, Store>(stream: EventStream<Message>, store: &Store) -> gtk::IconView
     where
         Loader: ContainerLoader,
         Loader::Item: MissingColumns,
@@ -61,20 +59,19 @@ impl PlaylistView {
             .build();
 
         let cells = playlists_view.get_cells();
+
         if let Some(cell) = cells.last() {
             cell.set_alignment(0.0, 0.0);
+
             cell.set_padding(10, 0);
+
             playlists_view.set_cell_data_func(
                 cell,
                 Some(Box::new(move |_layout, cell, model, pos| {
                     if let (Ok(Some(name)), Ok(Some(publisher)), Ok(Some(tracks)), Some(cell)) = (
                         model.get_value(pos, COL_PLAYLIST_NAME as i32).get::<&str>(),
-                        model
-                            .get_value(pos, COL_PLAYLIST_PUBLISHER as i32)
-                            .get::<&str>(),
-                        model
-                            .get_value(pos, COL_PLAYLIST_TOTAL_TRACKS as i32)
-                            .get::<u32>(),
+                        model.get_value(pos, COL_PLAYLIST_PUBLISHER as i32).get::<&str>(),
+                        model.get_value(pos, COL_PLAYLIST_TOTAL_TRACKS as i32).get::<u32>(),
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
                         let info = if tracks > 0 {
@@ -111,10 +108,8 @@ impl PlaylistView {
     }
 
     #[allow(clippy::redundant_clone)]
-    fn build_tree_view<Loader, Message, Store>(
-        stream: EventStream<Message>,
-        store: &Store,
-    ) -> gtk::TreeView
+
+    fn build_tree_view<Loader, Message, Store>(stream: EventStream<Message>, store: &Store) -> gtk::TreeView
     where
         Loader: ContainerLoader,
         Loader::Item: MissingColumns,
@@ -147,9 +142,13 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_THUMB) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererPixbuf::new();
+
                 let col = gtk::TreeViewColumn::new();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "pixbuf", COL_PLAYLIST_THUMB as i32);
+
                 col
             });
         }
@@ -157,13 +156,17 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_NAME) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Title")
                     .sort_column_id(COL_PLAYLIST_NAME as i32)
                     .build();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "text", COL_PLAYLIST_NAME as i32);
+
                 col
             });
         }
@@ -171,13 +174,17 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_PUBLISHER) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Publisher")
                     .sort_column_id(COL_PLAYLIST_PUBLISHER as i32)
                     .build();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "text", COL_PLAYLIST_PUBLISHER as i32);
+
                 col
             });
         }
@@ -185,13 +192,17 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_DESCRIPTION) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 let col = base_column
                     .clone()
                     .title("Description")
                     .sort_column_id(COL_PLAYLIST_DESCRIPTION as i32)
                     .build();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "text", COL_PLAYLIST_DESCRIPTION as i32);
+
                 col
             });
         }
@@ -199,15 +210,20 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_TOTAL_TRACKS) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 cell.set_alignment(1.0, 0.5);
+
                 let col = base_column
                     .clone()
                     .title("Tracks")
                     .expand(false)
                     .sort_column_id(COL_PLAYLIST_TOTAL_TRACKS as i32)
                     .build();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "text", COL_PLAYLIST_TOTAL_TRACKS as i32);
+
                 col
             });
         }
@@ -215,29 +231,33 @@ impl PlaylistView {
         if !missing_columns.contains(&COL_PLAYLIST_DURATION) {
             playlists_view.append_column(&{
                 let cell = gtk::CellRendererText::new();
+
                 cell.set_alignment(1.0, 0.5);
+
                 let col = base_column
                     .clone()
                     .title("Duration")
                     .expand(false)
                     .sort_column_id(COL_PLAYLIST_DURATION as i32)
                     .build();
+
                 col.pack_start(&cell, true);
+
                 col.add_attribute(&cell, "text", COL_PLAYLIST_DURATION as i32);
+
                 gtk::TreeViewColumnExt::set_cell_data_func(
                     &col,
                     &cell,
                     Some(Box::new(move |_col, cell, model, pos| {
                         if let (Some(cell), Ok(Some(value))) = (
                             cell.downcast_ref::<gtk::CellRendererText>(),
-                            model
-                                .get_value(pos, COL_PLAYLIST_DURATION as i32)
-                                .get::<u32>(),
+                            model.get_value(pos, COL_PLAYLIST_DURATION as i32).get::<u32>(),
                         ) {
                             cell.set_property_text(Some(&crate::utils::humanize_time(value)));
                         }
                     })),
                 );
+
                 col
             });
         }
@@ -245,6 +265,7 @@ impl PlaylistView {
         playlists_view
     }
 }
+
 impl GetSelectedRows for PlaylistView {
     fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
         match self {
@@ -253,15 +274,13 @@ impl GetSelectedRows for PlaylistView {
         }
     }
 }
+
 impl From<gtk::TreeView> for PlaylistView {
-    fn from(tree: gtk::TreeView) -> Self {
-        Self::Tree(tree)
-    }
+    fn from(tree: gtk::TreeView) -> Self { Self::Tree(tree) }
 }
+
 impl From<gtk::IconView> for PlaylistView {
-    fn from(icon: gtk::IconView) -> Self {
-        Self::Icon(icon)
-    }
+    fn from(icon: gtk::IconView) -> Self { Self::Icon(icon) }
 }
 
 impl<Loader, Message> ItemsListView<Loader, Message> for PlaylistView
@@ -294,6 +313,7 @@ where
             PlaylistView::Tree(view) => view.setup_search(COL_PLAYLIST_NAME, Some(entry)),
             PlaylistView::Icon(view) => view.setup_search(COL_PLAYLIST_NAME, Some(entry)),
         };
+
         true
     }
 }

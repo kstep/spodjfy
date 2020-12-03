@@ -1,17 +1,25 @@
-use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
-use crate::loaders::RecentLoader;
+use crate::{
+    components::{
+        lists::{ContainerMsg, TrackList, TrackMsg},
+        tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver},
+    },
+    loaders::RecentLoader,
+};
 use relm::{Relm, Widget};
 use relm_derive::widget;
 
 #[widget]
 impl Widget for RecentTab {
-    fn model(params: MusicTabParams) -> MusicTabModel {
-        MusicTabModel::from_params(params)
+    view! {
+        #[name="tracks_view"]
+        TrackList::<RecentLoader>((self.model.pool.clone(), self.model.spotify.clone())),
     }
+
+    fn model(params: MusicTabParams) -> MusicTabModel { MusicTabModel::from_params(params) }
 
     fn update(&mut self, event: MusicTabMsg) {
         use MusicTabMsg::*;
+
         match event {
             ShowTab => {
                 self.tracks_view.emit(ContainerMsg::Load(()).into());
@@ -23,14 +31,5 @@ impl Widget for RecentTab {
         }
     }
 
-    view! {
-        #[name="tracks_view"]
-        TrackList::<RecentLoader>((self.model.pool.clone(), self.model.spotify.clone())),
-    }
-
-    fn subscriptions(&mut self, relm: &Relm<Self>) {
-        self.tracks_view
-            .stream()
-            .observe(TracksObserver::new(relm.stream()));
-    }
+    fn subscriptions(&mut self, relm: &Relm<Self>) { self.tracks_view.stream().observe(TracksObserver::new(relm.stream())); }
 }

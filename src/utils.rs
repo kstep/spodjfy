@@ -1,17 +1,21 @@
 use crate::models::{COL_ITEM_NAME, COL_ITEM_URI};
-use glib::bitflags::_core::future::Future;
-use glib::bitflags::_core::time::Duration;
-use glib::MainContext;
+use glib::{
+    bitflags::_core::{future::Future, time::Duration},
+    MainContext,
+};
 use gtk::TreeModelExt;
 use rspotify::client::ClientError;
+use std::sync::Arc;
 use thiserror::Error;
-use tokio::runtime::Handle;
-use tokio::task::JoinError;
+use tokio::{runtime::Handle, sync::RwLock, task::JoinError};
+
+pub type AsyncCell<T> = Arc<RwLock<T>>;
 
 pub fn humanize_time(time_ms: u32) -> String {
     let seconds = time_ms / 1000;
     let (minutes, seconds) = (seconds / 60, seconds % 60);
     let (hours, minutes) = (minutes / 60, minutes % 60);
+
     if hours > 0 {
         format!("{}:{:02}:{:02}", hours, minutes, seconds)
     } else {
@@ -46,13 +50,7 @@ pub fn extract_uri_name(model: &gtk::TreeModel, path: &gtk::TreePath) -> Option<
             .get::<String>()
             .ok()
             .flatten()
-            .zip(
-                model
-                    .get_value(&pos, COL_ITEM_NAME as i32)
-                    .get::<String>()
-                    .ok()
-                    .flatten(),
-            )
+            .zip(model.get_value(&pos, COL_ITEM_NAME as i32).get::<String>().ok().flatten())
     })
 }
 
@@ -68,22 +66,23 @@ impl Iterator for SearchTermsIter {
     fn next(&mut self) -> Option<Self::Item> {
         while self.1 != 16384 {
             let item = self.0 & self.1;
+
             self.1 <<= 1;
 
             if item != 0 {
                 return Some(unsafe { std::mem::transmute(self.1 >> 1) });
             }
         }
+
         None
     }
 }
-impl IntoIterator for SearchTerms {
-    type Item = SearchTerm;
-    type IntoIter = SearchTermsIter;
 
-    fn into_iter(self) -> Self::IntoIter {
-        SearchTermsIter(self.0, 1)
-    }
+impl IntoIterator for SearchTerms {
+    type IntoIter = SearchTermsIter;
+    type Item = SearchTerm;
+
+    fn into_iter(self) -> Self::IntoIter { SearchTermsIter(self.0, 1) }
 }
 
 // TODO
@@ -94,16 +93,19 @@ impl SearchTerms {
         let mask = term as i16;
         self.0 |= mask;
     }
+
     #[inline]
     pub fn remove(&mut self, term: SearchTerm) {
         let mask = term as i16;
         self.0 &= !mask;
     }
+
     #[inline]
     pub fn update(&mut self, term: SearchTerm, is_set: bool) {
         let mask = term as i16;
         self.0 ^= (-(is_set as i16) ^ self.0) & mask;
     }
+
     #[inline]
     pub fn contains(&self, term: SearchTerm) -> bool {
         let mask = term as i16;
@@ -149,17 +151,10 @@ pub trait SpawnScope<T: 'static> {
 }
 
 impl<A: 'static, B: 'static, T: SpawnScope<A> + SpawnScope<B>> SpawnScope<(A, B)> for T {
-    fn scope(&self) -> (A, B) {
-        (
-            <Self as SpawnScope<A>>::scope(self),
-            <Self as SpawnScope<B>>::scope(self),
-        )
-    }
+    fn scope(&self) -> (A, B) { (<Self as SpawnScope<A>>::scope(self), <Self as SpawnScope<B>>::scope(self)) }
 }
 
-impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + SpawnScope<C>>
-    SpawnScope<(A, B, C)> for T
-{
+impl<A: 'static, B: 'static, C: 'static, T: SpawnScope<A> + SpawnScope<B> + SpawnScope<C>> SpawnScope<(A, B, C)> for T {
     fn scope(&self) -> (A, B, C) {
         (
             <Self as SpawnScope<A>>::scope(self),
@@ -198,13 +193,16 @@ pub trait Spawn {
     {
         let pool = self.pool();
         let scope = self.scope();
+
         self.gcontext().spawn_local(async move {
             let mut retry_count = 0;
+
             loop {
                 match body(pool.clone(), scope.clone(), args.clone()).await {
                     Ok(_) => break,
                     Err(error) => {
                         error!("spawn error: {}", error);
+
                         match Self::retry_policy(error, retry_count) {
                             RetryPolicy::ForwardError(_) => {
                                 break;
@@ -214,22 +212,20 @@ pub trait Spawn {
                             }
                             RetryPolicy::WaitRetry(timeout) => {
                                 info!("retry after {:.2} secs...", timeout.as_secs_f32());
+
                                 glib::timeout_future(timeout.as_millis() as u32).await;
                             }
                         }
                     }
                 }
+
                 retry_count += 1;
             }
         });
     }
 
-    fn gcontext(&self) -> MainContext {
-        MainContext::ref_thread_default()
-    }
-    fn pool(&self) -> Handle;
+    fn gcontext(&self) -> MainContext { MainContext::ref_thread_default() }
 
-    fn retry_policy(error: SpawnError, _retry_count: usize) -> RetryPolicy<SpawnError> {
-        RetryPolicy::ForwardError(error)
-    }
+    fn pool(&self) -> Handle;
+    fn retry_policy(error: SpawnError, _retry_count: usize) -> RetryPolicy<SpawnError> { RetryPolicy::ForwardError(error) }
 }

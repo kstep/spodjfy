@@ -1,5 +1,6 @@
 // TODO: Use Model
 #![allow(dead_code)]
+
 use glib::{IsA, Type};
 use rspotify::model::{CursorBasedPage, Image, Page};
 use serde_derive::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ impl<S: ToFull> Model<S::Full, S> {
             Self::Simple(model) => *self = Self::Full(model.to_full()),
         }
     }
+
     fn into_full(self) -> S::Full {
         match self {
             Self::Full(model) => model,
@@ -29,6 +31,7 @@ impl<S: ToFull> Model<S::Full, S> {
         }
     }
 }
+
 impl<F: ToSimple> Model<F, F::Simple> {
     pub fn make_simple(&mut self) {
         match self {
@@ -36,6 +39,7 @@ impl<F: ToSimple> Model<F, F::Simple> {
             Self::Simple(_) => {}
         }
     }
+
     pub fn into_simple(self) -> F::Simple {
         match self {
             Self::Simple(model) => model,
@@ -46,28 +50,31 @@ impl<F: ToSimple> Model<F, F::Simple> {
 
 pub trait Wrapper {
     type For;
+
     fn unwrap(self) -> Self::For;
+
     fn wrap(original: Self::For) -> Self;
 }
 
 pub trait ToSimple: Sized {
     type Simple;
+
     fn to_simple(&self) -> Self::Simple;
-    fn into_simple(self) -> Self::Simple {
-        self.to_simple()
-    }
+
+    fn into_simple(self) -> Self::Simple { self.to_simple() }
 }
 
 pub trait ToFull: Sized {
     type Full: ToSimple;
+
     fn to_full(&self) -> Self::Full;
-    fn into_full(self) -> Self::Full {
-        self.to_full()
-    }
+
+    fn into_full(self) -> Self::Full { self.to_full() }
 }
 
 pub trait Empty {
     fn empty() -> Self;
+
     fn is_empty(&self) -> bool;
 }
 
@@ -75,43 +82,33 @@ impl<S: ToFull> Merge for Model<S::Full, S>
 where
     S::Full: Merge,
 {
-    fn merge(self, other: Self) -> Self {
-        Model::Full(self.into_full().merge(other.into_full()))
-    }
+    fn merge(self, other: Self) -> Self { Model::Full(self.into_full().merge(other.into_full())) }
 }
 
 impl Empty for String {
-    fn empty() -> Self {
-        String::new()
-    }
-    fn is_empty(&self) -> bool {
-        String::is_empty(self)
-    }
+    fn empty() -> Self { String::new() }
+
+    fn is_empty(&self) -> bool { String::is_empty(self) }
 }
+
 impl<T> Empty for Vec<T> {
-    fn empty() -> Self {
-        Vec::new()
-    }
-    fn is_empty(&self) -> bool {
-        Vec::is_empty(self)
-    }
+    fn empty() -> Self { Vec::new() }
+
+    fn is_empty(&self) -> bool { Vec::is_empty(self) }
 }
+
 impl Empty for bool {
-    fn empty() -> Self {
-        false
-    }
-    fn is_empty(&self) -> bool {
-        !*self
-    }
+    fn empty() -> Self { false }
+
+    fn is_empty(&self) -> bool { !*self }
 }
+
 impl<T> Empty for Option<T> {
-    fn empty() -> Self {
-        None
-    }
-    fn is_empty(&self) -> bool {
-        self.is_none()
-    }
+    fn empty() -> Self { None }
+
+    fn is_empty(&self) -> bool { self.is_none() }
 }
+
 macro_rules! impl_empty_for_num {
     ($($ty:ty),+) => {
         $(impl Empty for $ty {
@@ -120,40 +117,31 @@ macro_rules! impl_empty_for_num {
         })+
     }
 }
+
 impl_empty_for_num!(usize, u64, u32, u16, u8, isize, i64, i32, i16, i8);
+
 impl Empty for f32 {
-    fn empty() -> f32 {
-        0.0
-    }
-    fn is_empty(&self) -> bool {
-        *self == 0.0
-    }
+    fn empty() -> f32 { 0.0 }
+
+    fn is_empty(&self) -> bool { *self == 0.0 }
 }
+
 impl Empty for f64 {
-    fn empty() -> f64 {
-        0.0
-    }
-    fn is_empty(&self) -> bool {
-        *self == 0.0
-    }
+    fn empty() -> f64 { 0.0 }
+
+    fn is_empty(&self) -> bool { *self == 0.0 }
 }
 
 impl<K, V> Empty for HashMap<K, V> {
-    fn empty() -> Self {
-        HashMap::new()
-    }
-    fn is_empty(&self) -> bool {
-        HashMap::is_empty(self)
-    }
+    fn empty() -> Self { HashMap::new() }
+
+    fn is_empty(&self) -> bool { HashMap::is_empty(self) }
 }
 
 impl<K: Ord, V> Empty for BTreeMap<K, V> {
-    fn empty() -> Self {
-        BTreeMap::new()
-    }
-    fn is_empty(&self) -> bool {
-        BTreeMap::is_empty(self)
-    }
+    fn empty() -> Self { BTreeMap::new() }
+
+    fn is_empty(&self) -> bool { BTreeMap::is_empty(self) }
 }
 
 pub trait Merge<Other = Self>: Sized {
@@ -171,13 +159,9 @@ impl<T: Empty + Clone> Merge for T {
 }
 
 impl<T: HasDuration> HasDuration for Vec<T> {
-    fn duration(&self) -> u32 {
-        self.iter().map(|item| item.duration()).sum()
-    }
+    fn duration(&self) -> u32 { self.iter().map(|item| item.duration()).sum() }
 
-    fn duration_exact(&self) -> bool {
-        self.iter().all(|item| item.duration_exact())
-    }
+    fn duration_exact(&self) -> bool { self.iter().all(|item| item.duration_exact()) }
 }
 
 pub trait HasImages {
@@ -185,12 +169,9 @@ pub trait HasImages {
 }
 
 pub trait HasDuration {
-    fn duration(&self) -> u32 {
-        0
-    }
-    fn duration_exact(&self) -> bool {
-        true
-    }
+    fn duration(&self) -> u32 { 0 }
+
+    fn duration_exact(&self) -> bool { true }
 }
 
 pub trait HasUri {
@@ -202,34 +183,27 @@ pub trait HasName {
 }
 
 pub trait MissingColumns {
-    fn missing_columns() -> &'static [u32] {
-        &[]
-    }
+    fn missing_columns() -> &'static [u32] { &[] }
 }
 
 impl<T: HasDuration> HasDuration for Page<T> {
-    fn duration(&self) -> u32 {
-        self.items.iter().map(|item| item.duration()).sum()
-    }
+    fn duration(&self) -> u32 { self.items.iter().map(|item| item.duration()).sum() }
 
     fn duration_exact(&self) -> bool {
-        (self.items.len() == self.total as usize)
-            && self.items.iter().all(|item| item.duration_exact())
+        (self.items.len() == self.total as usize) && self.items.iter().all(|item| item.duration_exact())
     }
 }
 
 impl<T: HasDuration> HasDuration for CursorBasedPage<T> {
-    fn duration(&self) -> u32 {
-        self.items.iter().map(|item| item.duration()).sum()
-    }
+    fn duration(&self) -> u32 { self.items.iter().map(|item| item.duration()).sum() }
 
     fn duration_exact(&self) -> bool {
-        (self.items.len() == self.total.unwrap_or(0) as usize)
-            && self.items.iter().all(|item| item.duration_exact())
+        (self.items.len() == self.total.unwrap_or(0) as usize) && self.items.iter().all(|item| item.duration_exact())
     }
 }
 
 pub trait RowLike {
     fn content_types() -> Vec<Type>;
+
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter;
 }

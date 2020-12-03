@@ -1,11 +1,10 @@
-use crate::components::lists::common::SetupViewSearch;
-use crate::components::lists::{ContainerList, ContainerMsg, GetSelectedRows, ItemsListView};
-use crate::loaders::{ContainerLoader, ImageConverter};
-use crate::models::artist::*;
-use glib::{Cast, IsA};
-use gtk::{
-    CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt, WidgetExt,
+use crate::{
+    components::lists::{common::SetupViewSearch, ContainerList, ContainerMsg, GetSelectedRows, ItemsListView},
+    loaders::{ContainerLoader, ImageConverter},
+    models::artist::*,
 };
+use glib::{Cast, IsA};
+use gtk::{CellLayoutExt, CellRendererExt, CellRendererTextExt, IconViewExt, TreeModelExt, WidgetExt};
 use relm::EventStream;
 use std::io::Write;
 
@@ -17,21 +16,15 @@ const ITEM_SIZE: i32 = (THUMB_SIZE as f32 * 2.25) as i32;
 pub struct ArtistView(gtk::IconView);
 
 impl From<gtk::IconView> for ArtistView {
-    fn from(view: gtk::IconView) -> Self {
-        ArtistView(view)
-    }
+    fn from(view: gtk::IconView) -> Self { ArtistView(view) }
 }
 
 impl AsRef<gtk::Widget> for ArtistView {
-    fn as_ref(&self) -> &gtk::Widget {
-        self.0.upcast_ref()
-    }
+    fn as_ref(&self) -> &gtk::Widget { self.0.upcast_ref() }
 }
 
 impl GetSelectedRows for ArtistView {
-    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) {
-        self.0.get_selected_rows()
-    }
+    fn get_selected_rows(&self) -> (Vec<gtk::TreePath>, gtk::TreeModel) { self.0.get_selected_rows() }
 }
 
 impl<Loader, Message> ItemsListView<Loader, Message> for ArtistView
@@ -64,9 +57,11 @@ where
         });
 
         let cells = artist_view.get_cells();
+
         if let Some(cell) = cells.last() {
             cell.set_alignment(0.0, 0.0);
             cell.set_padding(10, 0);
+
             artist_view.set_cell_data_func(
                 cell,
                 Some(Box::new(move |_layout, cell, model, pos| {
@@ -77,6 +72,7 @@ where
                         cell.downcast_ref::<gtk::CellRendererText>(),
                     ) {
                         let stars = crate::utils::rate_to_stars(rate);
+
                         let info = if genres.is_empty() {
                             format!("<big>{}</big>\n{}", glib::markup_escape_text(name), stars)
                         } else {
@@ -86,9 +82,11 @@ where
                                 let mut cut = 35;
                                 let bytes = genres.as_bytes();
                                 let len = bytes.len();
+
                                 while cut < len && bytes[cut] & 0b1100_0000 == 0b1000_0000 {
                                     cut += 1;
                                 }
+
                                 (
                                     match genres[..cut].rsplitn(2, ',').last() {
                                         Some(last) => last,
@@ -97,6 +95,7 @@ where
                                     "…",
                                 )
                             };
+
                             format!(
                                 "<big>{}</big>\n<i>{}{}</i>\n{}",
                                 glib::markup_escape_text(name),
@@ -116,21 +115,20 @@ where
             if let Some((model, path, pos)) = view.get_tooltip_context(&mut x, &mut y, kbd) {
                 if let (Ok(Some(rate)), Ok(Some(genres)), Ok(Some(followers))) = (
                     model.get_value(&pos, COL_ARTIST_RATE as i32).get::<u32>(),
-                    model
-                        .get_value(&pos, COL_ARTIST_GENRES as i32)
-                        .get::<&str>(),
-                    model
-                        .get_value(&pos, COL_ARTIST_FOLLOWERS as i32)
-                        .get::<u64>(),
+                    model.get_value(&pos, COL_ARTIST_GENRES as i32).get::<&str>(),
+                    model.get_value(&pos, COL_ARTIST_FOLLOWERS as i32).get::<u64>(),
                 ) {
                     let info = {
                         let mut info = Vec::with_capacity(100);
+
                         if !genres.is_empty() {
                             writeln!(&mut info, "Genres: {}", genres).unwrap();
                         }
+
                         if rate > 0 {
                             writeln!(&mut info, "Rating: {}", rate).unwrap();
                         }
+
                         if followers > 0 {
                             writeln!(&mut info, "Followers: {}", followers).unwrap();
                         }
@@ -142,9 +140,11 @@ where
 
                     tooltip.set_text(Some(info.trim_end()));
                     view.set_tooltip_cell(&tooltip, &path, view.get_cells().last());
+
                     return true;
                 }
             }
+
             false
         });
 
@@ -156,7 +156,5 @@ where
         true
     }
 
-    fn thumb_converter(&self) -> ImageConverter {
-        ImageConverter::new(THUMB_SIZE, true)
-    }
+    fn thumb_converter(&self) -> ImageConverter { ImageConverter::new(THUMB_SIZE, true) }
 }

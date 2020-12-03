@@ -1,24 +1,23 @@
-use crate::models::PageLike;
-use crate::services::SpotifyRef;
+use crate::{models::PageLike, utils::AsyncCell, Spotify};
 use async_trait::async_trait;
 use rspotify::client::ClientResult;
 
 #[async_trait]
-pub trait ContainerLoader {
-    type ParentId;
+
+pub trait ContainerLoader<Client = Spotify> {
     type Item;
     type Page: PageLike<Self::Item>;
-    const PAGE_LIMIT: u32;
+    type ParentId;
     const NAME: &'static str = "items";
 
     fn new(id: Self::ParentId) -> Self;
     fn parent_id(&self) -> &Self::ParentId;
+
     async fn load_page(
         self,
-        spotify: SpotifyRef,
-        offset: <<Self as ContainerLoader>::Page as PageLike<Self::Item>>::Offset,
+        spotify: AsyncCell<Client>,
+        offset: <<Self as ContainerLoader<Client>>::Page as PageLike<Self::Item>>::Offset,
     ) -> ClientResult<Self::Page>;
-    fn epoch(&self) -> usize {
-        self as *const _ as *const () as usize
-    }
+
+    fn epoch(&self) -> usize { self as *const _ as *const () as usize }
 }

@@ -1,19 +1,19 @@
 // TODO
 #![allow(unused_imports, dead_code)]
-use crate::components::lists::TrackList;
-use crate::components::tabs::MusicTabParams;
-use crate::loaders::RecommendLoader;
-use crate::services::SpotifyRef;
-use crate::utils::{SearchTerm, SearchTerms};
+
+use crate::{
+    components::{lists::TrackList, tabs::MusicTabParams},
+    loaders::RecommendLoader,
+    services::SpotifyRef,
+    utils::{SearchTerm, SearchTerms},
+};
 use gtk::{
-    BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, EntryExt, FlowBoxChildExt, FlowBoxExt,
-    GtkMenuExt, GtkMenuItemExt, LabelExt, MenuBarExt, MenuButtonExt, OrientableExt, WidgetExt,
+    BoxExt, ButtonExt, CheckMenuItemExt, ContainerExt, EntryExt, FlowBoxChildExt, FlowBoxExt, GtkMenuExt, GtkMenuItemExt,
+    LabelExt, MenuBarExt, MenuButtonExt, OrientableExt, WidgetExt,
 };
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 use tokio::runtime::Handle;
 
 #[derive(Msg, Copy, Clone)]
@@ -32,27 +32,6 @@ pub struct SearchModel {
 
 #[widget]
 impl Widget for SearchTab {
-    fn model(relm: &Relm<Self>, (pool, spotify): MusicTabParams) -> SearchModel {
-        let _stream = relm.stream().clone();
-        SearchModel {
-            pool,
-            spotify,
-            _stream,
-            search_terms: Rc::new(RefCell::new(SearchTerms::default())),
-        }
-    }
-
-    fn update(&mut self, msg: SearchMsg) {
-        use SearchMsg::*;
-        match msg {
-            ShowTab => {}
-            AddSearchTerm(term, add) => {
-                self.model.search_terms.borrow_mut().update(term, add);
-                self.search_terms_box.invalidate_filter();
-            }
-        }
-    }
-
     view! {
         gtk::Box(gtk::Orientation::Vertical, 10) {
 
@@ -379,12 +358,37 @@ impl Widget for SearchTab {
         }
     }
 
+    fn model(relm: &Relm<Self>, (pool, spotify): MusicTabParams) -> SearchModel {
+        let _stream = relm.stream().clone();
+
+        SearchModel {
+            pool,
+            spotify,
+            _stream,
+            search_terms: Rc::new(RefCell::new(SearchTerms::default())),
+        }
+    }
+
+    fn update(&mut self, msg: SearchMsg) {
+        use SearchMsg::*;
+
+        match msg {
+            ShowTab => {}
+            AddSearchTerm(term, add) => {
+                self.model.search_terms.borrow_mut().update(term, add);
+
+                self.search_terms_box.invalidate_filter();
+            }
+        }
+    }
+
     fn init_view(&mut self) {
         let search_terms = self.model.search_terms.clone();
-        self.search_terms_box
-            .set_filter_func(Some(Box::new(move |term_box| {
-                let index = term_box.get_index();
-                search_terms.borrow().is_set(index as u8)
-            })));
+
+        self.search_terms_box.set_filter_func(Some(Box::new(move |term_box| {
+            let index = term_box.get_index();
+
+            search_terms.borrow().is_set(index as u8)
+        })));
     }
 }

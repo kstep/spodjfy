@@ -24,9 +24,11 @@ pub use config::Config;
 pub use services::{LoginService, RefreshTokenService, Spotify};
 
 use lazy_static::lazy_static;
-use tokio::runtime::Handle;
-use tokio::sync::broadcast::{channel, Receiver, RecvError, SendError, Sender};
-use tokio::task::JoinHandle;
+use tokio::{
+    runtime::Handle,
+    sync::broadcast::{channel, Receiver, RecvError, SendError, Sender},
+    task::JoinHandle,
+};
 
 #[derive(Clone)]
 pub enum AppEvent {
@@ -35,18 +37,16 @@ pub enum AppEvent {
 }
 
 const EVENT_BUS_SIZE: usize = 1024;
+
 lazy_static! {
     pub static ref EVENT_BUS: Sender<AppEvent> = channel::<AppEvent>(EVENT_BUS_SIZE).0;
 }
 
-pub fn subscribe() -> Receiver<AppEvent> {
-    EVENT_BUS.subscribe()
-}
-pub fn observe<F: FnMut(AppEvent) + Send + 'static>(
-    pool: &Handle,
-    mut callback: F,
-) -> JoinHandle<Result<!, RecvError>> {
+pub fn subscribe() -> Receiver<AppEvent> { EVENT_BUS.subscribe() }
+
+pub fn observe<F: FnMut(AppEvent) + Send + 'static>(pool: &Handle, mut callback: F) -> JoinHandle<Result<!, RecvError>> {
     let mut rx = subscribe();
+
     pool.spawn(async move {
         loop {
             match rx.recv().await {
@@ -63,6 +63,5 @@ pub fn observe<F: FnMut(AppEvent) + Send + 'static>(
         }
     })
 }
-pub fn broadcast<Event: Into<AppEvent>>(event: Event) -> Result<usize, SendError<AppEvent>> {
-    EVENT_BUS.send(event.into())
-}
+
+pub fn broadcast<Event: Into<AppEvent>>(event: Event) -> Result<usize, SendError<AppEvent>> { EVENT_BUS.send(event.into()) }

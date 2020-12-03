@@ -1,5 +1,6 @@
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
+
 pub enum Scope {
     AppRemoteControl,
     PlaylistModifyPrivate,
@@ -25,6 +26,7 @@ pub enum Scope {
 impl Scope {
     pub fn as_str(&self) -> &str {
         use Scope::*;
+
         match *self {
             AppRemoteControl => "app-remote-control",
             PlaylistModifyPrivate => "playlist-modify-private",
@@ -53,7 +55,9 @@ impl Scope {
             .iter()
             .map(|scope| scope.as_str())
             .fold(String::new(), |acc, sc| acc + sc + " ");
+
         let _ = value.pop();
+
         value
     }
 }

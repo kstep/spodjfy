@@ -1,30 +1,34 @@
-use gtk::{
-    self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SettingsExt, StackExt,
-    StackSidebarExt, WidgetExt,
-};
+use gtk::{self, CssProviderExt, GtkWindowExt, Inhibit, OverlayExt, PanedExt, SettingsExt, StackExt, StackSidebarExt, WidgetExt};
 use relm::{Channel, Relm, Widget};
 use relm_derive::{widget, Msg};
 use std::sync::{Arc, RwLock};
 
-use crate::components::media_controls::{MediaControls, MediaControlsMsg};
-use crate::components::notifier::{Notifier, NotifierMsg};
-use crate::components::tabs::albums::AlbumsTab;
-use crate::components::tabs::artists::ArtistsTab;
-use crate::components::tabs::categories::CategoriesTab;
-use crate::components::tabs::devices::{DevicesMsg, DevicesTab};
-use crate::components::tabs::featured::FeaturedTab;
-use crate::components::tabs::new_releases::NewReleasesTab;
-use crate::components::tabs::playlists::PlaylistsTab;
-use crate::components::tabs::queue::QueueTab;
-use crate::components::tabs::recent::RecentTab;
-use crate::components::tabs::search::{SearchMsg, SearchTab};
-use crate::components::tabs::settings::{SettingsMsg, SettingsTab};
-use crate::components::tabs::shows::ShowsTab;
-use crate::components::tabs::tracks::TracksTab;
-use crate::components::tabs::MusicTabMsg;
-use crate::config::{Settings, SettingsRef};
-use crate::services::spotify::SpotifyRef;
-use crate::{observe, AppEvent};
+use crate::{
+    components::{
+        media_controls::{MediaControls, MediaControlsMsg},
+        notifier::{Notifier, NotifierMsg},
+        tabs::{
+            albums::AlbumsTab,
+            artists::ArtistsTab,
+            categories::CategoriesTab,
+            devices::{DevicesMsg, DevicesTab},
+            featured::FeaturedTab,
+            new_releases::NewReleasesTab,
+            playlists::PlaylistsTab,
+            queue::QueueTab,
+            recent::RecentTab,
+            search::{SearchMsg, SearchTab},
+            settings::{SettingsMsg, SettingsTab},
+            shows::ShowsTab,
+            tracks::TracksTab,
+            MusicTabMsg,
+        },
+    },
+    config::{Settings, SettingsRef},
+    observe,
+    services::spotify::SpotifyRef,
+    AppEvent,
+};
 use rspotify::model::Type;
 use tokio::runtime::Handle;
 
@@ -71,137 +75,6 @@ pub struct Params {
 
 #[widget]
 impl Widget for Win {
-    fn model(relm: &Relm<Self>, params: Params) -> State {
-        let style = gtk::CssProvider::new();
-        let screen = gdk::Screen::get_default().unwrap();
-
-        if let Some(settings) =
-            gtk::Settings::get_for_screen(&screen).or_else(gtk::Settings::get_default)
-        {
-            settings.set_property_gtk_error_bell(false);
-        }
-
-        style
-            .load_from_data(
-                br#"
-                window {
-                    font-family: "Noto Sans";
-                    font-size: 18px;
-                }
-                stacksidebar {
-                    font-family: "Noto Color Emoji";
-                }
-
-                #media_controls button.link#track_name_label,
-                #media_controls label#context_name_label {
-                    padding: 0;
-                    font-weight: bold;
-                }
-                #media_controls button.link#track_name_label {
-                    font-size: 32px;
-                }
-                media_controls label#context_name_label {
-                    font-size: 24px;
-                }
-
-                #media_controls label#track_album_label,
-                #media_controls label#context_genres_label {
-                    font-style: italic;
-                }
-
-                #media_controls buttonbox button {
-                    min-width: 30px;
-                    min-height: 30px;
-                }
-                #media_controls buttonbox button#play_btn {
-                    border-radius: 15px;
-                    min-height: 50px;
-                    min-width: 80px;
-                }
-                "#,
-            )
-            .expect("Invalid CSS styles");
-
-        gtk::StyleContext::add_provider_for_screen(
-            &screen,
-            &style,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-
-        let stream = relm.stream().clone();
-        State {
-            settings: Arc::new(RwLock::new(params.settings)),
-            spotify: params.spotify,
-            pool: params.pool,
-            notifier: relm::create_component::<Notifier>(()),
-            screen,
-            style,
-            stream,
-        }
-    }
-
-    fn update(&mut self, event: Msg) {
-        use Msg::*;
-        match event {
-            Quit => gtk::main_quit(),
-            GoToTab(tab) => {
-                self.stack.set_visible_child(match tab {
-                    Tab::Search => self.search_tab.widget(),
-                    Tab::Tracks => self.tracks_tab.widget(),
-                    Tab::Albums => self.albums_tab.widget(),
-                    Tab::Playlists => self.playlists_tab.widget(),
-                    Tab::Artists => self.artists_tab.widget(),
-                    Tab::Shows => self.shows_tab.widget(),
-                    Tab::Categories => self.categories_tab.widget(),
-                    Tab::Settings => self.settings_tab.widget(),
-                    _ => self.search_tab.widget(),
-                });
-            }
-            ChangeTab(widget_name) => match widget_name.as_deref() {
-                Some("recent_tab") => {
-                    self.recent_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("queue_tab") => {
-                    self.queue_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("settings_tab") => {
-                    self.settings_tab.emit(SettingsMsg::ShowTab);
-                }
-                Some("albums_tab") => {
-                    self.albums_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("artists_tab") => {
-                    self.artists_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("playlists_tab") => {
-                    self.playlists_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("devices_tab") => {
-                    self.devices_tab.emit(DevicesMsg::ShowTab);
-                }
-                Some("tracks_tab") => {
-                    self.tracks_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("shows_tab") => {
-                    self.shows_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("new_releases_tab") => {
-                    self.new_releases_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("featured_tab") => {
-                    self.featured_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("categories_tab") => {
-                    self.categories_tab.emit(MusicTabMsg::ShowTab);
-                }
-                Some("search_tab") => {
-                    self.search_tab.emit(SearchMsg::ShowTab);
-                }
-                _ => {}
-            },
-        }
-    }
-
     view! {
         #[name="window"]
         gtk::Window {
@@ -358,10 +231,137 @@ impl Widget for Win {
         }
     }
 
-    fn init_view(&mut self) {
-        self.sidebar.set_stack(&self.stack);
+    fn model(relm: &Relm<Self>, params: Params) -> State {
+        let style = gtk::CssProvider::new();
+        let screen = gdk::Screen::get_default().unwrap();
 
+        if let Some(settings) = gtk::Settings::get_for_screen(&screen).or_else(gtk::Settings::get_default) {
+            settings.set_property_gtk_error_bell(false);
+        }
+
+        style
+            .load_from_data(
+                br#"
+                window {
+                    font-family: "Noto Sans";
+                    font-size: 18px;
+                }
+                stacksidebar {
+                    font-family: "Noto Color Emoji";
+                }
+
+                #media_controls button.link#track_name_label,
+                #media_controls label#context_name_label {
+                    padding: 0;
+                    font-weight: bold;
+                }
+                #media_controls button.link#track_name_label {
+                    font-size: 32px;
+                }
+                media_controls label#context_name_label {
+                    font-size: 24px;
+                }
+
+                #media_controls label#track_album_label,
+                #media_controls label#context_genres_label {
+                    font-style: italic;
+                }
+
+                #media_controls buttonbox button {
+                    min-width: 30px;
+                    min-height: 30px;
+                }
+                #media_controls buttonbox button#play_btn {
+                    border-radius: 15px;
+                    min-height: 50px;
+                    min-width: 80px;
+                }
+                "#,
+            )
+            .expect("Invalid CSS styles");
+
+        gtk::StyleContext::add_provider_for_screen(&screen, &style, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+        let stream = relm.stream().clone();
+
+        State {
+            settings: Arc::new(RwLock::new(params.settings)),
+            spotify: params.spotify,
+            pool: params.pool,
+            notifier: relm::create_component::<Notifier>(()),
+            screen,
+            style,
+            stream,
+        }
+    }
+
+    fn update(&mut self, event: Msg) {
+        use Msg::*;
+
+        match event {
+            Quit => gtk::main_quit(),
+            GoToTab(tab) => {
+                self.stack.set_visible_child(match tab {
+                    Tab::Search => self.search_tab.widget(),
+                    Tab::Tracks => self.tracks_tab.widget(),
+                    Tab::Albums => self.albums_tab.widget(),
+                    Tab::Playlists => self.playlists_tab.widget(),
+                    Tab::Artists => self.artists_tab.widget(),
+                    Tab::Shows => self.shows_tab.widget(),
+                    Tab::Categories => self.categories_tab.widget(),
+                    Tab::Settings => self.settings_tab.widget(),
+                    _ => self.search_tab.widget(),
+                });
+            }
+            ChangeTab(widget_name) => match widget_name.as_deref() {
+                Some("recent_tab") => {
+                    self.recent_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("queue_tab") => {
+                    self.queue_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("settings_tab") => {
+                    self.settings_tab.emit(SettingsMsg::ShowTab);
+                }
+                Some("albums_tab") => {
+                    self.albums_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("artists_tab") => {
+                    self.artists_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("playlists_tab") => {
+                    self.playlists_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("devices_tab") => {
+                    self.devices_tab.emit(DevicesMsg::ShowTab);
+                }
+                Some("tracks_tab") => {
+                    self.tracks_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("shows_tab") => {
+                    self.shows_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("new_releases_tab") => {
+                    self.new_releases_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("featured_tab") => {
+                    self.featured_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("categories_tab") => {
+                    self.categories_tab.emit(MusicTabMsg::ShowTab);
+                }
+                Some("search_tab") => {
+                    self.search_tab.emit(SearchMsg::ShowTab);
+                }
+                _ => {}
+            },
+        }
+    }
+
+    fn init_view(&mut self) {
         let notifier = self.model.notifier.widget();
+
+        self.sidebar.set_stack(&self.stack);
         self.overlay.add_overlay(notifier);
         self.overlay.set_overlay_pass_through(notifier, true);
     }
@@ -369,19 +369,26 @@ impl Widget for Win {
     fn subscriptions(&mut self, relm: &Relm<Self>) {
         let stream = relm.stream().clone();
         let notifier = self.model.notifier.stream().clone();
+
         let (_, notifier_tx) = Channel::new(move |msg| {
             notifier.emit(msg);
         });
+
         let (_, stream_tx) = Channel::new(move |msg| {
             stream.emit(msg);
         });
+
         observe(&self.model.pool, move |event| match event {
             AppEvent::SpotifyAuthError(msg) => {
                 let _ = notifier_tx.send(NotifierMsg::Notify {
-                    message: format!("Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix", msg),
+                    message: format!(
+                        "Authentication error: {}. Check credentials in <Settings> and click <Open authorization URL> to fix",
+                        msg
+                    ),
                     kind: gtk::MessageType::Error,
                     timeout_ms: 5000,
                 });
+
                 let _ = stream_tx.send(Msg::GoToTab(Tab::Settings));
             }
             AppEvent::SpotifyError(msg) => {
@@ -391,8 +398,8 @@ impl Widget for Win {
                     timeout_ms: 5000,
                 });
             }
-            _ => {}
         });
+
         /*
         let spotify = self.model.spotify.clone();
         self.model.spotify_errors.observe(move |err| {
@@ -429,6 +436,7 @@ impl Widget for Win {
         let tracks_stream = self.tracks_tab.stream().clone();
         let shows_stream = self.shows_tab.stream().clone();
         let stream = self.model.stream.clone();
+
         self.media_controls.stream().observe(move |msg| {
             if let MediaControlsMsg::GoToTrack(kind, uri, context_info) = msg {
                 let (tab, tab_stream) = match kind {
@@ -444,9 +452,11 @@ impl Widget for Win {
 
                 let uri = uri.clone();
                 let context_info = context_info.clone();
+
                 if let Some((uri, name)) = context_info {
                     tab_stream.emit(MusicTabMsg::OpenContainer(0, uri, name));
                 }
+
                 tab_stream.emit(MusicTabMsg::GoToTrack(uri));
             }
         });

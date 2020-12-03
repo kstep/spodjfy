@@ -5,33 +5,41 @@ use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{
-    AlbumType, DatePrecision, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum,
-    SimplifiedArtist, Type as ModelType,
+    AlbumType, DatePrecision, FullAlbum, Image, Page, SavedAlbum, SimplifiedAlbum, SimplifiedArtist, Type as ModelType,
 };
-use std::collections::HashMap;
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 pub const COL_ALBUM_THUMB: u32 = COL_ITEM_THUMB;
+
 pub const COL_ALBUM_URI: u32 = COL_ITEM_URI;
+
 pub const COL_ALBUM_NAME: u32 = COL_ITEM_NAME;
+
 pub const COL_ALBUM_RELEASE_DATE: u32 = 3;
+
 pub const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
+
 pub const COL_ALBUM_ARTISTS: u32 = 5;
+
 pub const COL_ALBUM_GENRES: u32 = 6;
+
 pub const COL_ALBUM_TYPE: u32 = 7;
+
 pub const COL_ALBUM_DURATION: u32 = 8;
+
 pub const COL_ALBUM_RATE: u32 = 9;
 
 pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
     fn release_date(&self) -> &str;
-    fn total_tracks(&self) -> u32 {
-        0
-    }
+
+    fn total_tracks(&self) -> u32 { 0 }
+
     fn artists(&self) -> &[SimplifiedArtist];
-    fn genres(&self) -> &[String] {
-        &[]
-    }
+
+    fn genres(&self) -> &[String] { &[] }
+
     fn kind(&self) -> AlbumType;
+
     fn rate(&self) -> u32;
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -79,116 +87,72 @@ pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
 }
 
 impl AlbumLike for FullAlbum {
-    fn release_date(&self) -> &str {
-        &self.release_date
-    }
+    fn release_date(&self) -> &str { &self.release_date }
 
-    fn total_tracks(&self) -> u32 {
-        self.tracks.total
-    }
+    fn total_tracks(&self) -> u32 { self.tracks.total }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
 
-    fn genres(&self) -> &[String] {
-        &self.genres
-    }
+    fn genres(&self) -> &[String] { &self.genres }
 
-    fn kind(&self) -> AlbumType {
-        self.album_type
-    }
+    fn kind(&self) -> AlbumType { self.album_type }
 
-    fn rate(&self) -> u32 {
-        self.popularity
-    }
+    fn rate(&self) -> u32 { self.popularity }
 }
 
 impl HasName for FullAlbum {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasUri for FullAlbum {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasDuration for FullAlbum {
-    fn duration(&self) -> u32 {
-        self.tracks
-            .items
-            .iter()
-            .map(|track| track.duration_ms)
-            .sum()
-    }
+    fn duration(&self) -> u32 { self.tracks.items.iter().map(|track| track.duration_ms).sum() }
 
-    fn duration_exact(&self) -> bool {
-        self.tracks.total as usize == self.tracks.items.len()
-    }
+    fn duration_exact(&self) -> bool { self.tracks.total as usize == self.tracks.items.len() }
 }
 
 impl MissingColumns for FullAlbum {}
 
 impl HasImages for FullAlbum {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl RowLike for FullAlbum {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl AlbumLike for SimplifiedAlbum {
-    fn release_date(&self) -> &str {
-        self.release_date.as_deref().unwrap_or("")
-    }
+    fn release_date(&self) -> &str { self.release_date.as_deref().unwrap_or("") }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        &self.artists
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
 
     fn kind(&self) -> AlbumType {
-        self.album_type
-            .as_ref()
-            .map_or(AlbumType::Album, |tpe| match &**tpe {
-                "single" => AlbumType::Single,
-                "appears_on" => AlbumType::AppearsOn,
-                "compilation" => AlbumType::Compilation,
-                _ => AlbumType::Album,
-            })
+        self.album_type.as_ref().map_or(AlbumType::Album, |tpe| match &**tpe {
+            "single" => AlbumType::Single,
+            "appears_on" => AlbumType::AppearsOn,
+            "compilation" => AlbumType::Compilation,
+            _ => AlbumType::Album,
+        })
     }
 
-    fn rate(&self) -> u32 {
-        0
-    }
+    fn rate(&self) -> u32 { 0 }
 }
 
 impl HasUri for SimplifiedAlbum {
-    fn uri(&self) -> &str {
-        self.uri.as_deref().unwrap_or("")
-    }
+    fn uri(&self) -> &str { self.uri.as_deref().unwrap_or("") }
 }
 
 impl HasName for SimplifiedAlbum {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl HasDuration for SimplifiedAlbum {
-    fn duration_exact(&self) -> bool {
-        false
-    }
+    fn duration_exact(&self) -> bool { false }
 }
 
 impl MissingColumns for SimplifiedAlbum {
@@ -196,103 +160,64 @@ impl MissingColumns for SimplifiedAlbum {
     where
         Self: Sized,
     {
-        &[
-            COL_ALBUM_DURATION,
-            COL_ALBUM_TOTAL_TRACKS,
-            COL_ALBUM_GENRES,
-            COL_ALBUM_RATE,
-        ]
+        &[COL_ALBUM_DURATION, COL_ALBUM_TOTAL_TRACKS, COL_ALBUM_GENRES, COL_ALBUM_RATE]
     }
 }
 
 impl HasImages for SimplifiedAlbum {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl RowLike for SimplifiedAlbum {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl AlbumLike for SavedAlbum {
-    fn release_date(&self) -> &str {
-        self.album.release_date()
-    }
+    fn release_date(&self) -> &str { self.album.release_date() }
 
-    fn total_tracks(&self) -> u32 {
-        self.album.total_tracks()
-    }
+    fn total_tracks(&self) -> u32 { self.album.total_tracks() }
 
-    fn artists(&self) -> &[SimplifiedArtist] {
-        self.album.artists()
-    }
+    fn artists(&self) -> &[SimplifiedArtist] { self.album.artists() }
 
-    fn genres(&self) -> &[String] {
-        self.album.genres()
-    }
+    fn genres(&self) -> &[String] { self.album.genres() }
 
-    fn kind(&self) -> AlbumType {
-        self.album.kind()
-    }
+    fn kind(&self) -> AlbumType { self.album.kind() }
 
-    fn rate(&self) -> u32 {
-        self.album.popularity
-    }
+    fn rate(&self) -> u32 { self.album.popularity }
 }
 
 impl HasName for SavedAlbum {
-    fn name(&self) -> &str {
-        self.album.name()
-    }
+    fn name(&self) -> &str { self.album.name() }
 }
 
 impl HasUri for SavedAlbum {
-    fn uri(&self) -> &str {
-        self.album.uri()
-    }
+    fn uri(&self) -> &str { self.album.uri() }
 }
 
 impl HasDuration for SavedAlbum {
-    fn duration(&self) -> u32 {
-        self.album.duration()
-    }
+    fn duration(&self) -> u32 { self.album.duration() }
 
-    fn duration_exact(&self) -> bool {
-        self.album.duration_exact()
-    }
+    fn duration_exact(&self) -> bool { self.album.duration_exact() }
 }
 
 impl MissingColumns for SavedAlbum {}
 
 impl HasImages for SavedAlbum {
-    fn images(&self) -> &[Image] {
-        &self.album.images
-    }
+    fn images(&self) -> &[Image] { &self.album.images }
 }
 
 impl RowLike for SavedAlbum {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl Wrapper for SavedAlbum {
     type For = FullAlbum;
 
-    fn unwrap(self) -> Self::For {
-        self.album
-    }
+    fn unwrap(self) -> Self::For { self.album }
 
     fn wrap(album: Self::For) -> Self {
         SavedAlbum {
@@ -308,16 +233,13 @@ impl ToFull for SimplifiedAlbum {
     fn to_full(&self) -> Self::Full {
         FullAlbum {
             artists: self.artists.clone(),
-            album_type: self
-                .album_type
-                .clone()
-                .map_or(AlbumType::Album, |tpe| match &*tpe {
-                    "album" => AlbumType::Album,
-                    "compilation" => AlbumType::Compilation,
-                    "appears_on" => AlbumType::AppearsOn,
-                    "single" => AlbumType::Single,
-                    _ => unreachable!(),
-                }),
+            album_type: self.album_type.clone().map_or(AlbumType::Album, |tpe| match &*tpe {
+                "album" => AlbumType::Album,
+                "compilation" => AlbumType::Compilation,
+                "appears_on" => AlbumType::AppearsOn,
+                "single" => AlbumType::Single,
+                _ => unreachable!(),
+            }),
             available_markets: self.available_markets.clone(),
             copyrights: Vec::new(),
             external_ids: HashMap::new(),
@@ -329,15 +251,15 @@ impl ToFull for SimplifiedAlbum {
             name: self.name.clone(),
             popularity: 0,
             release_date: self.release_date.clone().unwrap_or_else(String::new),
-            release_date_precision: self.release_date_precision.clone().map_or(
-                DatePrecision::Year,
-                |prec| match &*prec {
+            release_date_precision: self
+                .release_date_precision
+                .clone()
+                .map_or(DatePrecision::Year, |prec| match &*prec {
                     "year" => DatePrecision::Year,
                     "month" => DatePrecision::Month,
                     "day" => DatePrecision::Day,
                     _ => unreachable!(),
-                },
-            ),
+                }),
             tracks: Page::empty(),
             _type: ModelType::Artist,
             uri: self.uri.clone().unwrap_or_else(String::new),
@@ -475,7 +397,5 @@ impl Empty for SimplifiedAlbum {
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.name.is_empty()
-    }
+    fn is_empty(&self) -> bool { self.name.is_empty() }
 }

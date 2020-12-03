@@ -1,8 +1,7 @@
 use crate::models::HasDuration;
 use itertools::Itertools;
 use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, PublicUser, Type};
-use std::borrow::Cow;
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 #[derive(Debug, Clone)]
 pub enum PlayContext {
@@ -14,29 +13,23 @@ pub enum PlayContext {
 }
 
 impl From<FullAlbum> for PlayContext {
-    fn from(value: FullAlbum) -> Self {
-        PlayContext::Album(value)
-    }
+    fn from(value: FullAlbum) -> Self { PlayContext::Album(value) }
 }
+
 impl From<FullPlaylist> for PlayContext {
-    fn from(value: FullPlaylist) -> Self {
-        PlayContext::Playlist(value)
-    }
+    fn from(value: FullPlaylist) -> Self { PlayContext::Playlist(value) }
 }
+
 impl From<FullArtist> for PlayContext {
-    fn from(value: FullArtist) -> Self {
-        PlayContext::Artist(value)
-    }
+    fn from(value: FullArtist) -> Self { PlayContext::Artist(value) }
 }
+
 impl From<FullShow> for PlayContext {
-    fn from(value: FullShow) -> Self {
-        PlayContext::Show(value)
-    }
+    fn from(value: FullShow) -> Self { PlayContext::Show(value) }
 }
+
 impl From<PublicUser> for PlayContext {
-    fn from(value: PublicUser) -> Self {
-        PlayContext::User(value)
-    }
+    fn from(value: PublicUser) -> Self { PlayContext::User(value) }
 }
 
 impl PlayContext {
@@ -62,21 +55,9 @@ impl PlayContext {
 
     pub fn artists(&self) -> Option<Cow<str>> {
         match self {
-            PlayContext::Album(ctx) => Some(
-                ctx.artists
-                    .iter()
-                    .map(|artist| &artist.name)
-                    .join(", ")
-                    .into(),
-            ),
+            PlayContext::Album(ctx) => Some(ctx.artists.iter().map(|artist| &artist.name).join(", ").into()),
             PlayContext::Artist(_) => None,
-            PlayContext::Playlist(ctx) => Some(
-                ctx.owner
-                    .display_name
-                    .as_deref()
-                    .unwrap_or(&ctx.owner.id)
-                    .into(),
-            ),
+            PlayContext::Playlist(ctx) => Some(ctx.owner.display_name.as_deref().unwrap_or(&ctx.owner.id).into()),
             PlayContext::Show(ctx) => Some(ctx.publisher.deref().into()),
             PlayContext::User(_) => None,
         }
@@ -86,29 +67,35 @@ impl PlayContext {
         match self {
             PlayContext::Album(ctx) => {
                 let duration = ctx.duration();
+
                 if ctx.duration_exact() {
                     Ok(duration)
                 } else {
                     let average_duration = duration / ctx.tracks.items.len() as u32;
+
                     Err(ctx.tracks.total * average_duration)
                 }
             }
             PlayContext::Artist(_) => Err(0),
             PlayContext::Playlist(ctx) => {
                 let duration = ctx.duration();
+
                 if ctx.duration_exact() {
                     Ok(duration)
                 } else {
                     let average_duration = duration / ctx.tracks.items.len() as u32;
+
                     Err(ctx.tracks.total * average_duration)
                 }
             }
             PlayContext::Show(ctx) => {
                 let duration = ctx.duration();
+
                 if ctx.duration_exact() {
                     Ok(duration)
                 } else {
                     let average_duration = duration / ctx.episodes.items.len() as u32;
+
                     Err(ctx.episodes.total * average_duration)
                 }
             }

@@ -1,31 +1,16 @@
-use crate::components::lists::{ContainerMsg, TrackList, TrackMsg};
-use crate::components::tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver};
-use crate::loaders::{MyTopTracksLoader, SavedTracksLoader as SavedLoader};
+use crate::{
+    components::{
+        lists::{ContainerMsg, TrackList, TrackMsg},
+        tabs::{MusicTabModel, MusicTabMsg, MusicTabParams, TracksObserver},
+    },
+    loaders::{MyTopTracksLoader, SavedTracksLoader as SavedLoader},
+};
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
 
 #[widget]
 impl Widget for TracksTab {
-    fn model(params: MusicTabParams) -> MusicTabModel {
-        MusicTabModel::from_params(params)
-    }
-
-    fn update(&mut self, event: MusicTabMsg) {
-        use MusicTabMsg::*;
-        match event {
-            ShowTab => {
-                self.saved_tracks_view.emit(ContainerMsg::Load(()).into());
-                self.top_tracks_view.emit(ContainerMsg::Load(()).into());
-            }
-            GoToTrack(uri) => {
-                self.saved_tracks_view.emit(ContainerMsg::Load(()).into());
-                self.saved_tracks_view.emit(TrackMsg::GoToTrack(uri));
-            }
-            _ => {}
-        }
-    }
-
     view! {
         gtk::Box(gtk::Orientation::Vertical, 1) {
             #[name="breadcrumb"]
@@ -51,16 +36,31 @@ impl Widget for TracksTab {
         },
     }
 
-    fn init_view(&mut self) {
-        self.breadcrumb.set_stack(Some(&self.stack));
+    fn model(params: MusicTabParams) -> MusicTabModel { MusicTabModel::from_params(params) }
+
+    fn update(&mut self, event: MusicTabMsg) {
+        use MusicTabMsg::*;
+
+        match event {
+            ShowTab => {
+                self.saved_tracks_view.emit(ContainerMsg::Load(()).into());
+
+                self.top_tracks_view.emit(ContainerMsg::Load(()).into());
+            }
+            GoToTrack(uri) => {
+                self.saved_tracks_view.emit(ContainerMsg::Load(()).into());
+
+                self.saved_tracks_view.emit(TrackMsg::GoToTrack(uri));
+            }
+            _ => {}
+        }
     }
 
+    fn init_view(&mut self) { self.breadcrumb.set_stack(Some(&self.stack)); }
+
     fn subscriptions(&mut self, relm: &Relm<Self>) {
-        self.saved_tracks_view
-            .stream()
-            .observe(TracksObserver::new(relm.stream()));
-        self.top_tracks_view
-            .stream()
-            .observe(TracksObserver::new(relm.stream()));
+        self.saved_tracks_view.stream().observe(TracksObserver::new(relm.stream()));
+
+        self.top_tracks_view.stream().observe(TracksObserver::new(relm.stream()));
     }
 }

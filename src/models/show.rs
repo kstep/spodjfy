@@ -1,39 +1,25 @@
-use crate::models::common::*;
-use crate::models::{PlaylistLike, COL_PLAYLIST_DURATION, COL_PLAYLIST_TOTAL_TRACKS};
+use crate::models::{common::*, PlaylistLike, COL_PLAYLIST_DURATION, COL_PLAYLIST_TOTAL_TRACKS};
 use chrono::{DateTime, Utc};
 use glib::{IsA, Type};
 use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType};
-use std::collections::HashMap;
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 impl PlaylistLike for FullShow {
-    fn id(&self) -> &str {
-        &self.id
-    }
+    fn id(&self) -> &str { &self.id }
 
-    fn description(&self) -> &str {
-        &self.description
-    }
+    fn description(&self) -> &str { &self.description }
 
-    fn publisher(&self) -> &str {
-        &self.publisher
-    }
+    fn publisher(&self) -> &str { &self.publisher }
 
-    fn total_tracks(&self) -> u32 {
-        self.episodes.total
-    }
+    fn total_tracks(&self) -> u32 { self.episodes.total }
 }
 
 impl HasUri for FullShow {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for FullShow {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl ToSimple for FullShow {
@@ -104,69 +90,43 @@ impl Merge for FullShow {
 }
 
 impl HasDuration for FullShow {
-    fn duration(&self) -> u32 {
-        self.episodes
-            .items
-            .iter()
-            .map(|episode| episode.duration_ms)
-            .sum()
-    }
+    fn duration(&self) -> u32 { self.episodes.items.iter().map(|episode| episode.duration_ms).sum() }
 
-    fn duration_exact(&self) -> bool {
-        self.episodes.items.len() == self.episodes.total as usize
-    }
+    fn duration_exact(&self) -> bool { self.episodes.items.len() == self.episodes.total as usize }
 }
 
 impl MissingColumns for FullShow {}
 
 impl HasImages for FullShow {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl RowLike for FullShow {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl PlaylistLike for SimplifiedShow {
-    fn id(&self) -> &str {
-        &self.id
-    }
+    fn id(&self) -> &str { &self.id }
 
-    fn description(&self) -> &str {
-        &self.description
-    }
+    fn description(&self) -> &str { &self.description }
 
-    fn publisher(&self) -> &str {
-        &self.publisher
-    }
+    fn publisher(&self) -> &str { &self.publisher }
 }
 
 impl HasUri for SimplifiedShow {
-    fn uri(&self) -> &str {
-        &self.uri
-    }
+    fn uri(&self) -> &str { &self.uri }
 }
 
 impl HasName for SimplifiedShow {
-    fn name(&self) -> &str {
-        &self.name
-    }
+    fn name(&self) -> &str { &self.name }
 }
 
 impl ToFull for SimplifiedShow {
     type Full = FullShow;
 
-    fn to_full(&self) -> Self::Full {
-        unimplemented!()
-    }
+    fn to_full(&self) -> Self::Full { unimplemented!() }
 
     fn into_full(self) -> Self::Full {
         FullShow {
@@ -211,15 +171,11 @@ impl Empty for SimplifiedShow {
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.uri.is_empty()
-    }
+    fn is_empty(&self) -> bool { self.uri.is_empty() }
 }
 
 impl HasDuration for SimplifiedShow {
-    fn duration_exact(&self) -> bool {
-        false
-    }
+    fn duration_exact(&self) -> bool { false }
 }
 
 impl MissingColumns for SimplifiedShow {
@@ -232,51 +188,33 @@ impl MissingColumns for SimplifiedShow {
 }
 
 impl HasImages for SimplifiedShow {
-    fn images(&self) -> &[Image] {
-        &self.images
-    }
+    fn images(&self) -> &[Image] { &self.images }
 }
 
 impl RowLike for SimplifiedShow {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl PlaylistLike for Show {
-    fn id(&self) -> &str {
-        self.show.id()
-    }
+    fn id(&self) -> &str { self.show.id() }
 
-    fn description(&self) -> &str {
-        self.show.description()
-    }
+    fn description(&self) -> &str { self.show.description() }
 
-    fn publisher(&self) -> &str {
-        self.show.publisher()
-    }
+    fn publisher(&self) -> &str { self.show.publisher() }
 }
 
 impl HasUri for Show {
-    fn uri(&self) -> &str {
-        self.show.uri()
-    }
+    fn uri(&self) -> &str { self.show.uri() }
 }
 
 impl HasName for Show {
-    fn name(&self) -> &str {
-        self.show.name()
-    }
+    fn name(&self) -> &str { self.show.name() }
 }
 
 impl HasDuration for Show {
-    fn duration_exact(&self) -> bool {
-        false
-    }
+    fn duration_exact(&self) -> bool { false }
 }
 
 impl MissingColumns for Show {
@@ -289,34 +227,23 @@ impl MissingColumns for Show {
 }
 
 impl HasImages for Show {
-    fn images(&self) -> &[Image] {
-        &self.show.images
-    }
+    fn images(&self) -> &[Image] { &self.show.images }
 }
 
 impl RowLike for Show {
-    fn content_types() -> Vec<Type> {
-        Self::store_content_types()
-    }
+    fn content_types() -> Vec<Type> { Self::store_content_types() }
 
-    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
-        self.insert_into_store(store)
-    }
+    fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 
 impl Wrapper for Show {
     type For = SimplifiedShow;
 
-    fn unwrap(self) -> Self::For {
-        self.show
-    }
+    fn unwrap(self) -> Self::For { self.show }
 
     fn wrap(show: Self::For) -> Self {
         Show {
-            added_at: DateTime::<Utc>::from(SystemTime::now())
-                .date()
-                .format("%Y-%m-%d")
-                .to_string(),
+            added_at: DateTime::<Utc>::from(SystemTime::now()).date().format("%Y-%m-%d").to_string(),
             show,
         }
     }

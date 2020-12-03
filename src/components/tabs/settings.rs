@@ -1,10 +1,9 @@
-use crate::config::{Config, Settings, SettingsRef};
-use crate::services::SpotifyRef;
-use crate::utils::{Spawn, SpawnScope};
-use gtk::{
-    self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt,
-    WidgetExt,
+use crate::{
+    config::{Config, Settings, SettingsRef},
+    services::SpotifyRef,
+    utils::{Spawn, SpawnScope},
 };
+use gtk::{self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt, WidgetExt};
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::client::ClientError;
@@ -29,90 +28,6 @@ pub struct SettingsModel {
 
 #[widget]
 impl Widget for SettingsTab {
-    fn model(
-        relm: &Relm<Self>,
-        (pool, spotify, settings): (Handle, SpotifyRef, SettingsRef),
-    ) -> SettingsModel {
-        let stream = relm.stream().clone();
-        let config = Config::new();
-        SettingsModel {
-            pool,
-            stream,
-            settings,
-            spotify,
-            config,
-        }
-    }
-
-    fn update(&mut self, event: SettingsMsg) {
-        use SettingsMsg::*;
-        match event {
-            ShowTab => {
-                // Hacky method to make code generator create set_text() method calls
-                self.model.settings = self.model.settings.clone();
-                self.model.stream.emit(GetAuthorizeUrl);
-            }
-            GetAuthorizeUrl => {
-                self.spawn(
-                    async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
-                        let auth_url = pool
-                            .spawn(async move { spotify.read().await.get_authorize_url() })
-                            .await??;
-                        stream.emit(SetAuthorizeUrl(auth_url));
-                        Ok(())
-                    },
-                );
-            }
-            SetAuthorizeUrl(url) => {
-                self.client_auth_url_btn.set_uri(&url);
-                self.client_auth_url_btn.set_visible(true);
-            }
-            Reset => {
-                // Hacky method to make code generator create set_text() method calls
-                let settings = self.model.settings.clone();
-                *settings.write().unwrap() = self.model.config.load_settings();
-                self.model.settings = settings;
-            }
-            Save => {
-                self.save_settings();
-            }
-        }
-    }
-
-    fn save_settings(&mut self) {
-        let new_settings = Settings {
-            client_id: self.client_id_entry.get_text().into(),
-            client_secret: self.client_secret_entry.get_text().into(),
-            show_notifications: self.show_notifications_switch.get_active(),
-        };
-
-        self.model
-            .config
-            .save_settings(&new_settings)
-            .expect("error saving settings");
-
-        let settings = self.model.settings.clone();
-        self.spawn_args(
-            (settings, new_settings),
-            async move |pool,
-                        (stream, spotify): (EventStream<_>, SpotifyRef),
-                        (settings, new_settings)| {
-                let auth_url = pool
-                    .spawn(async move {
-                        let auth_url = spotify.write().await.setup_client(
-                            new_settings.client_id.clone(),
-                            new_settings.client_secret.clone(),
-                        )?;
-                        *settings.write().unwrap() = new_settings;
-                        Ok::<_, ClientError>(auth_url)
-                    })
-                    .await??;
-                stream.emit(SettingsMsg::SetAuthorizeUrl(auth_url));
-                Ok(())
-            },
-        );
-    }
-
     view! {
         gtk::Box(gtk::Orientation::Vertical, 0) {
             gtk::Frame {
@@ -200,22 +115,103 @@ impl Widget for SettingsTab {
         }
     }
 
+    fn model(relm: &Relm<Self>, (pool, spotify, settings): (Handle, SpotifyRef, SettingsRef)) -> SettingsModel {
+        let stream = relm.stream().clone();
+
+        let config = Config::new();
+
+        SettingsModel {
+            pool,
+            stream,
+            settings,
+            spotify,
+            config,
+        }
+    }
+
+    fn update(&mut self, event: SettingsMsg) {
+        use SettingsMsg::*;
+
+        match event {
+            ShowTab => {
+                // Hacky method to make code generator create set_text() method calls
+                self.model.settings = self.model.settings.clone();
+
+                self.model.stream.emit(GetAuthorizeUrl);
+            }
+            GetAuthorizeUrl => {
+                self.spawn(async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef)| {
+                    let auth_url = pool.spawn(async move { spotify.read().await.get_authorize_url() }).await??;
+
+                    stream.emit(SetAuthorizeUrl(auth_url));
+
+                    Ok(())
+                });
+            }
+            SetAuthorizeUrl(url) => {
+                self.client_auth_url_btn.set_uri(&url);
+
+                self.client_auth_url_btn.set_visible(true);
+            }
+            Reset => {
+                // Hacky method to make code generator create set_text() method calls
+                let settings = self.model.settings.clone();
+
+                *settings.write().unwrap() = self.model.config.load_settings();
+
+                self.model.settings = settings;
+            }
+            Save => {
+                self.save_settings();
+            }
+        }
+    }
+
+    fn save_settings(&mut self) {
+        let new_settings = Settings {
+            client_id: self.client_id_entry.get_text().into(),
+            client_secret: self.client_secret_entry.get_text().into(),
+            show_notifications: self.show_notifications_switch.get_active(),
+        };
+
+        self.model.config.save_settings(&new_settings).expect("error saving settings");
+
+        let settings = self.model.settings.clone();
+
+        self.spawn_args(
+            (settings, new_settings),
+            async move |pool, (stream, spotify): (EventStream<_>, SpotifyRef), (settings, new_settings)| {
+                let auth_url = pool
+                    .spawn(async move {
+                        let auth_url = spotify
+                            .write()
+                            .await
+                            .setup_client(new_settings.client_id.clone(), new_settings.client_secret.clone())?;
+
+                        *settings.write().unwrap() = new_settings;
+
+                        Ok::<_, ClientError>(auth_url)
+                    })
+                    .await??;
+
+                stream.emit(SettingsMsg::SetAuthorizeUrl(auth_url));
+
+                Ok(())
+            },
+        );
+    }
+
     fn init_view(&mut self) {
-        self.client_id_label
-            .set_mnemonic_widget(Some(&self.client_id_entry));
-        self.client_secret_label
-            .set_mnemonic_widget(Some(&self.client_secret_entry));
+        self.client_id_label.set_mnemonic_widget(Some(&self.client_id_entry));
+
+        self.client_secret_label.set_mnemonic_widget(Some(&self.client_secret_entry));
     }
 }
 
 impl SpawnScope<(EventStream<SettingsMsg>, SpotifyRef)> for SettingsTab {
-    fn scope(&self) -> (EventStream<SettingsMsg>, SpotifyRef) {
-        (self.model.stream.clone(), self.model.spotify.clone())
-    }
+    fn scope(&self) -> (EventStream<SettingsMsg>, SpotifyRef) { (self.model.stream.clone(), self.model.spotify.clone()) }
 }
 
 impl Spawn for SettingsTab {
-    fn pool(&self) -> Handle {
-        self.model.pool.clone()
-    }
+    fn pool(&self) -> Handle { self.model.pool.clone() }
 }

@@ -1,11 +1,13 @@
 // TODO: Mode
 #![allow(dead_code)]
 
-use crate::loaders::common::ContainerLoader;
-use crate::services::SpotifyRef;
+use crate::{
+    loaders::common::ContainerLoader,
+    services::spotify::{EpisodesStorageApi, PlaybackQueueApi, SearchApi, ThreadSafe, TracksStorageApi},
+    utils::AsyncCell,
+};
 use async_trait::async_trait;
-use rspotify::client::ClientResult;
-use rspotify::model::*;
+use rspotify::{client::ClientResult, model::*};
 use serde_json::{Map, Value};
 
 const NAME: &str = "tracks";
@@ -48,11 +50,7 @@ pub struct RecommendLoader {
 }
 
 impl RecommendLoader {
-    fn extract_vec_string(
-        params: &mut Map<String, Value>,
-        key: &str,
-        max_items: usize,
-    ) -> Option<Vec<String>> {
+    fn extract_vec_string(params: &mut Map<String, Value>, key: &str, max_items: usize) -> Option<Vec<String>> {
         params.remove(key).and_then(|seed| match seed {
             Value::Array(values) => Some(
                 values
@@ -70,11 +68,14 @@ impl RecommendLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for RecommendLoader {
-    type ParentId = Map<String, Value>;
+impl<Client> ContainerLoader<Client> for RecommendLoader
+where
+    Client: SearchApi + ThreadSafe,
+{
     type Item = SimplifiedTrack;
     type Page = Vec<Self::Item>;
-    const PAGE_LIMIT: u32 = 100;
+    type ParentId = Map<String, Value>;
+
     const NAME: &'static str = "recommended tracks";
 
     fn new(mut tunables: Self::ParentId) -> Self {
@@ -143,35 +144,33 @@ impl ContainerLoader for RecommendLoader {
         &self.tunables
         //let mut params = self.tunables.clone();
         //if let Some(ref seed_artists) = self.seed_artists {
-        //    params.insert("seed_artists".into(), Value::from(seed_artists.clone()));
+        //    params.insert("seed_artists".into(),
+        // Value::from(seed_artists.clone()));
         //}
         //if let Some(ref seed_genres) = self.seed_genres {
-        //    params.insert("seed_genres".into(), Value::from(seed_genres.clone()));
+        //    params.insert("seed_genres".into(),
+        // Value::from(seed_genres.clone()));
         //}
         //if let Some(ref seed_tracks) = self.seed_tracks {
-        //    params.insert("seed_tracks".into(), Value::from(seed_tracks.clone()));
+        //    params.insert("seed_tracks".into(),
+        // Value::from(seed_tracks.clone()));
         //}
         //params
     }
 
     #[allow(clippy::unit_arg)]
-    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
+    async fn load_page(self, spotify: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
         let RecommendLoader {
             seed_tracks,
             seed_genres,
             seed_artists,
             tunables,
         } = self;
+
         spotify
             .read()
             .await
-            .get_recommended_tracks(
-                seed_tracks,
-                seed_genres,
-                seed_artists,
-                tunables,
-                Self::PAGE_LIMIT,
-            )
+            .get_recommended_tracks(seed_tracks, seed_genres, seed_artists, tunables, 100)
             .await
     }
 }
@@ -180,94 +179,77 @@ impl ContainerLoader for RecommendLoader {
 pub struct SavedLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for SavedLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for SavedLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = SavedTrack;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 20;
+    type ParentId = ();
+
     const NAME: &'static str = NAME;
 
-    fn new(_id: Self::ParentId) -> Self {
-        SavedLoader(rand::random())
+    fn new(_id: Self::ParentId) -> Self { SavedLoader(rand::random()) }
+
+    fn parent_id(&self) -> &Self::ParentId { &() }
+
+    async fn load_page(self, client: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        client.read().await.get_my_tracks(offset, 20).await
     }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
-
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_my_tracks(offset, Self::PAGE_LIMIT)
-            .await
-    }
-
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone, Copy)]
 pub struct RecentLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for RecentLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for RecentLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = PlayHistory;
     type Page = Vec<Self::Item>;
-    const PAGE_LIMIT: u32 = 50;
+    type ParentId = ();
+
     const NAME: &'static str = "recent tracks";
 
-    fn new(_id: Self::ParentId) -> Self {
-        RecentLoader(rand::random())
-    }
+    fn new(_id: Self::ParentId) -> Self { RecentLoader(rand::random()) }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
+    fn parent_id(&self) -> &Self::ParentId { &() }
 
     #[allow(clippy::unit_arg)]
-    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_recent_tracks(Self::PAGE_LIMIT)
-            .await
+    async fn load_page(self, client: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
+        client.read().await.get_recent_tracks(50).await
     }
 
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone, Copy)]
 pub struct QueueLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for QueueLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for QueueLoader
+where
+    Client: PlaybackQueueApi + ThreadSafe,
+{
     type Item = FullTrack;
     type Page = Vec<Self::Item>;
-    const PAGE_LIMIT: u32 = 0;
+    type ParentId = ();
+
     const NAME: &'static str = NAME;
 
-    fn new(_id: Self::ParentId) -> Self {
-        QueueLoader(rand::random())
-    }
+    fn new(_id: Self::ParentId) -> Self { QueueLoader(rand::random()) }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
+    fn parent_id(&self) -> &Self::ParentId { &() }
 
     #[allow(clippy::unit_arg)]
-    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
-        spotify.read().await.get_queue_tracks().await
+    async fn load_page(self, client: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
+        client.read().await.get_queue_tracks().await
     }
 
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone)]
@@ -276,27 +258,22 @@ pub struct AlbumLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for AlbumLoader {
-    type ParentId = String;
+impl<Client> ContainerLoader<Client> for AlbumLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = SimplifiedTrack;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 10;
+    type ParentId = String;
+
     const NAME: &'static str = "album tracks";
 
-    fn new(uri: Self::ParentId) -> Self {
-        AlbumLoader { uri }
-    }
+    fn new(uri: Self::ParentId) -> Self { AlbumLoader { uri } }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &self.uri
-    }
+    fn parent_id(&self) -> &Self::ParentId { &self.uri }
 
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_album_tracks(&self.uri, offset, Self::PAGE_LIMIT)
-            .await
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_album_tracks(&self.uri, offset, 10).await
     }
 }
 
@@ -306,27 +283,20 @@ pub struct PlaylistLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for PlaylistLoader {
-    type ParentId = String;
+impl<Client> ContainerLoader<Client> for PlaylistLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = PlaylistItem;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 10;
-    const NAME: &'static str = NAME;
+    type ParentId = String;
 
-    fn new(uri: Self::ParentId) -> Self {
-        PlaylistLoader { uri }
-    }
+    fn new(uri: Self::ParentId) -> Self { PlaylistLoader { uri } }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &self.uri
-    }
+    fn parent_id(&self) -> &Self::ParentId { &self.uri }
 
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_playlist_tracks(&self.uri, offset, Self::PAGE_LIMIT)
-            .await
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_playlist_tracks(&self.uri, offset, 10).await
     }
 }
 
@@ -334,32 +304,25 @@ impl ContainerLoader for PlaylistLoader {
 pub struct MyTopTracksLoader(usize);
 
 #[async_trait]
-impl ContainerLoader for MyTopTracksLoader {
-    type ParentId = ();
+impl<Client> ContainerLoader<Client> for MyTopTracksLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = FullTrack;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 20;
+    type ParentId = ();
+
     const NAME: &'static str = "top tracks";
 
-    fn new(_uri: Self::ParentId) -> Self {
-        MyTopTracksLoader(rand::random())
+    fn new(_uri: Self::ParentId) -> Self { MyTopTracksLoader(rand::random()) }
+
+    fn parent_id(&self) -> &Self::ParentId { &() }
+
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_my_top_tracks(offset, 20).await
     }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &()
-    }
-
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_my_top_tracks(offset, Self::PAGE_LIMIT)
-            .await
-    }
-
-    fn epoch(&self) -> usize {
-        self.0
-    }
+    fn epoch(&self) -> usize { self.0 }
 }
 
 #[derive(Clone)]
@@ -368,27 +331,22 @@ pub struct ShowLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for ShowLoader {
-    type ParentId = String;
+impl<Client> ContainerLoader<Client> for ShowLoader
+where
+    Client: EpisodesStorageApi + ThreadSafe,
+{
     type Item = SimplifiedEpisode;
     type Page = Page<Self::Item>;
-    const PAGE_LIMIT: u32 = 10;
+    type ParentId = String;
+
     const NAME: &'static str = "episodes";
 
-    fn new(uri: Self::ParentId) -> Self {
-        ShowLoader { uri }
-    }
+    fn new(uri: Self::ParentId) -> Self { ShowLoader { uri } }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &self.uri
-    }
+    fn parent_id(&self) -> &Self::ParentId { &self.uri }
 
-    async fn load_page(self, spotify: SpotifyRef, offset: u32) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_show_episodes(&self.uri, offset, Self::PAGE_LIMIT)
-            .await
+    async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
+        spotify.read().await.get_show_episodes(&self.uri, offset, 10).await
     }
 }
 
@@ -398,27 +356,22 @@ pub struct ArtistTopTracksLoader {
 }
 
 #[async_trait]
-impl ContainerLoader for ArtistTopTracksLoader {
-    type ParentId = String;
+impl<Client> ContainerLoader<Client> for ArtistTopTracksLoader
+where
+    Client: TracksStorageApi + ThreadSafe,
+{
     type Item = FullTrack;
     type Page = Vec<Self::Item>;
-    const PAGE_LIMIT: u32 = 10;
+    type ParentId = String;
+
     const NAME: &'static str = "artist's top tracks";
 
-    fn new(artist_id: Self::ParentId) -> Self {
-        ArtistTopTracksLoader { artist_id }
-    }
+    fn new(artist_id: Self::ParentId) -> Self { ArtistTopTracksLoader { artist_id } }
 
-    fn parent_id(&self) -> &Self::ParentId {
-        &self.artist_id
-    }
+    fn parent_id(&self) -> &Self::ParentId { &self.artist_id }
 
     #[allow(clippy::unit_arg)]
-    async fn load_page(self, spotify: SpotifyRef, _offset: ()) -> ClientResult<Self::Page> {
-        spotify
-            .read()
-            .await
-            .get_artist_top_tracks(&self.artist_id)
-            .await
+    async fn load_page(self, spotify: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
+        spotify.read().await.get_artist_top_tracks(&self.artist_id).await
     }
 }
