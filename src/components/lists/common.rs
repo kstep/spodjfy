@@ -3,7 +3,7 @@ use crate::{
     loaders::{ContainerLoader, ImageConverter, ImageLoader},
     models::{common::*, PageLike},
     services::SpotifyRef,
-    utils::{RetryPolicy, Spawn, SpawnError, SpawnScope},
+    utils::{RetryPolicy, Spawn, SpawnError, Extract},
     AppEvent,
 };
 use gdk_pixbuf::Pixbuf;
@@ -112,24 +112,24 @@ pub struct ContainerList<Loader, ItemsView, Handler = NoopHandler, Message = Con
     handler: PhantomData<Handler>,
 }
 
-impl<L, V, H, M: 'static> SpawnScope<SpotifyRef> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> SpotifyRef { self.model.spotify.clone() }
+impl<L, V, H, M: 'static> Extract<SpotifyRef> for ContainerList<L, V, H, M> {
+    fn extract(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
-impl<L, V, H, M: 'static> SpawnScope<EventStream<M>> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> EventStream<M> { self.stream.clone() }
+impl<L, V, H, M: 'static> Extract<EventStream<M>> for ContainerList<L, V, H, M> {
+    fn extract(&self) -> EventStream<M> { self.stream.clone() }
 }
 
-impl<L, V, H, M: 'static> SpawnScope<gtk::ListStore> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> gtk::ListStore { self.model.store.clone() }
+impl<L, V, H, M: 'static> Extract<gtk::ListStore> for ContainerList<L, V, H, M> {
+    fn extract(&self) -> gtk::ListStore { self.model.store.clone() }
 }
 
-impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>> for ContainerList<Loader, V, H, M> {
-    fn scope(&self) -> Option<Loader> { self.model.items_loader.clone() }
+impl<Loader: Clone + 'static, V, H, M: 'static> Extract<Option<Loader>> for ContainerList<Loader, V, H, M> {
+    fn extract(&self) -> Option<Loader> { self.model.items_loader.clone() }
 }
 
-impl<L, V, H, M: 'static> SpawnScope<ImageLoader> for ContainerList<L, V, H, M> {
-    fn scope(&self) -> ImageLoader { self.model.image_loader.clone() }
+impl<L, V, H, M: 'static> Extract<ImageLoader> for ContainerList<L, V, H, M> {
+    fn extract(&self) -> ImageLoader { self.model.image_loader.clone() }
 }
 
 impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {

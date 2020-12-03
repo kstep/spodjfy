@@ -1,7 +1,7 @@
 use crate::{
     config::{Config, Settings, SettingsRef},
     services::SpotifyRef,
-    utils::{Spawn, SpawnScope},
+    utils::{Spawn, Extract},
 };
 use gtk::{self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt, WidgetExt};
 use relm::{EventStream, Relm, Widget};
@@ -208,8 +208,12 @@ impl Widget for SettingsTab {
     }
 }
 
-impl SpawnScope<(EventStream<SettingsMsg>, SpotifyRef)> for SettingsTab {
-    fn scope(&self) -> (EventStream<SettingsMsg>, SpotifyRef) { (self.model.stream.clone(), self.model.spotify.clone()) }
+impl Extract<EventStream<SettingsMsg>> for SettingsTab {
+    fn extract(&self) -> EventStream<SettingsMsg> { self.model.stream.clone() }
+}
+
+impl Extract<SpotifyRef> for SettingsTab {
+    fn extract(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
 impl Spawn for SettingsTab {

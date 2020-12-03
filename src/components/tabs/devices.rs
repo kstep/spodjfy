@@ -1,7 +1,7 @@
 use crate::{
     components::tabs::MusicTabParams,
     services::{api::PlaybackControlApi, SpotifyRef},
-    utils::{Spawn, SpawnScope},
+    utils::{Spawn, Extract},
 };
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;
@@ -223,12 +223,12 @@ impl Widget for DevicesTab {
     }
 }
 
-impl SpawnScope<EventStream<DevicesMsg>> for DevicesTab {
-    fn scope(&self) -> EventStream<DevicesMsg> { self.model.stream.clone() }
+impl Extract<EventStream<DevicesMsg>> for DevicesTab {
+    fn extract(&self) -> EventStream<DevicesMsg> { self.model.stream.clone() }
 }
 
-impl SpawnScope<SpotifyRef> for DevicesTab {
-    fn scope(&self) -> SpotifyRef { self.model.spotify.clone() }
+impl Extract<SpotifyRef> for DevicesTab {
+    fn extract(&self) -> SpotifyRef { self.model.spotify.clone() }
 }
 
 impl Spawn for DevicesTab {
