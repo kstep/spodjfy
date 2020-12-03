@@ -2,17 +2,14 @@ use crate::{
     models::{
         Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull, ToSimple, Wrapper, common::constants::*,
     },
-    services::store::StorageModel,
+    services::storage::StorageModel,
 };
 use chrono::{DateTime, Utc};
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
-use rspotify::model::{
-    FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum, SimplifiedArtist, SimplifiedTrack,
-    Type as ModelType,
-};
+use rspotify::model::{FullTrack, Image, PlayHistory, PlayingItem, PlaylistItem, SavedTrack, SimplifiedAlbum, SimplifiedArtist, SimplifiedTrack, Type as ModelType, AudioAnalysis};
 use std::{collections::HashMap, time::SystemTime};
 
 pub mod constants {
@@ -488,4 +485,9 @@ impl StorageModel for FullTrack {
     const TREE_NAME: &'static str = "tracks";
 
     fn key(&self) -> &str { self.id() }
+}
+
+impl StorageModel for AudioAnalysis {
+    const TREE_NAME: &'static str = "audio:analysis";
+    fn key(&self) -> &str { self. }
 }
