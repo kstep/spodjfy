@@ -6,9 +6,12 @@ use rspotify::model::{CursorBasedPage, Image, Page};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
-pub const COL_ITEM_THUMB: u32 = 0;
-pub const COL_ITEM_URI: u32 = 1;
-pub const COL_ITEM_NAME: u32 = 2;
+pub mod constants {
+    pub const COL_ITEM_THUMB: u32 = 0;
+    pub const COL_ITEM_URI: u32 = 1;
+    pub const COL_ITEM_NAME: u32 = 2;
+}
+pub use constants::*;
 
 #[derive(Serialize, Deserialize)]
 pub enum Model<F, S> {
@@ -52,7 +55,6 @@ pub trait Wrapper {
     type For;
 
     fn unwrap(self) -> Self::For;
-
     fn wrap(original: Self::For) -> Self;
 }
 
@@ -60,7 +62,6 @@ pub trait ToSimple: Sized {
     type Simple;
 
     fn to_simple(&self) -> Self::Simple;
-
     fn into_simple(self) -> Self::Simple { self.to_simple() }
 }
 
@@ -68,7 +69,6 @@ pub trait ToFull: Sized {
     type Full: ToSimple;
 
     fn to_full(&self) -> Self::Full;
-
     fn into_full(self) -> Self::Full { self.to_full() }
 }
 
@@ -87,25 +87,21 @@ where
 
 impl Empty for String {
     fn empty() -> Self { String::new() }
-
     fn is_empty(&self) -> bool { String::is_empty(self) }
 }
 
 impl<T> Empty for Vec<T> {
     fn empty() -> Self { Vec::new() }
-
     fn is_empty(&self) -> bool { Vec::is_empty(self) }
 }
 
 impl Empty for bool {
     fn empty() -> Self { false }
-
     fn is_empty(&self) -> bool { !*self }
 }
 
 impl<T> Empty for Option<T> {
     fn empty() -> Self { None }
-
     fn is_empty(&self) -> bool { self.is_none() }
 }
 
@@ -122,19 +118,16 @@ impl_empty_for_num!(usize, u64, u32, u16, u8, isize, i64, i32, i16, i8);
 
 impl Empty for f32 {
     fn empty() -> f32 { 0.0 }
-
     fn is_empty(&self) -> bool { *self == 0.0 }
 }
 
 impl Empty for f64 {
     fn empty() -> f64 { 0.0 }
-
     fn is_empty(&self) -> bool { *self == 0.0 }
 }
 
 impl<K, V> Empty for HashMap<K, V> {
     fn empty() -> Self { HashMap::new() }
-
     fn is_empty(&self) -> bool { HashMap::is_empty(self) }
 }
 
@@ -170,7 +163,6 @@ pub trait HasImages {
 
 pub trait HasDuration {
     fn duration(&self) -> u32 { 0 }
-
     fn duration_exact(&self) -> bool { true }
 }
 

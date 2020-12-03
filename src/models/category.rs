@@ -4,11 +4,13 @@ use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
 use rspotify::model::{Category, Image};
 
-pub const COL_CATEGORY_ID: u32 = COL_ITEM_URI;
-
-pub const COL_CATEGORY_ICON: u32 = COL_ITEM_THUMB;
-
-pub const COL_CATEGORY_NAME: u32 = COL_ITEM_NAME;
+pub mod constants {
+    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    pub const COL_CATEGORY_ID: u32 = COL_ITEM_URI;
+    pub const COL_CATEGORY_ICON: u32 = COL_ITEM_THUMB;
+    pub const COL_CATEGORY_NAME: u32 = COL_ITEM_NAME;
+}
+pub use self::constants::*;
 
 impl HasDuration for Category {
     fn duration_exact(&self) -> bool { false }

@@ -6,27 +6,22 @@ use rspotify::model::{Followers, FullPlaylist, Image, Page, PublicUser, Simplifi
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub const COL_PLAYLIST_THUMB: u32 = COL_ITEM_THUMB;
-
-pub const COL_PLAYLIST_URI: u32 = COL_ITEM_URI;
-
-pub const COL_PLAYLIST_NAME: u32 = COL_ITEM_NAME;
-
-pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
-
-pub const COL_PLAYLIST_DURATION: u32 = 4;
-
-pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
-
-pub const COL_PLAYLIST_PUBLISHER: u32 = 6;
+pub mod constants {
+    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    pub const COL_PLAYLIST_THUMB: u32 = COL_ITEM_THUMB;
+    pub const COL_PLAYLIST_URI: u32 = COL_ITEM_URI;
+    pub const COL_PLAYLIST_NAME: u32 = COL_ITEM_NAME;
+    pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
+    pub const COL_PLAYLIST_DURATION: u32 = 4;
+    pub const COL_PLAYLIST_DESCRIPTION: u32 = 5;
+    pub const COL_PLAYLIST_PUBLISHER: u32 = 6;
+}
+pub use self::constants::*;
 
 pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
     fn id(&self) -> &str;
-
     fn description(&self) -> &str;
-
     fn publisher(&self) -> &str;
-
     fn total_tracks(&self) -> u32 { 0 }
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -66,11 +61,8 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
 
 impl PlaylistLike for SimplifiedPlaylist {
     fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> &str { "" }
-
     fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
-
     fn total_tracks(&self) -> u32 { self.tracks.get("total").and_then(|value| value.as_u64()).unwrap_or(0) as u32 }
 }
 
@@ -107,11 +99,8 @@ impl RowLike for SimplifiedPlaylist {
 
 impl PlaylistLike for FullPlaylist {
     fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> &str { &self.description }
-
     fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
-
     fn total_tracks(&self) -> u32 { self.tracks.total }
 }
 
@@ -139,11 +128,8 @@ impl ToSimple for FullPlaylist {
             snapshot_id: self.snapshot_id.clone(),
             tracks: {
                 let mut map = HashMap::new();
-
                 map.insert("href".to_owned(), Value::String(String::new()));
-
                 map.insert("total".to_owned(), Value::Number(self.tracks.total.into()));
-
                 map
             },
             _type: ModelType::Playlist,
@@ -164,11 +150,8 @@ impl ToSimple for FullPlaylist {
             snapshot_id: self.snapshot_id,
             tracks: {
                 let mut map = HashMap::new();
-
                 map.insert("href".to_owned(), Value::String(String::new()));
-
                 map.insert("total".to_owned(), Value::Number(self.tracks.total.into()));
-
                 map
             },
             _type: ModelType::Playlist,
@@ -196,7 +179,6 @@ impl HasImages for FullPlaylist {
 
 impl RowLike for FullPlaylist {
     fn content_types() -> Vec<Type> { Self::store_content_types() }
-
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 

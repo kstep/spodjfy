@@ -5,33 +5,27 @@ use gtk::prelude::GtkListStoreExtManual;
 use itertools::Itertools;
 use rspotify::model::{Followers, FullArtist, Image, SimplifiedArtist, Type as ModelType};
 
-pub const COL_ARTIST_THUMB: u32 = COL_ITEM_THUMB;
-
-pub const COL_ARTIST_URI: u32 = COL_ITEM_URI;
-
-pub const COL_ARTIST_NAME: u32 = COL_ITEM_NAME;
-
-pub const COL_ARTIST_GENRES: u32 = 3;
-
-pub const COL_ARTIST_RATE: u32 = 4;
-
-pub const COL_ARTIST_FOLLOWERS: u32 = 5;
+pub mod constants {
+    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    pub const COL_ARTIST_THUMB: u32 = COL_ITEM_THUMB;
+    pub const COL_ARTIST_URI: u32 = COL_ITEM_URI;
+    pub const COL_ARTIST_NAME: u32 = COL_ITEM_NAME;
+    pub const COL_ARTIST_GENRES: u32 = 3;
+    pub const COL_ARTIST_RATE: u32 = 4;
+    pub const COL_ARTIST_FOLLOWERS: u32 = 5;
+}
+pub use self::constants::*;
 
 pub trait ArtistLike: HasDuration + HasImages + HasUri + HasName {
     fn id(&self) -> &str;
-
     fn rate(&self) -> u32;
-
     fn followers(&self) -> u32;
-
     fn genres(&self) -> &[String] { &[] }
 }
 
 impl ArtistLike for SimplifiedArtist {
     fn id(&self) -> &str { self.id.as_deref().unwrap_or("") }
-
     fn rate(&self) -> u32 { 0 }
-
     fn followers(&self) -> u32 { 0 }
 }
 
@@ -65,11 +59,8 @@ impl RowLike for SimplifiedArtist {
 
 impl ArtistLike for FullArtist {
     fn id(&self) -> &str { &self.id }
-
     fn rate(&self) -> u32 { self.popularity }
-
     fn followers(&self) -> u32 { self.followers.total }
-
     fn genres(&self) -> &[String] { &self.genres }
 }
 

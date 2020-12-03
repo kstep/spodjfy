@@ -9,37 +9,27 @@ use rspotify::model::{
 };
 use std::{collections::HashMap, time::SystemTime};
 
-pub const COL_ALBUM_THUMB: u32 = COL_ITEM_THUMB;
-
-pub const COL_ALBUM_URI: u32 = COL_ITEM_URI;
-
-pub const COL_ALBUM_NAME: u32 = COL_ITEM_NAME;
-
-pub const COL_ALBUM_RELEASE_DATE: u32 = 3;
-
-pub const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
-
-pub const COL_ALBUM_ARTISTS: u32 = 5;
-
-pub const COL_ALBUM_GENRES: u32 = 6;
-
-pub const COL_ALBUM_TYPE: u32 = 7;
-
-pub const COL_ALBUM_DURATION: u32 = 8;
-
-pub const COL_ALBUM_RATE: u32 = 9;
+pub mod constants {
+    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    pub const COL_ALBUM_THUMB: u32 = COL_ITEM_THUMB;
+    pub const COL_ALBUM_URI: u32 = COL_ITEM_URI;
+    pub const COL_ALBUM_NAME: u32 = COL_ITEM_NAME;
+    pub const COL_ALBUM_RELEASE_DATE: u32 = 3;
+    pub const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
+    pub const COL_ALBUM_ARTISTS: u32 = 5;
+    pub const COL_ALBUM_GENRES: u32 = 6;
+    pub const COL_ALBUM_TYPE: u32 = 7;
+    pub const COL_ALBUM_DURATION: u32 = 8;
+    pub const COL_ALBUM_RATE: u32 = 9;
+}
+pub use self::constants::*;
 
 pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
     fn release_date(&self) -> &str;
-
     fn total_tracks(&self) -> u32 { 0 }
-
     fn artists(&self) -> &[SimplifiedArtist];
-
     fn genres(&self) -> &[String] { &[] }
-
     fn kind(&self) -> AlbumType;
-
     fn rate(&self) -> u32;
 
     fn insert_into_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter {
@@ -88,15 +78,10 @@ pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
 
 impl AlbumLike for FullAlbum {
     fn release_date(&self) -> &str { &self.release_date }
-
     fn total_tracks(&self) -> u32 { self.tracks.total }
-
     fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
-
     fn genres(&self) -> &[String] { &self.genres }
-
     fn kind(&self) -> AlbumType { self.album_type }
-
     fn rate(&self) -> u32 { self.popularity }
 }
 
@@ -110,7 +95,6 @@ impl HasUri for FullAlbum {
 
 impl HasDuration for FullAlbum {
     fn duration(&self) -> u32 { self.tracks.items.iter().map(|track| track.duration_ms).sum() }
-
     fn duration_exact(&self) -> bool { self.tracks.total as usize == self.tracks.items.len() }
 }
 
@@ -128,7 +112,6 @@ impl RowLike for FullAlbum {
 
 impl AlbumLike for SimplifiedAlbum {
     fn release_date(&self) -> &str { self.release_date.as_deref().unwrap_or("") }
-
     fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
 
     fn kind(&self) -> AlbumType {
@@ -176,15 +159,10 @@ impl RowLike for SimplifiedAlbum {
 
 impl AlbumLike for SavedAlbum {
     fn release_date(&self) -> &str { self.album.release_date() }
-
     fn total_tracks(&self) -> u32 { self.album.total_tracks() }
-
     fn artists(&self) -> &[SimplifiedArtist] { self.album.artists() }
-
     fn genres(&self) -> &[String] { self.album.genres() }
-
     fn kind(&self) -> AlbumType { self.album.kind() }
-
     fn rate(&self) -> u32 { self.album.popularity }
 }
 
@@ -198,7 +176,6 @@ impl HasUri for SavedAlbum {
 
 impl HasDuration for SavedAlbum {
     fn duration(&self) -> u32 { self.album.duration() }
-
     fn duration_exact(&self) -> bool { self.album.duration_exact() }
 }
 

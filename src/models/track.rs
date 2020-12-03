@@ -1,7 +1,6 @@
 use crate::{
     models::{
-        Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull, ToSimple, Wrapper, COL_ITEM_NAME,
-        COL_ITEM_THUMB, COL_ITEM_URI,
+        Empty, HasDuration, HasImages, HasName, HasUri, Merge, MissingColumns, RowLike, ToFull, ToSimple, Wrapper, common::constants::*,
     },
     services::store::StorageModel,
 };
@@ -16,39 +15,27 @@ use rspotify::model::{
 };
 use std::{collections::HashMap, time::SystemTime};
 
-pub const COL_TRACK_THUMB: u32 = COL_ITEM_THUMB;
-
-pub const COL_TRACK_URI: u32 = COL_ITEM_URI;
-
-pub const COL_TRACK_NAME: u32 = COL_ITEM_NAME;
-
-pub const COL_TRACK_ARTISTS: u32 = 3;
-
-pub const COL_TRACK_NUMBER: u32 = 4;
-
-pub const COL_TRACK_ALBUM: u32 = 5;
-
-pub const COL_TRACK_CANT_PLAY: u32 = 6;
-
-pub const COL_TRACK_DURATION: u32 = 7;
-
-pub const COL_TRACK_DURATION_MS: u32 = 8;
-
-pub const COL_TRACK_BPM: u32 = 9;
-
-pub const COL_TRACK_TIMELINE: u32 = 10;
-
-pub const COL_TRACK_RELEASE_DATE: u32 = 11;
-
-pub const COL_TRACK_DESCRIPTION: u32 = 12;
-
-pub const COL_TRACK_ALBUM_URI: u32 = 13;
-
-pub const COL_TRACK_ARTIST_URI: u32 = 14;
-
-pub const COL_TRACK_RATE: u32 = 15;
-
-pub const COL_TRACK_SAVED: u32 = 16;
+pub mod constants {
+    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    pub const COL_TRACK_THUMB: u32 = COL_ITEM_THUMB;
+    pub const COL_TRACK_URI: u32 = COL_ITEM_URI;
+    pub const COL_TRACK_NAME: u32 = COL_ITEM_NAME;
+    pub const COL_TRACK_ARTISTS: u32 = 3;
+    pub const COL_TRACK_NUMBER: u32 = 4;
+    pub const COL_TRACK_ALBUM: u32 = 5;
+    pub const COL_TRACK_CANT_PLAY: u32 = 6;
+    pub const COL_TRACK_DURATION: u32 = 7;
+    pub const COL_TRACK_DURATION_MS: u32 = 8;
+    pub const COL_TRACK_BPM: u32 = 9;
+    pub const COL_TRACK_TIMELINE: u32 = 10;
+    pub const COL_TRACK_RELEASE_DATE: u32 = 11;
+    pub const COL_TRACK_DESCRIPTION: u32 = 12;
+    pub const COL_TRACK_ALBUM_URI: u32 = 13;
+    pub const COL_TRACK_ARTIST_URI: u32 = 14;
+    pub const COL_TRACK_RATE: u32 = 15;
+    pub const COL_TRACK_SAVED: u32 = 16;
+}
+pub use self::constants::*;
 
 impl Merge for FullTrack {
     fn merge(self, other: FullTrack) -> Self {
@@ -203,17 +190,11 @@ impl<T: TrackLike> RowLike for T {
 
 impl TrackLike for PlayHistory {
     fn id(&self) -> &str { self.track.id() }
-
     fn artists(&self) -> &[SimplifiedArtist] { self.track.artists() }
-
     fn number(&self) -> u32 { self.track.number() }
-
     fn album(&self) -> Option<&SimplifiedAlbum> { self.track.album() }
-
     fn is_playable(&self) -> bool { self.track.is_playable() }
-
     fn rate(&self) -> u32 { self.track.popularity }
-
     fn release_date(&self) -> Option<&str> { self.track.release_date() }
 }
 
@@ -244,17 +225,11 @@ impl MissingColumns for PlayHistory {
 
 impl TrackLike for PlaylistItem {
     fn id(&self) -> &str { self.track.as_ref().map(FullTrack::id).unwrap_or("") }
-
     fn artists(&self) -> &[SimplifiedArtist] { self.track.as_ref().map(FullTrack::artists).unwrap_or(&[]) }
-
     fn number(&self) -> u32 { self.track.as_ref().map(FullTrack::number).unwrap_or(0) }
-
     fn album(&self) -> Option<&SimplifiedAlbum> { self.track.as_ref().and_then(FullTrack::album) }
-
     fn is_playable(&self) -> bool { self.track.as_ref().map(FullTrack::is_playable).unwrap_or(false) }
-
     fn rate(&self) -> u32 { self.track.as_ref().map_or(0, |track| track.popularity) }
-
     fn release_date(&self) -> Option<&str> { self.track.as_ref().and_then(FullTrack::release_date) }
 }
 
@@ -283,7 +258,6 @@ impl Wrapper for PlaylistItem {
 
 impl HasDuration for PlaylistItem {
     fn duration(&self) -> u32 { self.track.as_ref().map_or(0, |track| track.duration_ms) }
-
     fn duration_exact(&self) -> bool { self.track.is_some() }
 }
 
@@ -302,17 +276,11 @@ impl MissingColumns for PlaylistItem {
 
 impl TrackLike for FullTrack {
     fn id(&self) -> &str { self.id.as_deref().unwrap_or("") }
-
     fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
-
     fn number(&self) -> u32 { self.track_number }
-
     fn album(&self) -> Option<&SimplifiedAlbum> { Some(&self.album) }
-
     fn is_playable(&self) -> bool { self.is_playable.unwrap_or(true) }
-
     fn rate(&self) -> u32 { self.popularity }
-
     fn release_date(&self) -> Option<&str> { self.album.release_date.as_deref() }
 }
 
@@ -343,13 +311,9 @@ impl MissingColumns for FullTrack {
 
 impl TrackLike for SimplifiedTrack {
     fn id(&self) -> &str { self.id.as_deref().unwrap_or("") }
-
     fn artists(&self) -> &[SimplifiedArtist] { &self.artists }
-
     fn number(&self) -> u32 { self.track_number }
-
     fn rate(&self) -> u32 { 0 }
-
     fn is_playable(&self) -> bool { self.is_playable.unwrap_or(true) }
 }
 
@@ -415,17 +379,11 @@ impl ToFull for SimplifiedTrack {
 
 impl TrackLike for SavedTrack {
     fn id(&self) -> &str { self.track.id() }
-
     fn artists(&self) -> &[SimplifiedArtist] { self.track.artists() }
-
     fn number(&self) -> u32 { self.track.number() }
-
     fn album(&self) -> Option<&SimplifiedAlbum> { self.track.album() }
-
     fn is_playable(&self) -> bool { self.track.is_playable() }
-
     fn rate(&self) -> u32 { self.track.popularity }
-
     fn release_date(&self) -> Option<&str> { self.track.release_date() }
 }
 
