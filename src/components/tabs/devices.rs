@@ -1,6 +1,6 @@
 use crate::{
     components::tabs::MusicTabParams,
-    services::{spotify::PlaybackControlApi, SpotifyRef},
+    services::{api::PlaybackControlApi, SpotifyRef},
     utils::{Spawn, SpawnScope},
 };
 use gdk_pixbuf::{InterpType, Pixbuf};

@@ -1,4 +1,4 @@
-use crate::services::spotify::service::SpotifyRef;
+use crate::services::spotify::SpotifyRef;
 use futures::TryFutureExt;
 use rspotify::client::ClientError;
 use std::time::Duration;

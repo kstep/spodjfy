@@ -1,3 +1,4 @@
+pub mod api;
 mod login;
 pub mod spotify;
 pub mod store;

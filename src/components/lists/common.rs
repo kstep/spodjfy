@@ -120,8 +120,16 @@ impl<L, V, H, M: 'static> SpawnScope<EventStream<M>> for ContainerList<L, V, H, 
     fn scope(&self) -> EventStream<M> { self.stream.clone() }
 }
 
+impl<L, V, H, M: 'static> SpawnScope<gtk::ListStore> for ContainerList<L, V, H, M> {
+    fn scope(&self) -> gtk::ListStore { self.model.store.clone() }
+}
+
 impl<Loader: Clone + 'static, V, H, M: 'static> SpawnScope<Option<Loader>> for ContainerList<Loader, V, H, M> {
     fn scope(&self) -> Option<Loader> { self.model.items_loader.clone() }
+}
+
+impl<L, V, H, M: 'static> SpawnScope<ImageLoader> for ContainerList<L, V, H, M> {
+    fn scope(&self) -> ImageLoader { self.model.image_loader.clone() }
 }
 
 impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
@@ -348,16 +356,15 @@ where
                     }
                 }
                 LoadThumb(url, pos) => {
-                    let image_loader = self.model.image_loader.clone();
-                    let store = self.model.store.clone();
-                    let pool = self.model.pool.clone();
-                    let ctx = MainContext::ref_thread_default();
-
-                    ctx.spawn_local(async move {
-                        if let Ok(Some(image)) = pool.spawn(async move { image_loader.load_image(&url).await }).await {
-                            store.set_value(&pos, COL_ITEM_THUMB, &Pixbuf::from(image).to_value());
-                        }
-                    });
+                    self.spawn_args(
+                        (url, pos),
+                        async move |pool, (image_loader, store): (ImageLoader, gtk::ListStore), (url, pos)| {
+                            if let Some(image) = pool.spawn(async move { image_loader.load_image(&url).await }).await? {
+                                store.set_value(&pos, COL_ITEM_THUMB, &Pixbuf::from(image).to_value());
+                            }
+                            Ok(())
+                        },
+                    );
                 }
                 ActivateChosenItems => {
                     let (rows, model) = self.items_view.get_selected_rows();

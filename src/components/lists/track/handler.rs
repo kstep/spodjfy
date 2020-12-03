@@ -3,7 +3,7 @@ use crate::{
     loaders::ContainerLoader,
     models::{common::*, page::*, track::*},
     services::{
-        spotify::{PlaybackControlApi, PlaybackQueueApi, TracksStorageApi},
+        api::{PlaybackControlApi, PlaybackQueueApi, TracksStorageApi},
         SpotifyRef,
     },
     utils::Spawn,

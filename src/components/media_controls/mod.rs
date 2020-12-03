@@ -29,7 +29,7 @@ use crate::{
     loaders::{ImageData, ImageLoader},
     models::{common::*, TrackLike},
     services::{
-        spotify::{
+        api::{
             AlbumsStorageApi, ArtistsStorageApi, LibraryStorageApi, PlaybackControlApi, PlaylistsStorageApi, ShowsStorageApi,
             UsersStorageApi,
         },

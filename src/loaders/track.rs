@@ -3,7 +3,7 @@
 
 use crate::{
     loaders::common::ContainerLoader,
-    services::spotify::{EpisodesStorageApi, PlaybackQueueApi, SearchApi, ThreadSafe, TracksStorageApi},
+    services::api::{EpisodesStorageApi, PlaybackQueueApi, SearchApi, ThreadSafe, TracksStorageApi},
     utils::AsyncCell,
 };
 use async_trait::async_trait;

@@ -1,6 +1,6 @@
 use crate::{
     loaders::ContainerLoader,
-    services::spotify::{ArtistsStorageApi, ThreadSafe},
+    services::api::{ArtistsStorageApi, ThreadSafe},
     utils::AsyncCell,
 };
 use async_trait::async_trait;

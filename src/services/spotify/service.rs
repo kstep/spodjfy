@@ -1,6 +1,6 @@
 use crate::{
     scopes::Scope::{self, *},
-    services::spotify::api::*,
+    services::api::*,
     utils::AsyncCell,
 };
 use async_trait::async_trait;
