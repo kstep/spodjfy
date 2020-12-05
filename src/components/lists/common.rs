@@ -3,7 +3,7 @@ use crate::{
     loaders::{ContainerLoader, ImageConverter, ImageLoader},
     models::{common::*, PageLike},
     services::SpotifyRef,
-    utils::{RetryPolicy, Spawn, SpawnError, Extract},
+    utils::{Extract, RetryPolicy, Spawn, SpawnError},
     AppEvent,
 };
 use gdk_pixbuf::Pixbuf;

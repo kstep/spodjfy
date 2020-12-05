@@ -1,11 +1,15 @@
-use crate::models::{common::*, TrackLike, track::constants::*};
+use crate::models::{common::*, track::constants::*, TrackLike};
 use rspotify::model::{DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType};
 
 impl TrackLike for FullEpisode {
     fn id(&self) -> &str { &self.id }
+
     fn description(&self) -> Option<&str> { Some(&self.description) }
+
     fn is_playable(&self) -> bool { self.is_playable }
+
     fn rate(&self) -> u32 { 0 }
+
     fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 
@@ -42,9 +46,13 @@ impl MissingColumns for FullEpisode {
 
 impl TrackLike for SimplifiedEpisode {
     fn id(&self) -> &str { &self.id }
+
     fn description(&self) -> Option<&str> { Some(&self.description) }
+
     fn is_playable(&self) -> bool { self.is_playable }
+
     fn rate(&self) -> u32 { 0 }
+
     fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 

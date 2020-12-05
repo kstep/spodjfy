@@ -1,7 +1,7 @@
 use crate::{
     config::{Config, Settings, SettingsRef},
     services::SpotifyRef,
-    utils::{Spawn, Extract},
+    utils::{Extract, Spawn},
 };
 use gtk::{self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt, WidgetExt};
 use relm::{EventStream, Relm, Widget};

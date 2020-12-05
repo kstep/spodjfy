@@ -6,13 +6,7 @@ use crate::{
 use async_trait::async_trait;
 use rspotify::{
     client::{ClientError, ClientResult, Spotify as Client},
-    model::{
-        offset, AdditionalType, AudioAnalysis, AudioFeatures, AudioFeaturesPayload, Category, CurrentPlaybackContext,
-        CursorBasedPage, CursorPageFullArtists, Device, FeaturedPlaylists, FullAlbum, FullAlbums, FullArtist, FullArtists,
-        FullEpisode, FullPlaylist, FullShow, FullTrack, FullTracks, Id, Page, PageCategory, PageSimpliedAlbums, PlayHistory,
-        PlaylistItem, PrivateUser, PublicUser, RepeatState, SavedAlbum, SavedTrack, SeveralEpisodes, SeversalSimplifiedShows,
-        Show, SimplifiedAlbum, SimplifiedEpisode, SimplifiedPlaylist, SimplifiedShow, SimplifiedTrack, TimeRange, Type,
-    },
+    model::{offset, *},
 };
 use serde_json::{Map, Value};
 use std::{borrow::Cow, collections::VecDeque, ops::Deref, path::PathBuf};

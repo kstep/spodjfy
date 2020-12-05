@@ -1,7 +1,7 @@
 use crate::{
     components::tabs::MusicTabParams,
     services::{api::PlaybackControlApi, SpotifyRef},
-    utils::{Spawn, Extract},
+    utils::{Extract, Spawn},
 };
 use gdk_pixbuf::{InterpType, Pixbuf};
 use glib::StaticType;

@@ -87,21 +87,25 @@ where
 
 impl Empty for String {
     fn empty() -> Self { String::new() }
+
     fn is_empty(&self) -> bool { String::is_empty(self) }
 }
 
 impl<T> Empty for Vec<T> {
     fn empty() -> Self { Vec::new() }
+
     fn is_empty(&self) -> bool { Vec::is_empty(self) }
 }
 
 impl Empty for bool {
     fn empty() -> Self { false }
+
     fn is_empty(&self) -> bool { !*self }
 }
 
 impl<T> Empty for Option<T> {
     fn empty() -> Self { None }
+
     fn is_empty(&self) -> bool { self.is_none() }
 }
 
@@ -118,16 +122,19 @@ impl_empty_for_num!(usize, u64, u32, u16, u8, isize, i64, i32, i16, i8);
 
 impl Empty for f32 {
     fn empty() -> f32 { 0.0 }
+
     fn is_empty(&self) -> bool { *self == 0.0 }
 }
 
 impl Empty for f64 {
     fn empty() -> f64 { 0.0 }
+
     fn is_empty(&self) -> bool { *self == 0.0 }
 }
 
 impl<K, V> Empty for HashMap<K, V> {
     fn empty() -> Self { HashMap::new() }
+
     fn is_empty(&self) -> bool { HashMap::is_empty(self) }
 }
 

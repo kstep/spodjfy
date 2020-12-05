@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 pub mod constants {
-    use crate::models::{COL_ITEM_THUMB, COL_ITEM_NAME, COL_ITEM_URI};
+    use crate::models::{COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI};
     pub const COL_PLAYLIST_THUMB: u32 = COL_ITEM_THUMB;
     pub const COL_PLAYLIST_URI: u32 = COL_ITEM_URI;
     pub const COL_PLAYLIST_NAME: u32 = COL_ITEM_NAME;
@@ -61,8 +61,11 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
 
 impl PlaylistLike for SimplifiedPlaylist {
     fn id(&self) -> &str { &self.id }
+
     fn description(&self) -> &str { "" }
+
     fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
+
     fn total_tracks(&self) -> u32 { self.tracks.get("total").and_then(|value| value.as_u64()).unwrap_or(0) as u32 }
 }
 
@@ -99,8 +102,11 @@ impl RowLike for SimplifiedPlaylist {
 
 impl PlaylistLike for FullPlaylist {
     fn id(&self) -> &str { &self.id }
+
     fn description(&self) -> &str { &self.description }
+
     fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
+
     fn total_tracks(&self) -> u32 { self.tracks.total }
 }
 
@@ -179,6 +185,7 @@ impl HasImages for FullPlaylist {
 
 impl RowLike for FullPlaylist {
     fn content_types() -> Vec<Type> { Self::store_content_types() }
+
     fn append_to_store<S: IsA<gtk::ListStore>>(&self, store: &S) -> gtk::TreeIter { self.insert_into_store(store) }
 }
 

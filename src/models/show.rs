@@ -1,4 +1,4 @@
-use crate::models::{common::*, PlaylistLike, playlist::constants::*};
+use crate::models::{common::*, playlist::constants::*, PlaylistLike};
 use chrono::{DateTime, Utc};
 use glib::{IsA, Type};
 use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType};
@@ -6,8 +6,11 @@ use std::{collections::HashMap, time::SystemTime};
 
 impl PlaylistLike for FullShow {
     fn id(&self) -> &str { &self.id }
+
     fn description(&self) -> &str { &self.description }
+
     fn publisher(&self) -> &str { &self.publisher }
+
     fn total_tracks(&self) -> u32 { self.episodes.total }
 }
 

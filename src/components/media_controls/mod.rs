@@ -35,7 +35,7 @@ use crate::{
         },
         SpotifyRef,
     },
-    utils::{Spawn, Extract},
+    utils::{Extract, Spawn},
 };
 use gdk_pixbuf::Pixbuf;
 use gtk::{prelude::*, ButtonBoxExt, GridExt, ImageExt, RangeExt, RevealerExt, ScaleExt, WidgetExt};
