@@ -1,12 +1,10 @@
 use crate::models::{common::*, playlist::constants::*, PlaylistLike};
 use chrono::{DateTime, Utc};
 use glib::{IsA, Type};
-use rspotify::model::{FullShow, Image, Page, Show, SimplifiedShow, Type as ModelType};
+use rspotify::model::{ArtistId, FullShow, Id, Image, Page, Show, ShowId, SimplifiedShow, Type as ModelType};
 use std::{collections::HashMap, time::SystemTime};
 
 impl PlaylistLike for FullShow {
-    fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> &str { &self.description }
 
     fn publisher(&self) -> &str { &self.publisher }
@@ -14,8 +12,8 @@ impl PlaylistLike for FullShow {
     fn total_tracks(&self) -> u32 { self.episodes.total }
 }
 
-impl HasUri for FullShow {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for FullShow {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for FullShow {
@@ -40,8 +38,6 @@ impl ToSimple for FullShow {
             media_type: self.media_type.clone(),
             name: self.name.clone(),
             publisher: self.publisher.clone(),
-            _type: ModelType::Show.to_string(),
-            uri: self.uri.clone(),
         }
     }
 
@@ -60,8 +56,6 @@ impl ToSimple for FullShow {
             media_type: self.media_type,
             name: self.name,
             publisher: self.publisher,
-            _type: ModelType::Show.to_string(),
-            uri: self.uri,
         }
     }
 }
@@ -76,21 +70,19 @@ impl Merge for FullShow {
             episodes: self.episodes.merge(other.episodes),
             external_urls: self.external_urls.merge(other.external_urls),
             href: self.href.merge(other.href),
-            id: self.id.merge(other.id),
+            id: self.id,
             images: self.images.merge(other.images),
             is_externally_hosted: self.is_externally_hosted.merge(other.is_externally_hosted),
             languages: self.languages.merge(other.languages),
             media_type: self.media_type.merge(other.media_type),
             name: self.name.merge(other.name),
             publisher: self.publisher.merge(other.publisher),
-            _type: ModelType::Show.to_string(),
-            uri: self.uri.merge(other.uri),
         }
     }
 }
 
 impl HasDuration for FullShow {
-    fn duration(&self) -> u32 { self.episodes.items.iter().map(|episode| episode.duration_ms).sum() }
+    fn duration(&self) -> u32 { self.episodes.items.iter().map(|episode| episode.duration()).sum() }
 
     fn duration_exact(&self) -> bool { self.episodes.items.len() == self.episodes.total as usize }
 }
@@ -108,15 +100,13 @@ impl RowLike for FullShow {
 }
 
 impl PlaylistLike for SimplifiedShow {
-    fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> &str { &self.description }
 
     fn publisher(&self) -> &str { &self.publisher }
 }
 
-impl HasUri for SimplifiedShow {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for SimplifiedShow {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for SimplifiedShow {
@@ -144,34 +134,8 @@ impl ToFull for SimplifiedShow {
             media_type: self.media_type,
             name: self.name,
             publisher: self.publisher,
-            _type: ModelType::Show.to_string(),
-            uri: self.uri,
         }
     }
-}
-
-impl Empty for SimplifiedShow {
-    fn empty() -> Self {
-        SimplifiedShow {
-            available_markets: Vec::new(),
-            copyrights: Vec::new(),
-            description: String::new(),
-            explicit: false,
-            external_urls: HashMap::new(),
-            href: String::new(),
-            id: String::new(),
-            images: Vec::new(),
-            is_externally_hosted: None,
-            languages: Vec::new(),
-            media_type: String::new(),
-            name: String::new(),
-            publisher: String::new(),
-            _type: ModelType::Show.to_string(),
-            uri: String::new(),
-        }
-    }
-
-    fn is_empty(&self) -> bool { self.uri.is_empty() }
 }
 
 impl HasDuration for SimplifiedShow {
@@ -198,15 +162,13 @@ impl RowLike for SimplifiedShow {
 }
 
 impl PlaylistLike for Show {
-    fn id(&self) -> &str { self.show.id() }
-
     fn description(&self) -> &str { self.show.description() }
 
     fn publisher(&self) -> &str { self.show.publisher() }
 }
 
-impl HasUri for Show {
-    fn uri(&self) -> &str { self.show.uri() }
+impl HasId for Show {
+    fn id(&self) -> &str { self.show.id() }
 }
 
 impl HasName for Show {

@@ -52,7 +52,12 @@ impl<T> PageLike<T> for CursorBasedPage<T> {
 
     fn init_offset() -> Self::Offset { String::new() }
 
-    fn next_offset(&self) -> Option<Self::Offset> { self.cursors.after.clone() }
+    fn next_offset(&self) -> Option<Self::Offset> {
+        match &self.cursors {
+            Some(Cursor { after: Some(after) }) => Some(after.clone()),
+            _ => None
+        }
+    }
 }
 
 impl<T> Empty for Page<T> {
@@ -78,7 +83,7 @@ impl<T> Empty for CursorBasedPage<T> {
             items: Vec::new(),
             limit: 0,
             next: None,
-            cursors: Cursor { after: None },
+            cursors: None,
             total: None,
         }
     }

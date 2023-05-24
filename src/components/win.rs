@@ -473,11 +473,11 @@ impl Widget for Win {
                         MusicTabMsg::PlaybackUpdate => {
                             media_controls_stream.emit(MediaControlsMsg::LoadState);
                         }
-                        MusicTabMsg::GoTo(Type::Artist, uri, name) => {
+                        MusicTabMsg::GoToArtist(uri, name) => {
                             artists_stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
                             stream.emit(Msg::GoToTab(Tab::Artists));
                         }
-                        MusicTabMsg::GoTo(Type::Album, uri, name) => {
+                        MusicTabMsg::GoToAlbum(uri, name) => {
                             albums_stream.emit(MusicTabMsg::OpenContainer(0, uri.clone(), name.clone()));
                             stream.emit(Msg::GoToTab(Tab::Albums));
                         }

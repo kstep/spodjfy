@@ -1,5 +1,5 @@
 use crate::models::{ToFull, ToSimple};
-use rspotify::model::{PrivateUser, PublicUser, Type as ModelType};
+use rspotify::model::{PrivateUser, PublicUser};
 
 impl ToSimple for PrivateUser {
     type Simple = PublicUser;
@@ -12,8 +12,6 @@ impl ToSimple for PrivateUser {
             href: self.href.clone(),
             id: self.id.clone(),
             images: self.images.clone().unwrap_or_else(Vec::new),
-            _type: ModelType::User,
-            uri: self.uri.clone(),
         }
     }
 
@@ -25,8 +23,6 @@ impl ToSimple for PrivateUser {
             href: self.href,
             id: self.id,
             images: self.images.unwrap_or_else(Vec::new),
-            _type: ModelType::User,
-            uri: self.uri,
         }
     }
 }
@@ -46,8 +42,6 @@ impl ToFull for PublicUser {
             id: self.id.clone(),
             images: Some(self.images.clone()),
             product: None,
-            _type: ModelType::User,
-            uri: self.uri.clone(),
         }
     }
 
@@ -63,8 +57,6 @@ impl ToFull for PublicUser {
             id: self.id,
             images: Some(self.images),
             product: None,
-            _type: ModelType::User,
-            uri: self.uri,
         }
     }
 }

@@ -30,7 +30,7 @@ use crate::{
     models::{common::*, TrackLike},
     services::{
         api::{
-            AlbumsStorageApi, ArtistsStorageApi, LibraryStorageApi, PlaybackControlApi, PlaylistsStorageApi, ShowsStorageApi,
+            AlbumsStorageApi, ArtistsStorageApi, PlaybackControlApi, PlaylistsStorageApi, ShowsStorageApi,
             UsersStorageApi,
         },
         SpotifyRef,
@@ -44,9 +44,9 @@ use notify_rust::Notification;
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
 use rspotify::{
-    client::ClientError,
+    ClientError,
     model::{
-        context::Context, device::Device, show::FullEpisode, track::FullTrack, CurrentPlaybackContext, PlayingItem, RepeatState,
+        context::Context, device::Device, CurrentPlaybackContext, PlayableItem, RepeatState,
         Type,
     },
 };
@@ -138,7 +138,7 @@ impl Widget for MediaControls {
                                 #[name="track_name_label"]
                                 gtk::LinkButton {
                                     widget_name: "track_name_label",
-                                    uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| it.uri()),
+                                    uri: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| it.id()),
 
                                     activate_link(btn) => (MediaControlsMsg::ClickTrackUri(btn.get_uri().map(|u| u.into())), Inhibit(true)),
 
@@ -157,8 +157,8 @@ impl Widget for MediaControls {
                                 halign: gtk::Align::Start,
                                 selectable: true,
                                 text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                                    PlayingItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
-                                    PlayingItem::Episode(episode) => episode.show.publisher.clone(),
+                                    PlayableItem::Track(track) => track.artists.iter().map(|artist| &artist.name).join(", "),
+                                    PlayableItem::Episode(episode) => episode.show.publisher.clone(),
                                 }).as_deref().unwrap_or("<Unknown Artist>")
                             },
                             #[name="track_album_label"]
@@ -167,8 +167,8 @@ impl Widget for MediaControls {
                                 widget_name: "track_album_label",
                                 selectable: true,
                                 text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map_or("", |it| match it {
-                                    PlayingItem::Track(track) => &*track.album.name,
-                                    PlayingItem::Episode(episode) => &*episode.show.name,
+                                    PlayableItem::Track(track) => &*track.album.name,
+                                    PlayableItem::Episode(episode) => &*episode.show.name,
                                 })
                             },
                             //gtk::ScrolledWindow {
@@ -277,7 +277,7 @@ impl Widget for MediaControls {
                     hexpand: true,
                     valign: gtk::Align::Center,
                     value_pos: gtk::PositionType::Left,
-                    value: self.model.state.as_ref().and_then(|s| s.progress_ms).unwrap_or(0) as f64,
+                    value: self.model.state.as_ref().and_then(|s| s.progress).unwrap_or(0) as f64,
 
                     change_value(_, _, pos) => (MediaControlsMsg::SeekTrack(pos as u32), Inhibit(false)),
                     format_value(seek, value) => return {
@@ -293,8 +293,8 @@ impl Widget for MediaControls {
                 gtk::Label {
                     margin_end: 10,
                     text: self.model.state.as_ref().and_then(|s| s.item.as_ref()).map(|it| match it {
-                        PlayingItem::Track(track) => track.duration_ms,
-                        PlayingItem::Episode(episode) => episode.duration_ms,
+                        PlayableItem::Track(track) => track.duration(),
+                        PlayableItem::Episode(episode) => episode.duration(),
                     }).map(crate::utils::humanize_time).as_deref().unwrap_or("??:??")
                 },
             },
@@ -494,13 +494,9 @@ impl Widget for MediaControls {
 
                 let old_track_uri = match old_state {
                     Some(CurrentPlaybackContext {
-                        item: Some(PlayingItem::Track(FullTrack { uri: track_uri, .. })),
+                        item: Some(item),
                         ..
-                    })
-                    | Some(CurrentPlaybackContext {
-                        item: Some(PlayingItem::Episode(FullEpisode { uri: track_uri, .. })),
-                        ..
-                    }) => track_uri.as_str(),
+                    }) => item.id(),
                     _ => "",
                 };
 
@@ -520,8 +516,8 @@ impl Widget for MediaControls {
                     );
 
                     let kind = match item {
-                        PlayingItem::Episode(_) => Type::Episode,
-                        PlayingItem::Track(_) => Type::Track,
+                        PlayableItem::Episode(_) => Type::Episode,
+                        PlayableItem::Track(_) => Type::Track,
                     };
 
                     if track_uri != old_track_uri {
@@ -688,8 +684,8 @@ impl Widget for MediaControls {
                 if let Some(ref state) = self.model.state {
                     if let Some(ref item) = state.item {
                         let (kind, uri) = match item {
-                            PlayingItem::Track(track) => (Type::Track, track.uri.clone()),
-                            PlayingItem::Episode(episode) => (Type::Episode, episode.uri.clone()),
+                            PlayableItem::Track(track) => (Type::Track, track.uri.clone()),
+                            PlayableItem::Episode(episode) => (Type::Episode, episode.uri.clone()),
                         };
 
                         let uris = vec![uri];

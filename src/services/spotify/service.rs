@@ -4,102 +4,98 @@ use crate::{
     utils::AsyncCell,
 };
 use async_trait::async_trait;
-use rspotify::{
-    client::{ClientError, ClientResult, Spotify as Client},
-    model::{offset, *},
-};
+use rspotify::{AuthCodeSpotify, ClientError, ClientResult, Config, Credentials, model::{offset, *}, OAuth};
 use serde_json::{Map, Value};
 use std::{borrow::Cow, collections::VecDeque, ops::Deref, path::PathBuf};
+use rspotify::prelude::*;
 
 pub type SpotifyRef = AsyncCell<Spotify>;
 
 pub struct Spotify {
     cache_path: PathBuf,
-    client: Client,
+    client: AuthCodeSpotify,
     queue: VecDeque<String>,
 }
 
 #[async_trait]
 impl TracksStorageApi for Spotify {
-    async fn get_track(&self, uri: &str) -> ClientResult<FullTrack> { self.client.track(&uri).await }
+    async fn get_track(&self, id: &TrackId) -> ClientResult<FullTrack> { self.client.track(&id).await }
 
-    async fn get_tracks(&self, uris: &[String]) -> ClientResult<Vec<FullTrack>> {
-        if uris.is_empty() {
+    async fn get_tracks(&self, ids: &[TrackId]) -> ClientResult<Vec<FullTrack>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .tracks(uris.iter().map(Deref::deref), None)
+                .tracks(ids, None)
                 .await
-                .map(|FullTracks { tracks }| tracks)
         }
     }
 
-    async fn get_track_analysis(&self, uri: &str) -> ClientResult<AudioAnalysis> { self.client.track_analysis(uri).await }
+    async fn get_track_analysis(&self, id: &TrackId) -> ClientResult<AudioAnalysis> { self.client.track_analysis(id).await }
 
-    async fn get_tracks_features(&self, uris: &[String]) -> ClientResult<Vec<AudioFeatures>> {
-        if uris.is_empty() {
+    async fn get_tracks_features(&self, ids: &[TrackId]) -> ClientResult<Vec<AudioFeatures>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .tracks_features(uris.iter().map(Deref::deref))
+                .tracks_features(ids)
                 .await
                 .map(|feats| feats.map_or_else(Vec::new, |AudioFeaturesPayload { audio_features }| audio_features))
         }
     }
 
     async fn get_my_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedTrack>> {
-        self.client.current_user_saved_tracks(limit, offset).await
+        self.client.current_user_saved_tracks_manual(None, Some(limit), Some(offset)).await
     }
 
     async fn get_my_top_tracks(&self, offset: u32, limit: u32) -> ClientResult<Page<FullTrack>> {
         self.client
-            .current_user_top_tracks(limit, offset, TimeRange::MediumTerm)
+            .current_user_top_tracks_manual(Some(&TimeRange::MediumTerm), Some(limit), Some(offset))
             .await
     }
 
     async fn get_recent_tracks(&self, limit: u32) -> ClientResult<Vec<PlayHistory>> {
-        self.client.current_user_recently_played(limit).await.map(|page| page.items)
+        self.client.current_user_recently_played(Some(limit), None).await.map(|page| page.items)
     }
 
-    async fn get_playlist_tracks(&self, uri: &str, offset: u32, limit: u32) -> ClientResult<Page<PlaylistItem>> {
-        self.client.playlist_tracks(uri, None, limit, offset, None).await
+    async fn get_playlist_tracks(&self, id: &PlaylistId, offset: u32, limit: u32) -> ClientResult<Page<PlaylistItem>> {
+        self.client.playlist_items_manual(id, None, None, Some(limit), Some(offset)).await
     }
 
-    async fn get_album_tracks(&self, uri: &str, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedTrack>> {
-        self.client.album_track(uri, limit, offset).await
+    async fn get_album_tracks(&self, id: &AlbumId, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedTrack>> {
+        self.client.album_track_manual(id, Some(limit), Some(offset)).await
     }
 
-    async fn get_artist_top_tracks(&self, uri: &str) -> ClientResult<Vec<FullTrack>> {
+    async fn get_artist_top_tracks(&self, id: &ArtistId) -> ClientResult<Vec<FullTrack>> {
         self.client
-            .artist_top_tracks(uri, None)
+            .artist_top_tracks(id, &Market::FromToken)
             .await
-            .map(|FullTracks { tracks }| tracks)
     }
 
-    async fn add_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
-        if uris.is_empty() {
+    async fn add_my_tracks(&self, ids: &[TrackId]) -> ClientResult<()> {
+        if ids.is_empty() {
             Ok(())
         } else {
-            self.client.current_user_saved_tracks_add(uris.iter().map(Deref::deref)).await
+            self.client.current_user_saved_tracks_add(ids).await
         }
     }
 
-    async fn remove_my_tracks(&self, uris: &[String]) -> ClientResult<()> {
-        if uris.is_empty() {
+    async fn remove_my_tracks(&self, ids: &[TrackId]) -> ClientResult<()> {
+        if ids.is_empty() {
             Ok(())
         } else {
             self.client
-                .current_user_saved_tracks_delete(uris.iter().map(Deref::deref))
+                .current_user_saved_tracks_delete(ids)
                 .await
         }
     }
 
-    async fn are_my_tracks(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
-        if uris.is_empty() {
+    async fn are_my_tracks(&self, ids: &[TrackId]) -> ClientResult<Vec<bool>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .current_user_saved_tracks_contains(uris.iter().map(Deref::deref))
+                .current_user_saved_tracks_contains(ids)
                 .await
         }
     }
@@ -107,35 +103,33 @@ impl TracksStorageApi for Spotify {
 
 #[async_trait]
 impl AlbumsStorageApi for Spotify {
-    async fn get_album(&self, uri: &str) -> ClientResult<FullAlbum> { self.client.album(uri).await }
+    async fn get_album(&self, id: &AlbumId) -> ClientResult<FullAlbum> { self.client.album(id).await }
 
-    async fn get_albums(&self, uris: &[String]) -> ClientResult<Vec<FullAlbum>> {
-        if uris.is_empty() {
+    async fn get_albums(&self, ids: &[AlbumId]) -> ClientResult<Vec<FullAlbum>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .albums(uris.iter().map(Deref::deref))
+                .albums(ids)
                 .await
-                .map(|FullAlbums { albums }| albums)
         }
     }
 
     async fn get_my_albums(&self, offset: u32, limit: u32) -> ClientResult<Page<SavedAlbum>> {
-        self.client.current_user_saved_albums(limit, offset).await
+        self.client.current_user_saved_albums_manual(None, Some(limit), Some(offset)).await
     }
 
-    async fn get_artist_albums(&self, uri: &str, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedAlbum>> {
-        self.client.artist_albums(uri, None, None, Some(limit), Some(offset)).await
+    async fn get_artist_albums(&self, id: &ArtistId, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedAlbum>> {
+        self.client.artist_albums(id, None, None, Some(limit), Some(offset)).await
     }
 
     async fn get_new_releases(&self, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedAlbum>> {
         self.client
-            .new_releases(None, limit, offset)
+            .new_releases_manual(None, Some(limit), Some(offset))
             .await
-            .map(|PageSimpliedAlbums { albums }| albums)
     }
 
-    async fn add_my_albums(&self, uris: &[String]) -> ClientResult<()> {
+    async fn add_my_albums(&self, uris: &[AlbumId]) -> ClientResult<()> {
         if uris.is_empty() {
             Ok(())
         } else {
@@ -143,7 +137,7 @@ impl AlbumsStorageApi for Spotify {
         }
     }
 
-    async fn remove_my_albums(&self, uris: &[String]) -> ClientResult<()> {
+    async fn remove_my_albums(&self, uris: &[AlbumId]) -> ClientResult<()> {
         if uris.is_empty() {
             Ok(())
         } else {
@@ -153,7 +147,7 @@ impl AlbumsStorageApi for Spotify {
         }
     }
 
-    async fn are_my_albums(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+    async fn are_my_albums(&self, uris: &[AlbumId]) -> ClientResult<Vec<bool>> {
         if uris.is_empty() {
             Ok(Vec::new())
         } else {
@@ -166,82 +160,67 @@ impl AlbumsStorageApi for Spotify {
 
 #[async_trait]
 impl ArtistsStorageApi for Spotify {
-    async fn get_artist(&self, uri: &str) -> ClientResult<FullArtist> { self.client.artist(uri).await }
+    async fn get_artist(&self, id: &ArtistId) -> ClientResult<FullArtist> { self.client.artist(id).await }
 
-    async fn get_artists(&self, uris: &[String]) -> ClientResult<Vec<FullArtist>> {
-        if uris.is_empty() {
+    async fn get_artists(&self, ids: &[ArtistId]) -> ClientResult<Vec<FullArtist>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .artists(uris.iter().map(Deref::deref))
+                .artists(ids)
                 .await
-                .map(|FullArtists { artists }| artists)
         }
     }
 
     async fn get_my_artists(&self, cursor: Option<String>, limit: u32) -> ClientResult<CursorBasedPage<FullArtist>> {
         self.client
-            .current_user_followed_artists(limit, cursor)
+            .current_user_followed_artists(cursor.as_deref(), Some(limit))
             .await
-            .map(|CursorPageFullArtists { artists }| artists)
     }
 
     async fn get_my_top_artists(&self, offset: u32, limit: u32) -> ClientResult<Page<FullArtist>> {
         self.client
-            .current_user_top_artists(limit, offset, TimeRange::MediumTerm)
+            .current_user_top_artists_manual(Some(&TimeRange::MediumTerm), Some(limit), Some(offset))
             .await
     }
 
-    async fn get_artist_related_artists(&self, uri: &str) -> ClientResult<Vec<FullArtist>> {
+    async fn get_artist_related_artists(&self, id: &ArtistId) -> ClientResult<Vec<FullArtist>> {
         self.client
-            .artist_related_artists(uri)
+            .artist_related_artists(id)
             .await
-            .map(|FullArtists { artists }| artists)
     }
 
-    async fn add_my_artists(&self, uris: &[String]) -> ClientResult<()> {
-        self.client.user_follow_artists(uris.iter().map(Deref::deref)).await
+    async fn add_my_artists(&self, ids: &[ArtistId]) -> ClientResult<()> {
+        self.client.user_follow_artists(ids).await
     }
 
-    async fn remove_my_artists(&self, uris: &[String]) -> ClientResult<()> {
-        self.client.user_unfollow_artists(uris.iter().map(Deref::deref)).await
+    async fn remove_my_artists(&self, ids: &[ArtistId]) -> ClientResult<()> {
+        self.client.user_unfollow_artists(ids).await
     }
 
-    async fn are_my_artists(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
-        self.client.user_artist_check_follow(uris.iter().map(Deref::deref)).await
+    async fn are_my_artists(&self, ids: &[ArtistId]) -> ClientResult<Vec<bool>> {
+        self.client.user_artist_check_follow(ids).await
     }
 }
 
 #[async_trait]
 impl PlaybackControlApi for Spotify {
-    async fn get_my_devices(&self) -> ClientResult<Vec<Device>> { self.client.device().await.map(|reply| reply.devices) }
-
-    async fn use_device(&self, id: &str, play: bool) -> ClientResult<()> { self.client.transfer_playback(id, play).await }
-
-    async fn play_tracks(&self, uris: &[String]) -> ClientResult<()> {
-        if uris.is_empty() {
-            return Ok(());
-        }
-
-        self.client.start_playback(None, None, Some(uris.to_vec()), None, None).await
-    }
-
-    async fn play_context(&self, uri: String, start_uri: Option<String>) -> ClientResult<()> {
-        if uri.starts_with("spotify:artist:") {
-            self.client
-                .start_playback(None, Some(uri), start_uri.map(|uri| vec![uri]), None, None)
-                .await
-        } else {
-            self.client
-                .start_playback(None, Some(uri), None, start_uri.and_then(offset::for_uri), None)
-                .await
-        }
-    }
-
     async fn get_playback_state(&self) -> ClientResult<Option<CurrentPlaybackContext>> {
         self.client
             .current_playback(None, Some(vec![AdditionalType::Track, AdditionalType::Episode]))
             .await
+    }
+
+    async fn play_context(&self, id: &dyn PlayContextId, start_uri: Option<&dyn PlayableId>) -> ClientResult<()> {
+        self.client.start_context_playback(id, None, start_uri.map(PlayableId::uri).map(Offset::Uri), None).await
+    }
+
+    async fn play_tracks(&self, ids: &[TrackId]) -> ClientResult<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        self.client.start_playback(None, None, Some(ids.to_vec()), None, None).await
     }
 
     async fn start_playback(&self) -> ClientResult<()> { self.client.start_playback(None, None, None, None, None).await }
@@ -259,50 +238,53 @@ impl PlaybackControlApi for Spotify {
     async fn set_shuffle(&self, value: bool) -> ClientResult<()> { self.client.shuffle(value, None).await }
 
     async fn set_repeat_mode(&self, mode: RepeatState) -> ClientResult<()> { self.client.repeat(mode, None).await }
+
+    async fn get_my_devices(&self) -> ClientResult<Vec<Device>> { self.client.device().await.map(|reply| reply.devices) }
+
+    async fn use_device(&self, id: &str, play: bool) -> ClientResult<()> { self.client.transfer_playback(id, play).await }
 }
 
 #[async_trait]
 impl ShowsStorageApi for Spotify {
-    async fn get_show(&self, uri: &str) -> ClientResult<FullShow> { self.client.get_a_show(uri.to_owned(), None).await }
+    async fn get_show(&self, id: &ShowId) -> ClientResult<FullShow> { self.client.get_a_show(id.to_owned(), None).await }
 
-    async fn get_shows(&self, uris: &[String]) -> ClientResult<Vec<SimplifiedShow>> {
-        if uris.is_empty() {
+    async fn get_shows(&self, ids: &[ShowId]) -> ClientResult<Vec<SimplifiedShow>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .get_several_shows(uris.iter().map(Deref::deref), None)
+                .get_several_shows(ids, None)
                 .await
-                .map(|SeversalSimplifiedShows { shows }| shows)
         }
     }
 
     async fn get_my_shows(&self, offset: u32, limit: u32) -> ClientResult<Page<Show>> {
-        self.client.get_saved_show(limit, offset).await
+        self.client.get_saved_show_manual(Some(limit), Some(offset)).await
     }
 
-    async fn add_my_shows(&self, uris: &[String]) -> ClientResult<()> {
-        if uris.is_empty() {
+    async fn add_my_shows(&self, ids: &[ShowId]) -> ClientResult<()> {
+        if ids.is_empty() {
             Ok(())
         } else {
-            self.client.save_shows(uris.iter().map(Deref::deref)).await
+            self.client.save_shows(ids).await
         }
     }
 
-    async fn remove_my_shows(&self, uris: &[String]) -> ClientResult<()> {
-        if uris.is_empty() {
+    async fn remove_my_shows(&self, ids: &[ShowId]) -> ClientResult<()> {
+        if ids.is_empty() {
             Ok(())
         } else {
             self.client
-                .remove_users_saved_shows(uris.iter().map(Deref::deref), None)
+                .remove_users_saved_shows(ids, None)
                 .await
         }
     }
 
-    async fn are_my_shows(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
-        if uris.is_empty() {
+    async fn are_my_shows(&self, ids: &[ShowId]) -> ClientResult<Vec<bool>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
-            self.client.check_users_saved_shows(uris.iter().map(Deref::deref)).await
+            self.client.check_users_saved_shows(ids).await
         }
     }
 }
@@ -366,22 +348,21 @@ impl PlaylistsStorageApi for Spotify {
 
 #[async_trait]
 impl EpisodesStorageApi for Spotify {
-    async fn get_episode(&self, uri: &str) -> ClientResult<FullEpisode> { self.client.get_an_episode(uri.to_owned(), None).await }
+    async fn get_episode(&self, id: &EpisodeId) -> ClientResult<FullEpisode> { self.client.get_an_episode(id, None).await }
 
-    async fn get_episodes(&self, uris: &[String]) -> ClientResult<Vec<FullEpisode>> {
-        if uris.is_empty() {
+    async fn get_episodes(&self, ids: &[EpisodeId]) -> ClientResult<Vec<FullEpisode>> {
+        if ids.is_empty() {
             Ok(Vec::new())
         } else {
             self.client
-                .get_several_episodes(uris.iter().map(Deref::deref), None)
+                .get_several_episodes(ids, None)
                 .await
-                .map(|SeveralEpisodes { episodes }| episodes)
         }
     }
 
-    async fn get_show_episodes(&self, uri: &str, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedEpisode>> {
+    async fn get_show_episodes(&self, id: &ShowId, offset: u32, limit: u32) -> ClientResult<Page<SimplifiedEpisode>> {
         self.client
-            .get_shows_episodes(Id::from_id_or_uri(Type::Show, uri)?.id().to_owned(), limit, offset, None)
+            .get_shows_episodes_manual(id, None, Some(limit), Some(offset))
             .await
     }
 }
@@ -390,11 +371,11 @@ impl EpisodesStorageApi for Spotify {
 impl UsersStorageApi for Spotify {
     async fn get_my_profile(&self) -> ClientResult<PrivateUser> { self.client.me().await }
 
-    async fn get_user_profile(&self, uri: &str) -> ClientResult<PublicUser> {
-        self.client.user(Id::from_id_or_uri(Type::User, uri)?.id()).await
+    async fn get_user_profile(&self, id: &UserId) -> ClientResult<PublicUser> {
+        self.client.user(id).await
     }
 
-    async fn add_my_users(&self, uris: &[String]) -> ClientResult<()> {
+    async fn add_my_users(&self, uris: &[UserId]) -> ClientResult<()> {
         if uris.is_empty() {
             Ok(())
         } else {
@@ -402,7 +383,7 @@ impl UsersStorageApi for Spotify {
         }
     }
 
-    async fn remove_my_users(&self, uris: &[String]) -> ClientResult<()> {
+    async fn remove_my_users(&self, uris: &[UserId]) -> ClientResult<()> {
         if uris.is_empty() {
             Ok(())
         } else {
@@ -410,7 +391,7 @@ impl UsersStorageApi for Spotify {
         }
     }
 
-    async fn are_my_users(&self, uris: &[String]) -> ClientResult<Vec<bool>> {
+    async fn are_my_users(&self, uris: &[UserId]) -> ClientResult<Vec<bool>> {
         // TODO: dummy implementation
         Ok(std::iter::repeat(false).take(uris.len()).collect())
     }
@@ -472,7 +453,11 @@ impl Spotify {
         }
     }
 
-    pub async fn load_token_from_cache(&mut self) { self.client.token = self.client.read_token_cache().await; }
+    pub async fn load_token_from_cache(&mut self) {
+        if let Ok(token) = self.client.read_token_cache(false).await {
+            *self.client.token.lock().await.unwrap() = token;
+        }
+    }
 
     pub fn setup_client(&mut self, id: String, secret: String) -> ClientResult<String> {
         self.client = Self::create_client(id, secret, self.cache_path.clone());
@@ -480,9 +465,12 @@ impl Spotify {
         self.client.get_authorize_url(false)
     }
 
-    fn create_client(id: String, secret: String, cache_path: PathBuf) -> rspotify::client::Spotify {
-        let oauth: rspotify::oauth2::OAuth = rspotify::oauth2::OAuthBuilder::default()
-            .scope(Scope::stringify(&[
+    fn create_client(id: String, secret: String, cache_path: PathBuf) -> AuthCodeSpotify {
+        AuthCodeSpotify::with_config(Credentials {
+            id, secret: Some(secret)
+        }, OAuth {
+            redirect_uri: "http://localhost:8888/callback".to_owned(),
+            scopes: Scope::hashify(&[
                 UserFollowRead,
                 UserReadRecentlyPlayed,
                 UserReadPlaybackState,
@@ -497,47 +485,30 @@ impl Spotify {
                 PlaylistModifyPrivate,
                 PlaylistModifyPublic,
                 UserFollowModify,
-            ]))
-            .redirect_uri("http://localhost:8888/callback")
-            .build()
-            .unwrap();
-
-        let creds: rspotify::oauth2::Credentials = rspotify::oauth2::CredentialsBuilder::default()
-            .id(id)
-            .secret(secret)
-            .build()
-            .unwrap();
-
-        rspotify::client::SpotifyBuilder::default()
-            .oauth(oauth)
-            .credentials(creds)
-            .cache_path(cache_path)
-            .build()
-            .unwrap()
+            ]),
+            ..Default::default()
+        }, Config {
+            cache_path,
+            ..Default::default()
+        })
     }
 
     pub async fn authorize_user(&mut self, code: String) -> ClientResult<()> {
         if code.starts_with("http") {
             if let Some(code) = self.client.parse_response_code(&code) {
-                self.client.request_user_token(&code).await
+                self.client.request_token(&code).await
             } else {
-                Err(ClientError::InvalidAuth("Invalid code URL".into()))
+                unreachable!();
             }
         } else {
-            self.client.request_user_token(&code).await
+            self.client.request_token(&code).await
         }
     }
 
     pub fn get_authorize_url(&self) -> ClientResult<String> { self.client.get_authorize_url(false) }
 
     pub async fn refresh_user_token(&mut self) -> ClientResult<()> {
-        if let Some(refresh_token) = self.client.token.as_ref().and_then(|t| t.refresh_token.as_deref()) {
-            let token = refresh_token.to_owned();
-
-            self.client.refresh_user_token(&token).await
-        } else {
-            Err(ClientError::InvalidAuth("Missing refresh token".into()))
-        }
+        self.client.refresh_token().await
     }
 
     pub fn set_redirect_uri<'a>(&mut self, url: impl Into<Cow<'a, str>>) {

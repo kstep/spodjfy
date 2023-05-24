@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 
 pub mod constants {
     pub const COL_ITEM_THUMB: u32 = 0;
-    pub const COL_ITEM_URI: u32 = 1;
+    pub const COL_ITEM_ID: u32 = 1;
     pub const COL_ITEM_NAME: u32 = 2;
 }
 pub use constants::*;
@@ -173,8 +173,8 @@ pub trait HasDuration {
     fn duration_exact(&self) -> bool { true }
 }
 
-pub trait HasUri {
-    fn uri(&self) -> &str;
+pub trait HasId {
+    fn id(&self) -> &str;
 }
 
 pub trait HasName {

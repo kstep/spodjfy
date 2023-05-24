@@ -1,6 +1,6 @@
 use crate::{components::lists::common::ContainerMsg, loaders::ContainerLoader};
 use relm_derive::Msg;
-use rspotify::model::AudioFeatures;
+use rspotify::model::{AlbumId, ArtistId, AudioFeatures, TrackId};
 use std::convert::TryFrom;
 
 #[derive(Msg)]
@@ -10,17 +10,17 @@ pub enum TrackMsg<Loader: ContainerLoader> {
     PlayTracks(Vec<String>),
     PlayingNewTrack,
 
-    LoadTracksInfo(Vec<String>, Vec<gtk::TreeIter>),
+    LoadTracksInfo(Vec<TrackId>, Vec<gtk::TreeIter>),
     NewTracksInfo(Vec<AudioFeatures>, Vec<gtk::TreeIter>),
     NewTracksSaved(Vec<bool>, Vec<gtk::TreeIter>),
     NewBpm(gtk::TreePath, f32),
 
     PlayChosenTracks,
-    GoToTrack(String),
+    GoToTrack(TrackId),
     GoToChosenTrackAlbum,
-    GoToAlbum(String, String),
+    GoToAlbum(AlbumId, String),
     GoToChosenTrackArtist,
-    GoToArtist(String, String),
+    GoToArtist(ArtistId, String),
     EnqueueChosenTracks,
     AddChosenTracks,
     SaveChosenTracks,

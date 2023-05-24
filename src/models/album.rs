@@ -10,9 +10,9 @@ use rspotify::model::{
 use std::{collections::HashMap, time::SystemTime};
 
 pub mod constants {
-    use crate::models::{COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI};
+    use crate::models::{COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_ID};
     pub const COL_ALBUM_THUMB: u32 = COL_ITEM_THUMB;
-    pub const COL_ALBUM_URI: u32 = COL_ITEM_URI;
+    pub const COL_ALBUM_ID: u32 = COL_ITEM_ID;
     pub const COL_ALBUM_NAME: u32 = COL_ITEM_NAME;
     pub const COL_ALBUM_RELEASE_DATE: u32 = 3;
     pub const COL_ALBUM_TOTAL_TRACKS: u32 = 4;
@@ -24,7 +24,7 @@ pub mod constants {
 }
 pub use self::constants::*;
 
-pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
+pub trait AlbumLike: HasId + HasDuration + HasImages + HasName {
     fn release_date(&self) -> &str;
     fn total_tracks(&self) -> u32 { 0 }
     fn artists(&self) -> &[SimplifiedArtist];
@@ -36,7 +36,7 @@ pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
         store.insert_with_values(
             None,
             &[
-                COL_ALBUM_URI,
+                COL_ALBUM_ID,
                 COL_ALBUM_NAME,
                 COL_ALBUM_RELEASE_DATE,
                 COL_ALBUM_TOTAL_TRACKS,
@@ -47,7 +47,7 @@ pub trait AlbumLike: HasDuration + HasImages + HasUri + HasName {
                 COL_ALBUM_RATE,
             ],
             &[
-                &self.uri(),
+                &self.id(),
                 &self.name(),
                 &self.release_date(),
                 &self.total_tracks(),
@@ -90,16 +90,18 @@ impl AlbumLike for FullAlbum {
     fn rate(&self) -> u32 { self.popularity }
 }
 
+impl HasId for FullAlbum {
+    fn id(&self) -> &str {
+        self.id.as_ref()
+    }
+}
+
 impl HasName for FullAlbum {
     fn name(&self) -> &str { &self.name }
 }
 
-impl HasUri for FullAlbum {
-    fn uri(&self) -> &str { &self.uri }
-}
-
 impl HasDuration for FullAlbum {
-    fn duration(&self) -> u32 { self.tracks.items.iter().map(|track| track.duration_ms).sum() }
+    fn duration(&self) -> u32 { self.tracks.items.iter().map(HasDuration::duration).sum() }
 
     fn duration_exact(&self) -> bool { self.tracks.total as usize == self.tracks.items.len() }
 }
@@ -133,8 +135,10 @@ impl AlbumLike for SimplifiedAlbum {
     fn rate(&self) -> u32 { 0 }
 }
 
-impl HasUri for SimplifiedAlbum {
-    fn uri(&self) -> &str { self.uri.as_deref().unwrap_or("") }
+impl HasId for SimplifiedAlbum {
+    fn id(&self) -> &str {
+        self.id.as_ref().map(AsRef::as_ref).unwrap_or("")
+    }
 }
 
 impl HasName for SimplifiedAlbum {
@@ -178,12 +182,14 @@ impl AlbumLike for SavedAlbum {
     fn rate(&self) -> u32 { self.album.popularity }
 }
 
-impl HasName for SavedAlbum {
-    fn name(&self) -> &str { self.album.name() }
+impl HasId for SavedAlbum {
+    fn id(&self) -> &str {
+        self.album.id()
+    }
 }
 
-impl HasUri for SavedAlbum {
-    fn uri(&self) -> &str { self.album.uri() }
+impl HasName for SavedAlbum {
+    fn name(&self) -> &str { self.album.name() }
 }
 
 impl HasDuration for SavedAlbum {
@@ -230,13 +236,13 @@ impl ToFull for SimplifiedAlbum {
                 "single" => AlbumType::Single,
                 _ => unreachable!(),
             }),
-            available_markets: self.available_markets.clone(),
+            available_markets: Some(self.available_markets.clone()),
             copyrights: Vec::new(),
             external_ids: HashMap::new(),
             external_urls: self.external_urls.clone(),
             genres: Vec::new(),
             href: self.href.clone().unwrap_or_else(String::new),
-            id: self.id.clone().unwrap_or_else(String::new),
+            id: self.id.clone().unwrap(),
             images: self.images.clone(),
             name: self.name.clone(),
             popularity: 0,
@@ -251,8 +257,7 @@ impl ToFull for SimplifiedAlbum {
                     _ => unreachable!(),
                 }),
             tracks: Page::empty(),
-            _type: ModelType::Artist,
-            uri: self.uri.clone().unwrap_or_else(String::new),
+            label: None,
         }
     }
 
@@ -266,7 +271,7 @@ impl ToFull for SimplifiedAlbum {
                 "album" => AlbumType::Album,
                 _ => unreachable!(),
             }),
-            available_markets: self.available_markets,
+            available_markets: Some(self.available_markets),
             copyrights: Vec::new(),
             external_ids: HashMap::new(),
             external_urls: self.external_urls,
@@ -287,8 +292,6 @@ impl ToFull for SimplifiedAlbum {
                 })
                 .unwrap_or(DatePrecision::Year),
             tracks: Page::empty(),
-            _type: ModelType::Artist,
-            uri: self.uri.unwrap_or_else(String::new),
         }
     }
 }
@@ -310,8 +313,6 @@ impl ToSimple for FullAlbum {
             release_date: Some(self.release_date.clone()),
             release_date_precision: Some(self.release_date_precision.to_string()),
             restrictions: None,
-            _type: ModelType::Album,
-            uri: Some(self.uri.clone()),
         }
     }
 
@@ -320,7 +321,7 @@ impl ToSimple for FullAlbum {
             album_group: None,
             album_type: Some(self.album_type.to_string()),
             artists: self.artists,
-            available_markets: self.available_markets,
+            available_markets: self.available_markets.unwrap_or_default(),
             external_urls: self.external_urls,
             href: Some(self.href),
             id: Some(self.id),
@@ -329,8 +330,6 @@ impl ToSimple for FullAlbum {
             release_date: Some(self.release_date),
             release_date_precision: Some(self.release_date_precision.to_string()),
             restrictions: None,
-            _type: ModelType::Album,
-            uri: Some(self.uri),
         }
     }
 }
@@ -350,7 +349,7 @@ impl Merge for FullAlbum {
             external_urls: self.external_urls.merge(other.external_urls),
             genres: self.genres.merge(other.genres),
             href: self.href.merge(other.href),
-            id: self.id.merge(other.id),
+            id: self.id,
             images: self.images.merge(other.images),
             name: self.name.merge(other.name),
             popularity: self.popularity.merge(other.popularity),
@@ -361,8 +360,7 @@ impl Merge for FullAlbum {
                 self.release_date_precision
             },
             tracks: self.tracks.merge(other.tracks),
-            _type: ModelType::Album,
-            uri: self.uri.merge(other.uri),
+            label: self.label.merge(other.label),
         }
     }
 }
@@ -382,8 +380,6 @@ impl Empty for SimplifiedAlbum {
             release_date: None,
             release_date_precision: None,
             restrictions: None,
-            _type: ModelType::Album,
-            uri: None,
         }
     }
 

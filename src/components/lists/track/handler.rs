@@ -12,7 +12,8 @@ use async_trait::async_trait;
 use glib::{Continue, ToValue};
 use gtk::{prelude::GtkListStoreExtManual, ProgressBarExt, TreeModelExt, TreeSelectionExt, TreeViewExt};
 use relm::EventStream;
-use rspotify::client::ClientError;
+use rspotify::ClientError;
+use rspotify::model::{AlbumId, ArtistId, EpisodeId, PlayableId, PlayContextId, PlaylistId, ShowId, TrackId, HasId};
 
 pub struct TrackMsgHandler;
 
@@ -21,7 +22,7 @@ where
     Loader: ContainerLoader + 'static,
     Loader::Page: PageLike<Loader::Item>, // + Send,
     //<Loader::Page as PageLike<Loader::Item>>::Offset: Send,
-    Loader::Item: RowLike + HasImages + TrackLike + HasDuration + MissingColumns,
+    Loader::Item: RowLike + HasId + HasImages + TrackLike + HasDuration + MissingColumns,
     Loader::ParentId: Clone + Send + PlayTracksContext,
     ContainerMsg<Loader>: Into<TrackMsg<Loader>>,
 {
@@ -44,7 +45,7 @@ where
                 this.progress_bar
                     .set_fraction((offset as f64 + tracks.len() as f64) / page.total() as f64);
 
-                let mut uris = Vec::with_capacity(tracks.len());
+                let mut ids = Vec::with_capacity(tracks.len());
                 let mut iters = Vec::with_capacity(tracks.len());
                 let mut page_duration = 0;
 
@@ -62,7 +63,7 @@ where
                         stream.emit(LoadThumb(url.to_owned(), pos.clone()).into());
                     }
 
-                    uris.push(track.uri().to_owned());
+                    ids.push(track.id().to_owned());
 
                     iters.push(pos);
 
@@ -72,7 +73,7 @@ where
                 this.model.total_duration += page_duration;
 
                 if !Loader::Item::missing_columns().contains(&COL_TRACK_BPM) {
-                    stream.emit(LoadTracksInfo(uris, iters));
+                    stream.emit(LoadTracksInfo(ids, iters));
                 }
 
                 if let Some(next_offset) = page.next_offset() {
@@ -120,7 +121,7 @@ where
                 let store = &this.model.store;
                 let found = if let Some(pos) = store.get_iter_first() {
                     loop {
-                        if let Ok(Some(uri)) = store.get_value(&pos, COL_TRACK_URI as i32).get::<&str>() {
+                        if let Ok(Some(uri)) = store.get_value(&pos, COL_TRACK_ID as i32).get::<&str>() {
                             if uri == track_id {
                                 let select = this.items_view.get_selection();
                                 select.unselect_all();
@@ -200,7 +201,7 @@ where
 
                 if let Some(pos) = rows.into_iter().filter_map(|path| model.get_iter(&path)).next() {
                     let album_uri = model
-                        .get_value(&pos, COL_TRACK_ALBUM_URI as i32)
+                        .get_value(&pos, COL_TRACK_ALBUM_ID as i32)
                         .get::<String>()
                         .ok()
                         .flatten();
@@ -217,7 +218,7 @@ where
 
                 if let Some(pos) = rows.into_iter().filter_map(|path| model.get_iter(&path)).next() {
                     let artist_uri = model
-                        .get_value(&pos, COL_TRACK_ARTIST_URI as i32)
+                        .get_value(&pos, COL_TRACK_ARTIST_ID as i32)
                         .get::<String>()
                         .ok()
                         .flatten();
@@ -258,14 +259,17 @@ where
 
 #[async_trait]
 pub trait PlayTracksContext {
-    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError>;
+    type Id: PlayableId;
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError>;
 }
 
 #[async_trait]
 impl PlayTracksContext for () {
+    type Id = TrackId;
+
     #[allow(clippy::unit_arg)]
-    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
-        spotify.read().await.play_tracks(&uris).await
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError> {
+        spotify.read().await.play_tracks(&ids).await
     }
 }
 
@@ -283,15 +287,41 @@ impl<K, V> PlayTracksContext for Map<K, V> {
  */
 
 #[async_trait]
-impl PlayTracksContext for String {
-    async fn play_tracks(self, spotify: SpotifyRef, uris: Vec<String>) -> Result<(), ClientError> {
-        let start_uri =
-            if self.starts_with("spotify:album:") || self.starts_with("spotify:playlist:") || self.starts_with("spotify:show:") {
-                uris.first().cloned()
-            } else {
-                None
-            };
+impl PlayTracksContext for AlbumId {
+    type Id = TrackId;
 
-        spotify.read().await.play_context(self, start_uri).await
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError> {
+        let start_uri = ids.first() as Option<&dyn PlayableId>;
+        spotify.read().await.play_context(&self as &dyn PlayContextId, start_uri).await
+    }
+}
+
+#[async_trait]
+impl PlayTracksContext for ShowId {
+    type Id = EpisodeId;
+
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError> {
+        let start_uri = ids.first() as Option<&dyn PlayableId>;
+        spotify.read().await.play_context(&self as &dyn PlayContextId, start_uri).await
+    }
+}
+
+#[async_trait]
+impl PlayTracksContext for PlaylistId {
+    type Id = TrackId;
+
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError> {
+        let start_uri = ids.first() as Option<&dyn PlayableId>;
+        spotify.read().await.play_context(&self as &dyn PlayContextId, start_uri).await
+    }
+}
+
+#[async_trait]
+impl PlayTracksContext for ArtistId {
+    type Id = TrackId;
+
+    async fn play_tracks(self, spotify: SpotifyRef, ids: Vec<Self::Id>) -> Result<(), ClientError> {
+        let start_uri = ids.first() as Option<&dyn PlayableId>;
+        spotify.read().await.play_context(&self as &dyn PlayContextId, start_uri).await
     }
 }

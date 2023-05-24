@@ -5,9 +5,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use rspotify::{
-    client::ClientResult,
+    ClientResult,
     model::{CursorBasedPage, FullArtist, Page},
 };
+use rspotify::model::ArtistId;
 
 const NAME: &str = "artists";
 
@@ -64,7 +65,7 @@ where
 
 #[derive(Clone)]
 pub struct RelatedArtistsLoader {
-    artist_id: String,
+    id: ArtistId,
 }
 
 #[async_trait]
@@ -74,16 +75,16 @@ where
 {
     type Item = FullArtist;
     type Page = Vec<Self::Item>;
-    type ParentId = String;
+    type ParentId = ArtistId;
 
     const NAME: &'static str = "related artists";
 
-    fn new(artist_id: Self::ParentId) -> Self { RelatedArtistsLoader { artist_id } }
+    fn new(id: Self::ParentId) -> Self { RelatedArtistsLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.artist_id }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
-        spotify.read().await.get_artist_related_artists(&self.artist_id).await
+        spotify.read().await.get_artist_related_artists(&self.id).await
     }
 }

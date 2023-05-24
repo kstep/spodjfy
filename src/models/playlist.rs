@@ -2,14 +2,14 @@ use crate::models::common::*;
 use gdk_pixbuf::Pixbuf;
 use glib::{IsA, StaticType, Type};
 use gtk::prelude::GtkListStoreExtManual;
-use rspotify::model::{Followers, FullPlaylist, Image, Page, PublicUser, SimplifiedPlaylist, Type as ModelType};
+use rspotify::model::{Followers, FullPlaylist, Image, Page, PlaylistTracksRef, PublicUser, SimplifiedPlaylist, Type as ModelType};
 use serde_json::Value;
 use std::collections::HashMap;
 
 pub mod constants {
-    use crate::models::{COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_URI};
+    use crate::models::{COL_ITEM_NAME, COL_ITEM_THUMB, COL_ITEM_ID};
     pub const COL_PLAYLIST_THUMB: u32 = COL_ITEM_THUMB;
-    pub const COL_PLAYLIST_URI: u32 = COL_ITEM_URI;
+    pub const COL_PLAYLIST_ID: u32 = COL_ITEM_ID;
     pub const COL_PLAYLIST_NAME: u32 = COL_ITEM_NAME;
     pub const COL_PLAYLIST_TOTAL_TRACKS: u32 = 3;
     pub const COL_PLAYLIST_DURATION: u32 = 4;
@@ -18,8 +18,7 @@ pub mod constants {
 }
 pub use self::constants::*;
 
-pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
-    fn id(&self) -> &str;
+pub trait PlaylistLike: HasId + HasDuration + HasImages + HasName {
     fn description(&self) -> &str;
     fn publisher(&self) -> &str;
     fn total_tracks(&self) -> u32 { 0 }
@@ -28,7 +27,7 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
         store.insert_with_values(
             None,
             &[
-                COL_PLAYLIST_URI,
+                COL_PLAYLIST_ID,
                 COL_PLAYLIST_NAME,
                 COL_PLAYLIST_TOTAL_TRACKS,
                 COL_PLAYLIST_DURATION,
@@ -36,7 +35,7 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
                 COL_PLAYLIST_PUBLISHER,
             ],
             &[
-                &self.uri(),
+                &self.id(),
                 &self.name(),
                 &self.total_tracks(),
                 &self.duration(),
@@ -49,7 +48,7 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
     fn store_content_types() -> Vec<Type> {
         vec![
             Pixbuf::static_type(), // thumb
-            String::static_type(), // uri
+            String::static_type(), // id
             String::static_type(), // name
             u32::static_type(),    // total tracks
             u32::static_type(),    // duration
@@ -60,17 +59,15 @@ pub trait PlaylistLike: HasDuration + HasImages + HasUri + HasName {
 }
 
 impl PlaylistLike for SimplifiedPlaylist {
-    fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> &str { "" }
 
-    fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
+    fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(self.owner.id.as_ref()) }
 
-    fn total_tracks(&self) -> u32 { self.tracks.get("total").and_then(|value| value.as_u64()).unwrap_or(0) as u32 }
+    fn total_tracks(&self) -> u32 { self.tracks.total }
 }
 
-impl HasUri for SimplifiedPlaylist {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for SimplifiedPlaylist {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for SimplifiedPlaylist {
@@ -101,17 +98,15 @@ impl RowLike for SimplifiedPlaylist {
 }
 
 impl PlaylistLike for FullPlaylist {
-    fn id(&self) -> &str { &self.id }
+    fn description(&self) -> &str { self.description.as_deref().unwrap_or("") }
 
-    fn description(&self) -> &str { &self.description }
-
-    fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(&self.owner.id) }
+    fn publisher(&self) -> &str { self.owner.display_name.as_deref().unwrap_or(self.owner.id.as_ref()) }
 
     fn total_tracks(&self) -> u32 { self.tracks.total }
 }
 
-impl HasUri for FullPlaylist {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for FullPlaylist {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for FullPlaylist {
@@ -132,14 +127,10 @@ impl ToSimple for FullPlaylist {
             owner: self.owner.clone(),
             public: self.public,
             snapshot_id: self.snapshot_id.clone(),
-            tracks: {
-                let mut map = HashMap::new();
-                map.insert("href".to_owned(), Value::String(String::new()));
-                map.insert("total".to_owned(), Value::Number(self.tracks.total.into()));
-                map
+            tracks: PlaylistTracksRef {
+                href: String::new(),
+                total: self.tracks.total,
             },
-            _type: ModelType::Playlist,
-            uri: self.uri.clone(),
         }
     }
 
@@ -154,14 +145,10 @@ impl ToSimple for FullPlaylist {
             owner: self.owner,
             public: self.public,
             snapshot_id: self.snapshot_id,
-            tracks: {
-                let mut map = HashMap::new();
-                map.insert("href".to_owned(), Value::String(String::new()));
-                map.insert("total".to_owned(), Value::Number(self.tracks.total.into()));
-                map
+            tracks: PlaylistTracksRef {
+                href: String::new(),
+                total: self.tracks.total,
             },
-            _type: ModelType::Playlist,
-            uri: self.uri,
         }
     }
 }
@@ -172,7 +159,7 @@ impl HasDuration for FullPlaylist {
             .items
             .iter()
             .flat_map(|track| track.track.as_ref())
-            .map(|track| track.duration_ms)
+            .map(|track| track.duration())
             .sum()
     }
 
@@ -195,7 +182,7 @@ impl ToFull for SimplifiedPlaylist {
     fn to_full(&self) -> Self::Full {
         FullPlaylist {
             collaborative: self.collaborative,
-            description: String::new(),
+            description: None,
             external_urls: self.external_urls.clone(),
             followers: Followers { total: 0 },
             href: self.href.clone(),
@@ -206,15 +193,13 @@ impl ToFull for SimplifiedPlaylist {
             public: self.public,
             snapshot_id: self.snapshot_id.clone(),
             tracks: Page::empty(),
-            _type: ModelType::Playlist,
-            uri: self.uri.clone(),
         }
     }
 
     fn into_full(self) -> Self::Full {
         FullPlaylist {
             collaborative: self.collaborative,
-            description: String::new(),
+            description: None,
             external_urls: self.external_urls,
             followers: Followers { total: 0 },
             href: self.href,
@@ -225,8 +210,6 @@ impl ToFull for SimplifiedPlaylist {
             public: self.public,
             snapshot_id: self.snapshot_id,
             tracks: Page::empty(),
-            _type: ModelType::Playlist,
-            uri: self.uri,
         }
     }
 }
@@ -241,7 +224,7 @@ impl Merge for FullPlaylist {
                 total: self.followers.total.merge(other.followers.total),
             },
             href: self.href.merge(other.href),
-            id: self.id.merge(other.id),
+            id: self.id,
             images: self.images.merge(other.images),
             name: self.name.merge(other.name),
             owner: PublicUser {
@@ -249,16 +232,12 @@ impl Merge for FullPlaylist {
                 external_urls: self.owner.external_urls.merge(other.owner.external_urls),
                 followers: self.owner.followers.merge(other.owner.followers),
                 href: self.owner.href.merge(other.owner.href),
-                id: self.owner.id.merge(other.owner.id),
+                id: self.owner.id,
                 images: self.owner.images.merge(other.owner.images),
-                _type: ModelType::User,
-                uri: self.owner.uri.merge(other.owner.uri),
             },
             public: self.public.merge(other.public),
             snapshot_id: self.snapshot_id.merge(other.snapshot_id),
             tracks: self.tracks.merge(other.tracks),
-            _type: ModelType::Playlist,
-            uri: self.uri.merge(other.uri),
         }
     }
 }

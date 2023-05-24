@@ -21,7 +21,7 @@ impl<Loader: ContainerLoader> TrackList<Loader> {
 
         rows.into_iter()
             .filter_map(|path| model.get_iter(&path))
-            .filter_map(|pos| model.get_value(&pos, COL_TRACK_URI as i32).get::<String>().ok().flatten())
+            .filter_map(|pos| model.get_value(&pos, COL_TRACK_ID as i32).get::<String>().ok().flatten())
             .collect::<Vec<_>>()
     }
 }

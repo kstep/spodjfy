@@ -6,7 +6,7 @@ use crate::{
 use gtk::{self, BoxExt, ButtonExt, EntryExt, FrameExt, GridExt, LabelExt, LinkButtonExt, SwitchExt, WidgetExt};
 use relm::{EventStream, Relm, Widget};
 use relm_derive::{widget, Msg};
-use rspotify::client::ClientError;
+use rspotify::ClientError;
 use tokio::runtime::Handle;
 
 #[derive(Msg)]

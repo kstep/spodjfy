@@ -55,7 +55,7 @@ where
             if let Some((uri, name)) = view.get_model().and_then(|model| {
                 model.get_iter(path).and_then(|pos| {
                     model
-                        .get_value(&pos, COL_ALBUM_URI as i32)
+                        .get_value(&pos, COL_ALBUM_ID as i32)
                         .get::<String>()
                         .ok()
                         .flatten()

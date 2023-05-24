@@ -5,7 +5,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use rspotify::{
-    client::ClientResult,
+    ClientResult,
     model::{Category, Page},
 };
 

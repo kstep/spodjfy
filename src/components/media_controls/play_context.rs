@@ -1,4 +1,4 @@
-use crate::models::HasDuration;
+use crate::models::{ArtistLike, HasDuration};
 use itertools::Itertools;
 use rspotify::model::{FullAlbum, FullArtist, FullPlaylist, FullShow, Image, PublicUser, Type};
 use std::{borrow::Cow, ops::Deref};
@@ -33,13 +33,13 @@ impl From<PublicUser> for PlayContext {
 }
 
 impl PlayContext {
-    pub fn uri(&self) -> &str {
+    pub fn id(&self) -> &str {
         match self {
-            PlayContext::Album(ctx) => &*ctx.uri,
-            PlayContext::Artist(ctx) => &*ctx.uri,
-            PlayContext::Playlist(ctx) => &*ctx.uri,
-            PlayContext::Show(ctx) => &*ctx.uri,
-            PlayContext::User(ctx) => &*ctx.uri,
+            PlayContext::Album(ctx) => ctx.id(),
+            PlayContext::Artist(ctx) => ctx.id(),
+            PlayContext::Playlist(ctx) => ctx.id(),
+            PlayContext::Show(ctx) => ctx.id(),
+            PlayContext::User(ctx) => ctx.id(),
         }
     }
 

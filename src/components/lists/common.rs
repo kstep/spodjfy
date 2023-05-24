@@ -15,8 +15,11 @@ use gtk::{
 };
 use relm::{EventStream, Relm, Update, Widget};
 use relm_derive::Msg;
-use rspotify::client::ClientError;
 use std::{convert::TryInto, fmt::Debug, marker::PhantomData};
+use reqwest::header::HeaderValue;
+use reqwest::StatusCode;
+use rspotify::ClientError;
+use rspotify::http::HttpError;
 use tokio::runtime::Handle;
 
 #[derive(Msg)]
@@ -137,25 +140,45 @@ impl<L, V, H, M: 'static> Spawn for ContainerList<L, V, H, M> {
 
     fn retry_policy(error: SpawnError, retry_count: usize) -> RetryPolicy<SpawnError> {
         match error {
-            SpawnError::Spotify(ClientError::InvalidAuth(msg)) => {
-                let _ = broadcast(AppEvent::SpotifyAuthError(msg));
-                RetryPolicy::WaitRetry(Duration::from_secs(30))
+            error @ SpawnError::Spotify(ClientError::Http(boxed)) => {
+                let resp = match &*boxed {
+                    HttpError::StatusCode(resp) => resp,
+                    HttpError::Client(_) => {
+                        return RetryPolicy::ForwardError(error);
+                    }
+                };
+                match resp.status() {
+                    StatusCode::UNAUTHORIZED => {
+                        let _ = broadcast(AppEvent::SpotifyAuthError("auth error".into()));
+                        RetryPolicy::WaitRetry(Duration::from_secs(30))
+                    }
+                    StatusCode::TOO_MANY_REQUESTS => {
+                        let timeout = resp.headers()
+                            .get("Retry-After")
+                            .map(HeaderValue::to_str)
+                            .and_then(Result::ok)
+                            .map(str::parse::<u64>)
+                            .and_then(Result::ok)
+                            .unwrap_or(4u64);
+
+                        if retry_count < 10 {
+                            RetryPolicy::WaitRetry(Duration::from_secs(timeout))
+                        } else {
+                            error!("aborting after {} retries...", retry_count);
+                            let _ = broadcast(AppEvent::SpotifyError(format!(
+                                "Rate limit exceeded, requests stopped after {} retries",
+                                retry_count
+                            )));
+                            RetryPolicy::ForwardError(error)
+                        }
+                    }
+                    _ => RetryPolicy::ForwardError(error)
+                }
             }
-            SpawnError::Spotify(ClientError::RateLimited(timeout)) if retry_count < 10 => {
-                RetryPolicy::WaitRetry(Duration::from_secs(timeout.unwrap_or(4) as u64 + 1))
-            }
-            SpawnError::Spotify(ClientError::RateLimited(_)) => {
-                error!("aborting after {} retries...", retry_count);
-                let _ = broadcast(AppEvent::SpotifyError(format!(
-                    "Rate limit exceeded, requests stopped after {} retries",
-                    retry_count
-                )));
+            error @ SpawnError::Spotify(client) => {
+                error!("spotify error: {}", client);
+                let _ = broadcast(AppEvent::SpotifyError(client.to_string()));
                 RetryPolicy::ForwardError(error)
-            }
-            SpawnError::Spotify(error) => {
-                error!("spotify error: {}", error);
-                let _ = broadcast(AppEvent::SpotifyError(error.to_string()));
-                RetryPolicy::ForwardError(SpawnError::Spotify(error))
             }
             error => RetryPolicy::ForwardError(error),
         }

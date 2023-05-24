@@ -1,6 +1,6 @@
 use crate::{models::PageLike, utils::AsyncCell, Spotify};
 use async_trait::async_trait;
-use rspotify::client::ClientResult;
+use rspotify::ClientResult;
 
 #[async_trait]
 

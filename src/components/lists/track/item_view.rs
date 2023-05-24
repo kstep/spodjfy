@@ -356,7 +356,7 @@ where
                 if let Some(track_uri) = tree.get_model().and_then(|store| {
                     store
                         .get_iter(path)
-                        .and_then(|pos| store.get_value(&pos, COL_TRACK_URI as i32).get::<String>().ok().flatten())
+                        .and_then(|pos| store.get_value(&pos, COL_TRACK_ID as i32).get::<String>().ok().flatten())
                 }) {
                     stream.emit(TrackMsg::PlayTracks(vec![track_uri]));
                 }

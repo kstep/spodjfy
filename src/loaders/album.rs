@@ -4,10 +4,8 @@ use crate::{
     utils::AsyncCell,
 };
 use async_trait::async_trait;
-use rspotify::{
-    client::ClientResult,
-    model::{Page, SavedAlbum, SimplifiedAlbum},
-};
+use rspotify::{ClientResult, model::{Page, SavedAlbum, SimplifiedAlbum}};
+use rspotify::model::ArtistId;
 
 const NAME: &str = "albums";
 
@@ -63,7 +61,7 @@ where
 
 #[derive(Clone)]
 pub struct ArtistLoader {
-    uri: String,
+    id: ArtistId,
 }
 
 #[async_trait]
@@ -73,15 +71,15 @@ where
 {
     type Item = SimplifiedAlbum;
     type Page = Page<Self::Item>;
-    type ParentId = String;
+    type ParentId = ArtistId;
 
     const NAME: &'static str = "artist's albums";
 
-    fn new(uri: Self::ParentId) -> Self { ArtistLoader { uri } }
+    fn new(id: Self::ParentId) -> Self { ArtistLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.uri }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
-        spotify.read().await.get_artist_albums(&self.uri, offset, 20).await
+        spotify.read().await.get_artist_albums(&self.id, offset, 20).await
     }
 }

@@ -1,11 +1,11 @@
-use crate::models::{COL_ITEM_NAME, COL_ITEM_URI};
+use crate::models::{COL_ITEM_NAME, COL_ITEM_ID};
 use glib::{
     bitflags::_core::{future::Future, time::Duration},
     MainContext,
 };
 use gtk::TreeModelExt;
-use rspotify::client::ClientError;
 use std::sync::Arc;
+use rspotify::ClientError;
 use thiserror::Error;
 use tokio::{runtime::Handle, sync::RwLock, task::JoinError};
 
@@ -46,7 +46,7 @@ pub fn rate_to_stars(rate: u32) -> String {
 pub fn extract_uri_name(model: &gtk::TreeModel, path: &gtk::TreePath) -> Option<(String, String)> {
     model.get_iter(path).and_then(|pos| {
         model
-            .get_value(&pos, COL_ITEM_URI as i32)
+            .get_value(&pos, COL_ITEM_ID as i32)
             .get::<String>()
             .ok()
             .flatten()

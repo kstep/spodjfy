@@ -7,7 +7,7 @@ use crate::{
     utils::AsyncCell,
 };
 use async_trait::async_trait;
-use rspotify::{client::ClientResult, model::*};
+use rspotify::{ClientResult, model::*};
 use serde_json::{Map, Value};
 
 const NAME: &str = "tracks";
@@ -254,7 +254,7 @@ where
 
 #[derive(Clone)]
 pub struct AlbumLoader {
-    uri: String,
+    id: AlbumId,
 }
 
 #[async_trait]
@@ -264,22 +264,22 @@ where
 {
     type Item = SimplifiedTrack;
     type Page = Page<Self::Item>;
-    type ParentId = String;
+    type ParentId = AlbumId;
 
     const NAME: &'static str = "album tracks";
 
-    fn new(uri: Self::ParentId) -> Self { AlbumLoader { uri } }
+    fn new(id: Self::ParentId) -> Self { AlbumLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.uri }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
-        spotify.read().await.get_album_tracks(&self.uri, offset, 10).await
+        spotify.read().await.get_album_tracks(&self.id, offset, 10).await
     }
 }
 
 #[derive(Clone)]
 pub struct PlaylistLoader {
-    uri: String,
+    id: PlaylistId,
 }
 
 #[async_trait]
@@ -289,14 +289,14 @@ where
 {
     type Item = PlaylistItem;
     type Page = Page<Self::Item>;
-    type ParentId = String;
+    type ParentId = PlaylistId;
 
-    fn new(uri: Self::ParentId) -> Self { PlaylistLoader { uri } }
+    fn new(id: Self::ParentId) -> Self { PlaylistLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.uri }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
-        spotify.read().await.get_playlist_tracks(&self.uri, offset, 10).await
+        spotify.read().await.get_playlist_tracks(&self.id, offset, 10).await
     }
 }
 
@@ -327,7 +327,7 @@ where
 
 #[derive(Clone)]
 pub struct ShowLoader {
-    uri: String,
+    id: ShowId,
 }
 
 #[async_trait]
@@ -337,22 +337,22 @@ where
 {
     type Item = SimplifiedEpisode;
     type Page = Page<Self::Item>;
-    type ParentId = String;
+    type ParentId = ShowId;
 
     const NAME: &'static str = "episodes";
 
-    fn new(uri: Self::ParentId) -> Self { ShowLoader { uri } }
+    fn new(id: Self::ParentId) -> Self { ShowLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.uri }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     async fn load_page(self, spotify: AsyncCell<Client>, offset: u32) -> ClientResult<Self::Page> {
-        spotify.read().await.get_show_episodes(&self.uri, offset, 10).await
+        spotify.read().await.get_show_episodes(&self.id, offset, 10).await
     }
 }
 
 #[derive(Clone)]
 pub struct ArtistTopTracksLoader {
-    artist_id: String,
+    id: ArtistId,
 }
 
 #[async_trait]
@@ -362,16 +362,16 @@ where
 {
     type Item = FullTrack;
     type Page = Vec<Self::Item>;
-    type ParentId = String;
+    type ParentId = ArtistId;
 
     const NAME: &'static str = "artist's top tracks";
 
-    fn new(artist_id: Self::ParentId) -> Self { ArtistTopTracksLoader { artist_id } }
+    fn new(id: Self::ParentId) -> Self { ArtistTopTracksLoader { id } }
 
-    fn parent_id(&self) -> &Self::ParentId { &self.artist_id }
+    fn parent_id(&self) -> &Self::ParentId { &self.id }
 
     #[allow(clippy::unit_arg)]
     async fn load_page(self, spotify: AsyncCell<Client>, _offset: ()) -> ClientResult<Self::Page> {
-        spotify.read().await.get_artist_top_tracks(&self.artist_id).await
+        spotify.read().await.get_artist_top_tracks(&self.id).await
     }
 }

@@ -14,15 +14,16 @@ pub mod tracks;
 
 use crate::{components::lists::TrackMsg, loaders::ContainerLoader, services::SpotifyRef};
 use relm_derive::Msg;
-use rspotify::model::Type;
+use rspotify::model::{AlbumId, ArtistId, PlayContextId, TrackId, Type};
 use tokio::runtime::Handle;
 
 #[derive(Msg)]
 pub enum MusicTabMsg {
     ShowTab,
-    OpenContainer(u8, String, String),
-    GoToTrack(String),
-    GoTo(Type, String, String),
+    OpenContainer(u8, Box<dyn PlayContextId>, String),
+    GoToTrack(TrackId),
+    GoToArtist(ArtistId, String),
+    GoToAlbum(AlbumId, String),
     PlaybackUpdate,
 }
 
@@ -65,8 +66,8 @@ impl<Loader: ContainerLoader> Fn<(&TrackMsg<Loader>,)> for TracksObserver {
 
         match msg {
             TrackMsg::PlayingNewTrack => self.upstream.emit(MusicTabMsg::PlaybackUpdate),
-            TrackMsg::GoToArtist(uri, name) => self.upstream.emit(MusicTabMsg::GoTo(Type::Artist, uri.clone(), name.clone())),
-            TrackMsg::GoToAlbum(uri, name) => self.upstream.emit(MusicTabMsg::GoTo(Type::Album, uri.clone(), name.clone())),
+            TrackMsg::GoToArtist(id, name) => self.upstream.emit(MusicTabMsg::GoToArtist(id, name.clone())),
+            TrackMsg::GoToAlbum(id, name) => self.upstream.emit(MusicTabMsg::GoToAlbum(id, name.clone())),
             _ => {}
         }
     }

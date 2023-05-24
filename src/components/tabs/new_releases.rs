@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::{
     components::{
         lists::{AlbumList, ContainerMsg, TrackList, TrackMsg},
@@ -8,6 +9,7 @@ use crate::{
 use gtk::prelude::*;
 use relm::{Relm, Widget};
 use relm_derive::widget;
+use rspotify::model::{AlbumId, TrackId};
 
 #[widget]
 impl Widget for NewReleasesTab {
@@ -40,14 +42,16 @@ impl Widget for NewReleasesTab {
             ShowTab => {
                 self.albums_view.emit(ContainerMsg::Load(()));
             }
-            OpenContainer(0, uri, name) => {
-                self.tracks_view.emit(ContainerMsg::Load(uri).into());
+            OpenContainer(0, id, name) => {
+                if let Ok(id) = (id as Box<dyn Any>).downcast::<AlbumId>() {
+                    self.tracks_view.emit(ContainerMsg::Load(*id).into());
 
-                let album_widget = self.tracks_view.widget();
+                    let album_widget = self.tracks_view.widget();
 
-                self.stack.set_child_title(album_widget, Some(&name));
+                    self.stack.set_child_title(album_widget, Some(&name));
 
-                self.stack.set_visible_child(album_widget);
+                    self.stack.set_visible_child(album_widget);
+                }
             }
             GoToTrack(uri) => {
                 self.tracks_view.emit(TrackMsg::GoToTrack(uri));

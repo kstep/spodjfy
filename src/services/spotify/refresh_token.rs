@@ -1,6 +1,6 @@
 use crate::services::spotify::SpotifyRef;
 use futures::TryFutureExt;
-use rspotify::client::ClientError;
+use rspotify::ClientError;
 use std::time::Duration;
 use tokio::{runtime::Runtime, task::JoinHandle};
 

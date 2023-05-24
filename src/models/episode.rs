@@ -2,8 +2,6 @@ use crate::models::{common::*, track::constants::*, TrackLike};
 use rspotify::model::{DatePrecision, FullEpisode, Image, SimplifiedEpisode, SimplifiedShow, Type as ModelType};
 
 impl TrackLike for FullEpisode {
-    fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> Option<&str> { Some(&self.description) }
 
     fn is_playable(&self) -> bool { self.is_playable }
@@ -13,8 +11,8 @@ impl TrackLike for FullEpisode {
     fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 
-impl HasUri for FullEpisode {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for FullEpisode {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for FullEpisode {
@@ -45,8 +43,6 @@ impl MissingColumns for FullEpisode {
 }
 
 impl TrackLike for SimplifiedEpisode {
-    fn id(&self) -> &str { &self.id }
-
     fn description(&self) -> Option<&str> { Some(&self.description) }
 
     fn is_playable(&self) -> bool { self.is_playable }
@@ -56,8 +52,8 @@ impl TrackLike for SimplifiedEpisode {
     fn release_date(&self) -> Option<&str> { Some(&self.release_date) }
 }
 
-impl HasUri for SimplifiedEpisode {
-    fn uri(&self) -> &str { &self.uri }
+impl HasId for SimplifiedEpisode {
+    fn id(&self) -> &str { self.id.as_ref() }
 }
 
 impl HasName for SimplifiedEpisode {
@@ -65,7 +61,7 @@ impl HasName for SimplifiedEpisode {
 }
 
 impl HasDuration for SimplifiedEpisode {
-    fn duration(&self) -> u32 { self.duration_ms }
+    fn duration(&self) -> u32 { self.duration.as_millis() as _ }
 }
 
 impl HasImages for SimplifiedEpisode {

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 
@@ -50,10 +52,14 @@ impl Scope {
         }
     }
 
+    pub fn hashify(scopes: &[Scope]) -> HashSet<String> {
+        scopes.iter().map(Scope::as_str).map(ToOwned::to_owned).collect()
+    }
+
     pub fn stringify(scopes: &[Scope]) -> String {
         let mut value = scopes
             .iter()
-            .map(|scope| scope.as_str())
+            .map(Scope::as_str)
             .fold(String::new(), |acc, sc| acc + sc + " ");
 
         let _ = value.pop();
